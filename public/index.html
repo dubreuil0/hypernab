@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="tr" data-appearance="compact" data-text-size="normal">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/reorder.css"><link rel="stylesheet" href="/compact.css"><link rel="stylesheet" href="/theme.css"><script src="/appearance.js"></script></head>
+<body>
+  <!-- One icon set for the whole app: 24px grid, 1.8px rounded strokes (filled where a solid shape reads better). -->
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-grip" viewBox="0 0 24 24"><g class="solid"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></g></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect class="solid" x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect class="solid" x="13.9" y="5" width="3.6" height="14" rx="1.2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path class="solid" d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.1-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect class="solid" x="6.5" y="6.5" width="11" height="11" rx="2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.9 12.2a1 1 0 0 0 1 .8h7.2a1 1 0 0 0 1-.8L17.5 7M10 11v5.5M14 11v5.5"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h3.8l2 2h7.2a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M6.5 14.5 12 9l5.5 5.5"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6.5 9.5 12 15l5.5-5.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-later" viewBox="0 0 24 24"><path d="M4 6.5h11M4 12h11M4 17.5h6.5M18 14.5v6M15 17.5h6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5.5M11 6l-6 6 6 6"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.5 13.5a3.8 3.8 0 0 0 5.4 0l3-3a3.8 3.8 0 0 0-5.4-5.4l-1.1 1.1M13.5 10.5a3.8 3.8 0 0 0-5.4 0l-3 3a3.8 3.8 0 0 0 5.4 5.4l1.1-1.1"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 5.5V5a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 5v8A1.5 1.5 0 0 0 6 14.5h.5"/></symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24"><path class="solid" d="M13.2 2.8 5.5 13.1a.6.6 0 0 0 .5 1h5l-1 7.1 7.7-10.3a.6.6 0 0 0-.5-1h-5z"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 9.5v4M12 17h.01M10.4 4.2 2.9 17.5A1.8 1.8 0 0 0 4.5 20.2h15a1.8 1.8 0 0 0 1.6-2.7L13.6 4.2a1.8 1.8 0 0 0-3.2 0z"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path class="solid" d="M10.2 9.4v5.2a.5.5 0 0 0 .76.43l4.1-2.6a.5.5 0 0 0 0-.86l-4.1-2.6a.5.5 0 0 0-.76.43z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3.5v8M6.8 6.8a7.4 7.4 0 1 0 10.4 0"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 3.5v4M15 3.5v4M6.5 7.5h11V11a5.5 5.5 0 0 1-11 0zM12 16.5v4"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4.5 16.5a7.5 7.5 0 1 1 15 0M12 16.5l3.5-5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="11.5" rx="2"/><path d="M9 20h6M12 16v4"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7.5 10l4.5 4.5 4.5-4.5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 6.7M4 5v6h6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><g class="solid"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></g></symbol>
+    <symbol id="i-columns" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4.5 9.5v-5h5M19.5 9.5v-5h-5M4.5 14.5v5h5M19.5 14.5v5h-5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 24 24"><path d="M12 5v14M7 14l5 5 5-5"/></symbol>
+  </svg>
+
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Hypernab"><img src="/icon.svg" alt=""><span>Hypernab</span></a>
+      <nav class="segmented" id="tabs" aria-label="Görünüm">
+        <button class="seg active" data-filter="all">Tümü <b id="nav-count">0</b></button>
+        <button class="seg" data-filter="running">Devam eden</button>
+        <button class="seg" data-filter="completed">Biten</button>
+        <button class="seg" data-filter="failed">Dikkat</button>
+      </nav>
+      <div class="topbar-end">
+        <span class="conn" id="connection"><i></i><span>Bağlanıyor</span></span>
+        <button class="btn icon-only ghost" id="focus-toggle" title="Odak görünümü (bağlantı alanını gizle)" aria-label="Odak görünümü" aria-pressed="false"><svg class="ic"><use href="#i-expand"/></svg></button>
+        <button class="btn icon-only ghost" id="open-settings" title="Ayarlar" aria-label="Ayarlar"><svg class="ic"><use href="#i-settings"/></svg></button>
+        <button class="btn icon-only ghost" id="open-history" title="İndirme geçmişi" aria-label="İndirme geçmişi" aria-pressed="false"><svg class="ic"><use href="#i-clock"/></svg></button>
+      </div>
+    </header>
+
+    <main id="view-downloads">
+      <section class="stats" aria-label="İndirme özeti">
+        <div class="stat"><span class="stat-label">Aktif</span><strong id="stat-active">0</strong></div>
+        <div class="stat"><span class="stat-label">Toplam hız</span><strong id="stat-speed">0 <small>B/sn</small></strong></div>
+        <div class="stat"><span class="stat-label">Biten</span><strong id="stat-complete">0</strong></div>
+      </section>
+
+      <section class="composer card">
+        <form id="download-form">
+          <label class="sr-only" for="url">Video veya dosya bağlantısı</label>
+          <div class="url-row">
+            <svg class="ic muted"><use href="#i-link"/></svg>
+            <input id="url" type="url" placeholder="Video sayfasını veya medya bağlantısını yapıştır" required autocomplete="off">
+            <button class="btn primary" id="add-button" type="submit"><span>Kaliteleri getir</span></button>
+          </div>
+          <details class="more"><summary><svg class="ic sm"><use href="#i-chevron"/></svg>Seçenekler</summary>
+            <div class="more-grid">
+              <label class="field"><span>Motor</span><span class="select"><select id="engine"><option value="extractor">Otomatik (site / akış)</option><option value="direct">Doğrudan dosya</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
+              <label class="field grow"><span>Dosya adı</span><input class="input" id="title" placeholder="İsteğe bağlı" maxlength="100"></label>
+              <label class="check"><input type="checkbox" id="deep-verify"><span>Bu indirmede derin doğrulama yap (yavaş)</span></label>
+              <label class="field grow"><span>Beklenen SHA-256</span><input class="input mono" id="expected-sha256" type="text" maxlength="64" autocomplete="off" spellcheck="false" placeholder="İsteğe bağlı, 64 karakter"></label>
+            </div>
+          </details>
+        </form>
+        <section id="preview" class="preview" hidden>
+          <div class="preview-head"><span class="tile"><svg class="ic"><use href="#i-video"/></svg></span><div><h3 id="preview-title"></h3><p id="preview-facts"></p></div></div>
+          <div id="quality-picker" hidden><label class="field"><span>Kalite <small id="quality-count"></small></span><span class="select wide"><select id="format"></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label><p id="format-details" class="hint" aria-live="polite"></p></div>
+          <p id="quality-note" class="hint" hidden></p><p id="preview-warning" class="warn-text"></p>
+          <div class="row-actions">
+            <button id="confirm-download" class="btn primary"><svg class="ic"><use href="#i-download"/></svg><span>İndir</span></button>
+            <button id="queue-download" class="btn"><svg class="ic"><use href="#i-later"/></svg><span>Sonra ekle</span></button>
+            <button id="close-preview" class="btn ghost">Vazgeç</button>
+          </div>
+        </section>
+        <section id="playlist" class="preview" hidden aria-label="Liste">
+          <div class="preview-head"><span class="tile"><svg class="ic"><use href="#i-list"/></svg></span><div><h3 id="playlist-title"></h3><p id="playlist-facts"></p></div></div>
+          <label class="check"><input type="checkbox" id="playlist-all"><span>Tümünü seç</span></label>
+          <div id="playlist-items" class="playlist-items" role="group" aria-label="Bölümler"></div>
+          <p class="hint">Seçilenler “Sonra ekle” gibi sıraya girer; ad “Dizi - S01E03 - Başlık” biçiminde düzenlenir. Kuyruğu başlatınca sırayla iner.</p>
+          <div class="row-actions">
+            <button id="playlist-add" class="btn primary"><svg class="ic"><use href="#i-later"/></svg><span>Seçilenleri sıraya ekle</span></button>
+            <button id="playlist-close" class="btn ghost"><svg class="ic"><use href="#i-x"/></svg><span>Vazgeç</span></button>
+          </div>
+        </section>
+        <div id="message" role="status" aria-live="polite"></div>
+      </section>
+
+      <section class="queue" aria-label="İndirmeler">
+        <div class="queue-head">
+          <h2>İndirmeler <span class="count" id="queue-count">0</span></h2>
+          <div class="toolbar">
+            <button class="btn sm" id="pause-all" title="Aktif ve başlamak üzere olan indirmeleri duraklatır"><svg class="ic"><use href="#i-pause"/></svg><span>Tümünü duraklat</span></button>
+            <button class="btn sm" id="resume-all" title="Duraklatılmış tüm indirmeleri sürdürür"><svg class="ic"><use href="#i-play"/></svg><span>Tümünü sürdür</span></button>
+            <button class="btn sm ghost" id="clear-queue" title="Biten ve iptal edilen kayıtları listeden kaldırır; dosyalar silinmez"><svg class="ic"><use href="#i-trash"/></svg><span>Listeyi temizle</span></button>
+          </div>
+        </div>
+        <div class="queue-bar card flat" role="group" aria-label="Sıra">
+          <span class="queue-state"><svg class="ic muted"><use href="#i-list"/></svg><span id="queue-run-state">Sıra boş</span></span>
+          <label class="field inline"><span>Aynı anda</span><span class="select"><select id="queue-limit"><option value="all">Hepsi</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
+          <button id="queue-toggle" class="btn sm"><svg class="ic"><use href="#i-play"/></svg><span>Kuyruğu başlat</span></button>
+        </div>
+        <div class="select-bar" role="group" aria-label="Seçim">
+          <label class="check"><input type="checkbox" id="select-all" aria-label="Bu görünümdeki tümünü seç"><span>Tümünü seç</span></label>
+          <span id="selected-count" class="muted-text" aria-live="polite"></span>
+          <div class="toolbar" id="selection-actions">
+            <button class="btn sm" id="pause-selected"><svg class="ic"><use href="#i-pause"/></svg><span>Duraklat</span></button>
+            <button class="btn sm" id="resume-selected"><svg class="ic"><use href="#i-play"/></svg><span>Sürdür</span></button>
+            <button class="btn sm danger" id="cancel-selected"><svg class="ic"><use href="#i-x"/></svg><span>İptal</span></button>
+            <button class="btn sm ghost" id="clear-selected"><svg class="ic"><use href="#i-trash"/></svg><span>Listeden kaldır</span></button>
+            <button class="btn sm ghost" id="deselect-all">Seçimi kaldır</button>
+          </div>
+        </div>
+        <p id="queue-message" role="status" aria-live="polite"></p>
+        <div id="automation-bar" class="notice" hidden><svg class="ic"><use href="#i-clock"/></svg><span id="automation-status"></span><button class="btn sm ghost" id="cancel-power" hidden>Bitiş işlemini iptal et</button></div>
+        <div class="list-tools" role="group" aria-label="Liste araçları">
+          <label class="list-search"><svg class="ic sm"><use href="#i-search"/></svg><input id="list-search" type="search" placeholder="Ara: ad veya site (Ctrl+F)" aria-label="İndirmelerde ara" autocomplete="off" maxlength="100"></label>
+          <label class="field inline"><span>Sırala</span><span class="select"><select id="list-sort" aria-label="Görsel sıralama">
+            <option value="queue">Kuyruk sırası</option><option value="name">Ad</option><option value="size">Boyut</option><option value="status">Durum</option><option value="date">Eklenme</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
+          <button class="btn sm ghost" id="sort-direction" title="Sıralama yönü" aria-label="Sıralama yönü: artan" hidden><svg class="ic"><use href="#i-sort"/></svg></button>
+          <button class="btn sm ghost" id="sort-reset" hidden><svg class="ic"><use href="#i-list"/></svg><span>Kuyruk sırasına dön</span></button>
+          <details class="layout-menu" id="layout-menu"><summary class="btn sm ghost" title="Sütunlar ve düzen" aria-label="Sütunlar ve düzen"><svg class="ic"><use href="#i-columns"/></svg><span>Sütunlar</span></summary>
+            <div class="layout-pop" role="group" aria-label="Sütunlar">
+              <p id="layout-mode" class="hint" aria-live="polite"></p>
+              <label class="check"><input type="checkbox" data-col="size"><span>Boyut / ilerleme</span></label>
+              <label class="check"><input type="checkbox" data-col="speed"><span>Hız</span></label>
+              <label class="check"><input type="checkbox" data-col="eta"><span>Kalan</span></label>
+              <label class="check"><input type="checkbox" data-col="state"><span>Durum</span></label>
+              <button class="btn sm" id="layout-fit" type="button"><svg class="ic"><use href="#i-expand"/></svg><span>Ekrana sığdır</span></button>
+              <button class="btn sm ghost" id="layout-reset" type="button"><svg class="ic"><use href="#i-reset"/></svg><span>Düzeni sıfırla</span></button>
+            </div></details>
+        </div>
+        <p id="list-notice" class="muted-text" role="status" aria-live="polite" hidden></p>
+        <div id="job-list" class="job-list"><div class="job-columns" id="job-columns" role="row" aria-label="Sütun başlıkları"></div>
+        <div id="jobs"></div></div>
+        <p class="foot-hint">Listeden kaldırmak dosyaları silmez.</p>
+      </section>
+    </main>
+
+    <main id="view-history" hidden aria-label="İndirme geçmişi">
+      <div class="settings-head"><button class="btn ghost" id="close-history"><svg class="ic"><use href="#i-back"/></svg><span>İndirmeler</span></button><h1>Geçmiş</h1></div>
+      <p class="hint">Tamamlanan indirmeler liste temizlense bile burada kalır. Dosyalar silinmez veya sürekli taranmaz; taşınmış dosya yalnızca açarken kontrol edilir.</p>
+      <form id="history-form" class="history-toolbar"><label class="sr-only" for="history-search">Geçmişte ad, dosya veya site ara</label><input class="input" type="search" id="history-search" maxlength="200" placeholder="Ad, dosya veya site ara" autocomplete="off"><button class="btn" type="submit"><svg class="ic"><use href="#i-search"/></svg><span>Ara</span></button><button class="btn ghost" type="button" id="history-refresh" title="Geçmişi yenile" aria-label="Geçmişi yenile"><svg class="ic"><use href="#i-reset"/></svg></button></form>
+      <p class="hint" id="history-status" role="status" aria-live="polite"></p>
+      <div id="history-rows" aria-label="Geçmiş kayıtları"></div>
+      <div class="history-pager"><button class="btn" id="history-prev" disabled><svg class="ic"><use href="#i-back"/></svg><span>Önceki</span></button><button class="btn" id="history-next" disabled><svg class="ic"><use href="#i-list"/></svg><span>Sonraki</span></button></div>
+    </main>
+    <section id="view-settings" class="settings" hidden aria-label="Ayarlar">
+      <div class="settings-head"><button class="btn ghost" id="close-settings"><svg class="ic"><use href="#i-back"/></svg><span>İndirmeler</span></button><h1>Ayarlar</h1><span class="saved" id="settings-saved" role="status"></span></div>
+      <div class="settings-layout">
+        <nav class="settings-nav" aria-label="Ayar bölümleri">
+          <a href="#s-appearance"><svg class="ic"><use href="#i-monitor"/></svg>Görünüm</a>
+          <a href="#s-download"><svg class="ic"><use href="#i-download"/></svg>İndirme</a>
+          <a href="#s-speed"><svg class="ic"><use href="#i-gauge"/></svg>Hız ve bağlantı</a>
+          <a href="#s-queue"><svg class="ic"><use href="#i-list"/></svg>Kuyruk ve zamanlama</a>
+          <a href="#s-desktop" id="nav-desktop" hidden><svg class="ic"><use href="#i-monitor"/></svg>Masaüstü</a>
+          <a href="#s-browser"><svg class="ic"><use href="#i-plug"/></svg>Tarayıcı eklentisi</a>
+          <a href="#s-about"><svg class="ic"><use href="#i-info"/></svg>Motorlar ve hakkında</a>
+        </nav>
+        <div class="settings-body">
+          <section class="group" id="s-appearance"><h2>Görünüm</h2>
+            <div class="setting"><div><strong>Yerleşim</strong><p class="hint">Kompakt: sade satırlar ve az boşluk. Normal: geniş kartlar. Çalışan indirmeler etkilenmez.</p></div><div class="setting-control"><span class="select"><select id="set-appearance"><option value="compact">Kompakt (varsayılan)</option><option value="normal">Normal</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Tema</strong><p class="hint">Koyu, açık ya da Windows'un temasına uyar. Anında uygulanır.</p></div><div class="setting-control"><span class="select"><select id="set-theme"><option value="dark">Koyu (varsayılan)</option><option value="light">Açık</option><option value="system">Sistemle aynı</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Vurgu rengi</strong><p class="hint">Düğmelerde, ilerlemede ve seçimlerde kullanılan renk.</p></div><div class="setting-control"><span class="select"><select id="set-accent"><option value="green">Yeşil (varsayılan)</option><option value="blue">Mavi</option><option value="orange">Turuncu</option><option value="violet">Mor</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Yazı boyutu</strong><p class="hint">Yerleşimden bağımsızdır. Seçimin kaydedilir ve hemen uygulanır.</p></div><div class="setting-control"><span class="select"><select id="set-textSize"><option value="small">Küçük</option><option value="normal">Normal</option><option value="large">Büyük</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+          </section>
+          <section class="group" id="s-download"><h2>İndirme</h2>
+            <div class="setting"><div><strong>İndirme klasörü</strong><p id="dir-current" class="mono-text"></p><p class="hint">Yeni indirmeler buraya kaydedilir. Devam eden ve yarım kalan indirmeler kendi klasöründe tamamlanır.</p></div>
+              <div class="setting-control stack"><div class="dir-edit" id="dir-edit"><input class="input mono" id="dir-input" placeholder="Ör. D:\Videolar" spellcheck="false"></div>
+                <div class="toolbar"><button class="btn sm" id="dir-change"><svg class="ic"><use href="#i-folder"/></svg><span>Değiştir</span></button><button class="btn sm ghost" id="open-downloads" hidden>Aç</button><button class="btn sm ghost" id="dir-reset">Varsayılan</button></div></div></div>
+            <div class="setting"><div><strong>Akıllı dosya adı</strong><p class="hint">Yeni indirmelerde temiz ad, bilinen yayın yılı ve doğrulanmış görüntü yüksekliği kullanılır. Eski dosyalar değişmez.</p></div><div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-smartNames"><span></span></label></div></div>
+            <div class="setting"><div><strong>Klasör düzeni</strong><p class="hint">Yalnızca yeni indirmeler. Dizi klasörü toplu eklenen bölümlerde kullanılır; bilgi yoksa ek klasör açılmaz.</p></div><div class="setting-control"><span class="select"><select id="set-folderLayout"><option value="flat">Tek klasör (varsayılan)</option><option value="site">Siteye göre</option><option value="series">Diziye göre</option><option value="site-series">Site / Dizi</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Varsayılan kalite</strong><p class="hint">Kalite listesinde hazır seçili gelen en yüksek görüntü. Daha düşükleri listeden her zaman seçebilirsin.</p></div>
+              <div class="setting-control"><span class="select"><select id="set-maxQuality"><option value="best">En yüksek</option><option value="2160">En fazla 2160p (4K)</option><option value="1440">En fazla 1440p</option><option value="1080">En fazla 1080p</option><option value="720">En fazla 720p</option><option value="480">En fazla 480p</option><option value="360">En fazla 360p</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Uyumlu biçimi tercih et</strong><p class="hint">Aynı kalitede H.264 / MP4 varsa onu seç. AV1 ve VP9 bazı eski cihaz ve programlarda oynamaz.</p></div>
+              <div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-preferCompatible"><span></span></label></div></div>
+            <div class="setting"><div><strong>Altyazılar</strong><p class="hint">Sayfadaki videonun altyazısı otomatik bulunur. Göm: video dosyasının içine (oynatıcıda açılır). Yan dosya: videonun yanına .srt. Videoyu yeniden kodlamaz.</p></div>
+              <div class="setting-control"><span class="select"><select id="set-subtitleMode"><option value="embed">Videoya göm (varsayılan)</option><option value="sidecar">Yan dosya (.srt)</option><option value="off">İndirme</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Her indirmede derin doğrulama</strong><p class="hint">Bitince videoyu baştan sona çözerek hata arar. Güvenli ama yavaştır; FFmpeg gerekir.</p></div>
+              <div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-deepVerifyDefault"><span></span></label></div></div>
+            <div class="setting"><div><strong>Onay pencereleri</strong><p class="hint">“Bir daha sorma” dediğin iptal ve temizleme onaylarını yeniden göster.</p></div>
+              <div class="setting-control"><button class="btn sm" id="reset-confirms">Yeniden sor</button></div></div>
+          </section>
+
+          <section class="group" id="s-speed"><h2>Hız ve bağlantı</h2>
+            <div class="setting"><div><strong>İndirme başına hız sınırı</strong><p class="hint">0 = sınırsız. Yeni başlayan ve sürdürülen indirmelere uygulanır.</p></div>
+              <div class="setting-control"><div class="unit-input"><input class="input" id="speed-limit-mb" type="number" min="0" max="1024" step="0.5" value="0"><span>MB/sn</span></div><button class="btn sm" id="save-speed">Kaydet</button></div></div>
+            <div class="setting"><div><strong>İndirme başına bağlantı</strong><p class="hint">Hızlı yol bir dosyayı bu kadar parçaya bölerek indirir. Çok yüksek değer bazı sitelerde yavaşlatabilir; 8 önerilir.</p></div>
+              <div class="setting-control"><span class="select"><select id="set-maxConnections"></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong>Otomatik yeniden deneme</strong><p class="hint">Geçici bir ağ sorununda indirme sana sorulmadan bu kadar kez yeniden denenir.</p></div>
+              <div class="setting-control"><span class="select"><select id="set-autoRetries"><option value="0">Kapalı</option><option value="1">1 kez</option><option value="2">2 kez</option><option value="3">3 kez</option><option value="4">4 kez</option><option value="5">5 kez</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+          </section>
+
+          <section class="group" id="s-queue"><h2>Kuyruk ve zamanlama</h2>
+            <div class="setting"><div><strong>“Sonra ekle” hedefi</strong><p class="hint">Sonra eklenen indirmeler bu kuyrukta bekler.</p></div>
+              <div class="setting-control stack"><span class="select"><select id="named-queue"></select><svg class="ic sm"><use href="#i-chevron"/></svg></span><div class="toolbar"><input class="input" id="new-queue-name" maxlength="40" placeholder="Yeni kuyruk adı"><button class="btn sm" id="new-queue">Ekle</button></div></div></div>
+            <div class="setting"><div><strong>Zamanlayıcı</strong><p class="hint">Seçili kuyruğu belirlediğin saatte başlatır. Uygulama ve bilgisayar açık olmalı.</p></div>
+              <div class="setting-control stack"><input class="input" id="schedule-at" type="datetime-local"><div class="toolbar"><button class="btn sm" id="save-schedule"><svg class="ic"><use href="#i-clock"/></svg><span>Zamanla</span></button><button class="btn sm ghost" id="cancel-schedule">Kaldır</button></div></div></div>
+            <div class="setting"><div><strong>İndirmeler bitince</strong><p class="hint">Mevcut indirmelerin hepsi başarıyla bitince uygulanır; öncesinde 60 saniye iptal süresi vardır. Hata veya duraklatmada iptal olur.</p></div>
+              <div class="setting-control stack"><span class="select"><select id="power-action"><option value="">Bir şey yapma</option><option value="shutdown">Bilgisayarı kapat</option><option value="sleep">Uykuya al</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span><button class="btn sm" id="arm-power"><svg class="ic"><use href="#i-power"/></svg><span>Uygula</span></button></div></div>
+          </section>
+
+          <section class="group" id="s-desktop" hidden><h2>Masaüstü</h2>
+            <div class="setting"><div><strong>Windows ile başlat</strong><p class="hint">Bilgisayar açılınca Hypernab hazır olur.</p></div><div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="desktop-startup"><span></span></label></div></div>
+            <div class="setting"><div><strong>Açılışta tepside başla</strong><p class="hint">Windows ile başlarken pencere açılmaz, simge tepside bekler.</p></div><div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-startMinimized"><span></span></label></div></div>
+            <div class="setting"><div><strong>Kapatınca tepsiye küçült</strong><p class="hint">Pencereyi kapatmak indirmeleri durdurmaz. Kapalıysa pencereyi kapatmak uygulamadan güvenle çıkar.</p></div><div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-closeToTray"><span></span></label></div></div>
+            <div class="setting"><div><strong>Bildirimler</strong><p class="hint">Bir indirme bitince veya tamamlanamayınca Windows bildirimi göster.</p></div><div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-notifyOnFinish"><span></span></label></div></div>
+            <div class="setting" id="desktop-settings"><div><strong>Tarayıcı bağlantısı</strong><p class="hint">Eklenti uygulamayı bulamıyorsa bağlantı kaydını yeniden kurar.</p></div><div class="setting-control"><button class="btn sm" id="repair-native"><svg class="ic"><use href="#i-plug"/></svg><span>Kur / onar</span></button></div></div>
+          </section>
+
+          <section class="group" id="s-browser"><h2>Tarayıcı eklentisi</h2>
+            <div class="setting"><div><strong>Eşleştirme anahtarı</strong><p class="hint">Eklenti penceresindeki “Bağlantı” bölümüne yapıştır. Kimseyle paylaşma.</p></div><div class="setting-control"><button class="btn sm" id="copy-token"><svg class="ic"><use href="#i-copy"/></svg><span>Kopyala</span></button></div></div>
+            <div class="setting"><div><strong>Firefox’a yükleme</strong><ol class="steps"><li><code>about:debugging#/runtime/this-firefox</code> sayfasını aç.</li><li>“Geçici eklenti yükle” ile <code id="ext-path">build\extensions\firefox\manifest.json</code> dosyasını seç.</li><li>Eklentide anahtarı yapıştırıp Bağlan’a bas, video sayfasını yenile.</li></ol><p class="hint">Chrome, Edge ve Brave’de “Paketlenmemiş öğe yükle” ile <code>build\extensions\chromium</code> klasörünü seç.</p></div>
+              <div class="setting-control"><button class="btn sm ghost" id="open-extensions" hidden><svg class="ic"><use href="#i-folder"/></svg><span>Klasörü aç</span></button></div></div>
+          </section>
+
+          <section class="group" id="s-about"><h2>Motorlar ve hakkında</h2>
+            <div class="setting"><div><strong>Doğrudan dosya</strong><p class="hint">Uygun kaynaklar parçalara bölünerek paralel indirilir.</p></div><div class="setting-control"><span class="badge ok">Hazır</span></div></div>
+            <div class="setting"><div><strong>yt-dlp</strong><p class="hint">Site ve akış çözümleme, yedek indirme.</p></div><div class="setting-control"><span class="badge" id="ytdlp-state">Kontrol ediliyor</span></div></div>
+            <div class="setting"><div><strong>FFmpeg</strong><p class="hint">Ses ve görüntüyü birleştirme, dosya doğrulama.</p></div><div class="setting-control"><span class="badge" id="ffmpeg-state">Kontrol ediliyor</span></div></div>
+            <p class="about">Hypernab <span id="app-version"></span> · Yalnızca indirme iznin olan, DRM’siz içerikler desteklenir.</p>
+          </section>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="row-menu" class="row-menu" role="menu" aria-label="İndirme işlemleri" hidden></div>
+  <dialog id="duplicate-dialog" aria-labelledby="duplicate-title"><h2 id="duplicate-title">Bu indirme zaten listede</h2><p id="duplicate-text"></p><div class="row-actions end"><button class="btn ghost" id="duplicate-cancel"><svg class="ic"><use href="#i-x"/></svg><span>Vazgeç</span></button><button class="btn" id="duplicate-show"><svg class="ic"><use href="#i-list"/></svg><span>Mevcut işi göster</span></button><button class="btn primary" id="duplicate-accept"><svg class="ic"><use href="#i-download"/></svg><span>Yine de yeni kopya indir</span></button></div></dialog>
+  <dialog id="queue-confirm" aria-labelledby="queue-confirm-title"><h2 id="queue-confirm-title"></h2><p id="queue-confirm-text"></p><label class="check"><input type="checkbox" id="queue-confirm-skip"><span>Bir daha sorma</span></label><div class="row-actions end"><button class="btn ghost" id="queue-confirm-cancel">Vazgeç</button><button class="btn primary" id="queue-confirm-accept">Onayla</button></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+{
+  "name": "hypernab",
+  "version": "0.10.24",
+  "private": true,
+  "author": "Hypernab",
+  "description": "Yerel video indirme yöneticisi ve Firefox/Chrome/Edge yakalama eklentisi",
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "desktop": "electron .",
+    "dist": "node scripts/prepare-desktop.js && electron-builder --win nsis --x64 --publish never",
+    "test": "node --test",
+    "check:feedback": "node --check src/hls-size.js && node --check desktop/job-location.cjs && node --check desktop/main.cjs && node --check scripts/desktop-smoke.js && node --check scripts/float-e2e.js",
+    "smoke": "node scripts/network-smoke.js",
+    "smoke:auto": "node scripts/automatic-smoke.js",
+    "smoke:recovery": "node scripts/recovery-smoke.js",
+    "verify-tools": "node scripts/verify-tools.js",
+    "build:extensions": "node scripts/build-extensions.js",
+    "install:native": "node scripts/install-native.js",
+    "uninstall:native": "node scripts/install-native.js --uninstall",
+    "test:browsers:prepare": "node scripts/prepare-browser-tests.js",
+    "benchmark": "node scripts/benchmark.js",
+    "check": "node --check src/server.js && node --check src/downloads.js && node --check src/hls.js && node --check src/hls-download.js && node --check src/submissions.js && node --check src/job-progress.js && node --check src/media.js && node --check src/source-plan.js && node --check src/quality.js && node --check src/sniffer.js && node --check src/session.js && node --check src/network.js && node --check src/transfer.js && node --check src/process.js && node --check extension/core.js && node --check extension/float.js && node --check extension/background.js && node --check extension/content.js && node --check extension/popup.js && node --check scripts/build-extensions.js && node --check public/queue-state.js && node --check public/progress-view.js && node --check public/app.js"
+  },
+  "build": {
+    "appId": "com.hypernab.desktop",
+    "productName": "Hypernab",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/engine",
+        "to": "engine"
+      },
+      {
+        "from": "build/runtime",
+        "to": "runtime"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "desktop/icon.ico",
+      "signExecutable": false,
+      "legalTrademarks": "Hypernab"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": true,
+      "artifactName": "Hypernab-Setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dubreuil0",
+        "repo": "hypernab",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "devDependencies": {
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.11"
+  }
+}

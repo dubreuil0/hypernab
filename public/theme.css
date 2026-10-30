@@ -1,0 +1,33 @@
+/* Theme tokens. Only custom properties and flat colours: no blur, no big shadows, no endless animation, so every PC stays smooth.
+   Switching theme or accent is a single style recalculation. */
+:root { --accent-ink:#142010;--hover:#2a3530;--hover-2:#2c373c;--border-strong:#46534e;--faint:#758581;--field:#101618;--warn-text:#e8b48c;--warn-bg:#2e2a1d;--danger-bg:#392622;--ok-text:#a5c792;--chip:#26302d;--track:#2b3730;--switch-off:#3b4744;--switch-knob:#d0dad5;--shadow:0 8px 20px #0006;--scrim:#0009;
+  --accent-soft:color-mix(in srgb,var(--accent) 16%,var(--panel));--accent-line:color-mix(in srgb,var(--accent) 45%,var(--border));--accent-hover:color-mix(in srgb,var(--accent) 85%,var(--text)); }
+html[data-accent="green"] { --accent:#b6f36b; }
+html[data-accent="blue"] { --accent:#6cb4ff; }
+html[data-accent="orange"] { --accent:#ffb257; }
+html[data-accent="violet"] { --accent:#b69cff; }
+html[data-scheme="light"] { color-scheme:light;--bg:#f3f5f4;--panel:#ffffff;--raised:#eef1ef;--border:#d8dedb;--text:#18201c;--muted:#5b6862;--danger:#b3382b;--accent-ink:#ffffff;--hover:#e5eae7;--hover-2:#dfe5e2;--border-strong:#bdc7c2;--faint:#7b8882;--field:#ffffff;--warn-text:#8f5412;--warn-bg:#fbf1da;--danger-bg:#fde8e5;--ok-text:#2d6a38;--chip:#e6ebe8;--track:#dce3df;--switch-off:#c2cbc6;--switch-knob:#ffffff;--shadow:0 8px 20px #0002;--scrim:#0006; }
+html[data-scheme="light"][data-accent="green"] { --accent:#2d7d34; }
+html[data-scheme="light"][data-accent="blue"] { --accent:#1f6fd1; }
+html[data-scheme="light"][data-accent="orange"] { --accent:#bd5b00; }
+html[data-scheme="light"][data-accent="violet"] { --accent:#6a45d1; }
+.progress rect { fill:var(--accent); }
+/* Long lists stay light: rows that are off screen are not laid out or painted. */
+html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic-size:auto 41px; }
+.btn:focus-visible,button:focus-visible { outline-offset:2px; }
+@media (prefers-reduced-motion:reduce) { * { animation:none!important;transition:none!important; } }
+.playlist-items { max-height:min(320px,40vh);overflow:auto;display:grid;gap:2px;margin:8px 0; }
+.playlist-row { display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer; }
+.playlist-row:hover { background:var(--hover); }
+.playlist-name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+#view-history { min-width:0; }
+html[data-appearance="compact"] #view-history { flex:1;min-height:0;overflow:auto; }
+.history-toolbar { display:flex;gap:8px;flex-wrap:wrap;margin:14px 0; }
+.history-toolbar input { flex:1;min-width:120px; }
+.history-row { display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:4px;background:var(--panel);border-radius:8px;content-visibility:auto;contain-intrinsic-size:auto 80px; }
+.history-info { flex:1;min-width:0; }
+.history-name { display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis; }
+.history-path { overflow-wrap:anywhere; }
+.history-row .hint { margin:4px 0 0; }
+.history-actions,.history-pager { display:flex;gap:4px;flex:none; }
+.history-pager { justify-content:flex-end;margin:12px 0; }

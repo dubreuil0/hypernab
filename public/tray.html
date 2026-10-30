@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="tr" data-scheme="dark" data-accent="green" data-text-size="normal">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab Hızlı Panel</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/tray.css"></head>
+<body>
+  <svg class="sprite" aria-hidden="true">
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect class="solid" x="6.5" y="5" width="3.6" height="14" rx="1.2"/><rect class="solid" x="13.9" y="5" width="3.6" height="14" rx="1.2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path class="solid" d="M8 5.6v12.8a1 1 0 0 0 1.53.85l10.1-6.4a1 1 0 0 0 0-1.7L9.53 4.75A1 1 0 0 0 8 5.6z"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-open" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M10 5H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 6.7M4 5v6h6"/></symbol>
+  </svg>
+  <main class="tray-body">
+    <header class="tray-head"><img src="/icon.svg" alt=""><strong>Hypernab</strong><button class="btn icon-only ghost" id="tray-open" title="Ana pencereyi aç" aria-label="Ana pencereyi aç"><svg class="ic"><use href="#i-open"/></svg></button><button class="btn icon-only ghost" id="tray-close" title="Paneli kapat (Esc)" aria-label="Paneli kapat"><svg class="ic"><use href="#i-x"/></svg></button></header>
+    <section class="tray-summary" aria-label="Aktarım özeti"><span class="hint">Toplam hız</span><strong id="tray-speed">—</strong><p class="hint" id="tray-counts">Bağlanıyor…</p></section>
+    <div class="tray-actions"><button class="btn" id="tray-pause" disabled><svg class="ic"><use href="#i-pause"/></svg><span>Tümünü duraklat</span></button><button class="btn" id="tray-resume" disabled><svg class="ic"><use href="#i-play"/></svg><span>Tümünü sürdür</span></button></div>
+    <section id="tray-rows" aria-label="İndirmeler"></section>
+    <footer><p id="tray-extra" class="hint"></p><p class="hint">Sürdür, “Sonra ekle” kuyruğunu başlatmaz.</p><div class="tray-status-row"><p id="tray-status" class="hint" role="status" aria-live="polite"></p><button class="btn icon-only ghost" id="tray-refresh" title="Durumu yenile" aria-label="Durumu yenile"><svg class="ic"><use href="#i-refresh"/></svg></button></div></footer>
+  </main>
+  <script src="/tray.js"></script>
+</body>
+</html>

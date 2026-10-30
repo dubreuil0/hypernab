@@ -1,0 +1,25 @@
+﻿# Kullanici verisi, indirmeler, ayarlar
+data/
+downloads/
+reports/
+.openchamber/
+# Derleme ve bagimlilik ciktilari
+node_modules/
+build/
+dist/
+# Program dosyalari (kurulum paketiyle gelir, depoya konmaz)
+tools/*.exe
+tools/*.zip
+# Gizli ve gecici dosyalar
+*.log
+*.pem
+*.pfx
+*.p12
+*.key
+.env*
+*.sqlite*
+*.crx
+*.xpi
+
+# Yerel gizlilik terimleri (asla yayinlanmaz)
+.privacy-terms

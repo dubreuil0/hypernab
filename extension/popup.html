@@ -1,0 +1,14 @@
+<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Hypernab</title><link rel="stylesheet" href="popup.css"><link rel="stylesheet" href="preview.css"></head><body>
+<header><img class="logo" src="icons/icon-48.png" alt=""><strong>Hypernab</strong><button id="show-app" title="Masaüstü uygulamasını göster" aria-label="Hypernab uygulamasını göster">↗</button></header>
+<div class="subhead"><span>Bu sayfada</span><button id="refresh">Yenile</button></div><div id="media"></div>
+<button id="send-page" class="page-button">Sayfayı incele ↗</button>
+<section id="preview" class="preview" hidden><h2 id="preview-title"></h2><p id="preview-facts"></p><p id="preview-warning"></p><select id="preview-quality" aria-label="Kalite ve format"></select><p id="format-details"></p><div class="row"><button id="confirm-download">İndir ↓</button><button id="queue-download">Sonra ekle ☰+</button><button id="close-preview">Vazgeç</button></div></section>
+<section id="recovery" class="preview" hidden><strong>Önceki gönderim kontrol edilmeli</strong><p>Yanıt kaybolmuş olabilir. Yeniden kontrol aynı gönderim kimliğini kullanır; ikinci indirme oluşturmaz. Gönderimi bırakmak mevcut işi iptal etmez.</p><div class="row"><button id="retry-submission">Kontrol et / tekrar gönder</button><button id="abandon-submission">Gönderimi bırak</button></div></section>
+<p id="status" role="status" aria-live="polite"></p>
+<div class="subhead"><span>Kuyruk</span><button id="sync-jobs">Yenile</button></div><p id="connection" role="status"></p><section id="jobs"></section>
+<details id="setup"><summary>Bağlantı</summary>
+<section id="settings"><label for="token">Eşleştirme anahtarı</label><div class="row"><input id="token" type="password" placeholder="Anahtarı yapıştır" autocomplete="off"><button id="save">Bağlan</button></div></section>
+<section class="native-controls"><div class="row"><button id="connect-native">Native Messaging</button><button id="launch-app" disabled>Aç</button><button id="close-app" disabled>Kapat</button></div><p id="transport-state"></p></section>
+ <section class="native-controls"><div class="row"><button id="diagnose">Teşhis raporunu kopyala</button><button id="diagnostic-mode">Tüm istekleri tanı için izle</button></div><p id="diagnose-state"></p><textarea id="diagnose-text" rows="6" readonly hidden></textarea></section>
+</details>
+<footer>İndirmeler uygulamada sürer; pencereyi kapatmak durdurmaz. DRM'li içerik desteklenmez.</footer><script src="native-config.js"></script><script src="native.js"></script><script src="core.js"></script><script src="popup.js"></script></body></html>

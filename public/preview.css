@@ -1,0 +1,11 @@
+.download-preview{margin-top:10px;padding:12px 14px;border:1px solid #3d5033;border-radius:8px;background:#171f18}
+.download-preview h3{color:#e6f2df;font-size:13px;margin:0 0 4px;overflow-wrap:anywhere}
+.download-preview>p{color:#a5b69f;font-size:11px;line-height:1.6;margin:4px 0;overflow-wrap:anywhere}
+.download-preview #preview-warning{color:#efb780}
+.download-preview #preview-warning:empty{display:none}
+.preview-actions{display:flex;gap:8px;align-items:center;margin-top:10px}
+#quality-picker{margin:8px 0 4px}
+.quality-label{display:block;font-size:11px;color:#c7ff90;margin-bottom:5px}
+.quality-label small{color:#81958e;margin-left:6px}
+#format{width:100%;max-width:520px;background:#12191b;color:#e6f2df;border:1px solid #43553a;border-radius:6px;padding:7px 9px;font-size:12px}
+#format-details{color:#a5b69f;font-size:11px;line-height:1.6;margin:6px 0 0}
