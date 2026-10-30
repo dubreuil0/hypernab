@@ -176,7 +176,7 @@ function render(force = false) {
     if (job.transfer?.resumeReason) card.append(el('div', 'job-error', job.transfer.resumeReason));
     if (job.verification) {
       const v = job.verification;
-      const description = v.status === 'passed' ? `${v.level === 'bytes' ? v.sizeCompared ? 'Dosya boyutu doğrulandı' : 'Dosya çıktısı kontrol edildi' : v.sizeCompared ? 'Dosya boyutu ve medya yapısı doğrulandı' : 'Medya yapısı doğrulandı'}${v.deep ? ' · Derin tarama tamamlandı' : ''}${v.sha256 ? ' · SHA-256 eşleşti' : ''}`
+      const description = v.status === 'passed' ? `${v.level === 'format' ? `${v.sizeCompared ? 'Dosya boyutu ve ' : 'Dosya '}${v.format} yapısı doğrulandı` : v.level === 'bytes' ? v.sizeCompared ? 'Dosya boyutu doğrulandı' : 'Dosya çıktısı kontrol edildi' : v.sizeCompared ? 'Dosya boyutu ve medya yapısı doğrulandı' : 'Medya yapısı doğrulandı'}${v.deep ? ' · Derin tarama tamamlandı' : ''}${v.sha256 ? ' · SHA-256 eşleşti' : ''}`
         : v.status === 'limited' ? 'Sınırlı doğrulama: medya yapısı kontrol edilemedi.' : v.status === 'failed' ? 'Doğrulama başarısız; dosya tamamlandı sayılmadı.' : v.status === 'paused' ? 'Doğrulama duraklatıldı.' : 'Dosya doğrulaması sürüyor…';
       (['failed', 'limited'].includes(v.status) ? card : details).append(el('div', `job-verification ${v.status}`, description));
     }

@@ -135,6 +135,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/subtitles') return json(res, 200, queue.receiveSubtitle(await body(req)));
     if (req.method === 'POST' && url.pathname === '/api/duplicates') return json(res, 200, { duplicates: queue.findDuplicates(await body(req)) });
     if (req.method === 'POST' && url.pathname === '/api/jobs') { const id = queue.add(await body(req)); return json(res, 201, { id }); }
+    if (req.method === 'POST' && url.pathname === '/api/files/take') return json(res, 200, await queue.takeFile(await body(req, 131072))); // cookies of the one file travel with it
     if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, { ...queue.settings, queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/settings') return json(res, 200, { ...queue.setSettings(await body(req)), queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/queue/start') return json(res, 200, queue.startQueue());
@@ -153,7 +154,7 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 404, { error: 'Bulunamadı.' });
   } catch (error) {
-    return json(res, 400, { error: error.message.replace(/https?:\/\/[^\s]+/g, '[bağlantı]'), ...(error.code === 'SELECTION_EXPIRED' ? { code: error.code } : {}) });
+    return json(res, 400, { error: error.message.replace(/https?:\/\/[^\s]+/g, '[bağlantı]'), ...(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'duplicate' ? { duplicates: error.duplicates } : {}) });
   }
 });
 let inspections = 0;

@@ -2,10 +2,10 @@
   "manifest_version": 3,
   "name": "Hypernab — Video Yakalayıcı",
   "description": "Oynatılan DRM’siz video dosyalarını ve HLS/DASH isteklerini yerel indirme yöneticisine gönderir.",
-  "version": "0.5.13",
-  "permissions": ["webRequest", "storage", "activeTab", "nativeMessaging", "cookies"],
+  "version": "0.6.0",
+  "permissions": ["webRequest", "storage", "activeTab", "nativeMessaging", "cookies", "downloads"],
   "host_permissions": ["http://*/*", "https://*/*"],
-  "background": { "scripts": ["native-config.js", "native.js", "core.js", "background.js", "float.js"] },
+  "background": { "scripts": ["native-config.js", "native.js", "core.js", "background.js", "float.js", "takeover.js"] },
   "content_scripts": [{ "matches": ["http://*/*", "https://*/*"], "js": ["content.js"], "all_frames": true, "run_at": "document_idle" }],
   "browser_specific_settings": {
     "gecko": { "id": "hypernab@local.invalid", "strict_min_version": "128.0" }

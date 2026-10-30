@@ -6,6 +6,10 @@
 <section id="recovery" class="preview" hidden><strong>Önceki gönderim kontrol edilmeli</strong><p>Yanıt kaybolmuş olabilir. Yeniden kontrol aynı gönderim kimliğini kullanır; ikinci indirme oluşturmaz. Gönderimi bırakmak mevcut işi iptal etmez.</p><div class="row"><button id="retry-submission">Kontrol et / tekrar gönder</button><button id="abandon-submission">Gönderimi bırak</button></div></section>
 <p id="status" role="status" aria-live="polite"></p>
 <div class="subhead"><span>Kuyruk</span><button id="sync-jobs">Yenile</button></div><p id="connection" role="status"></p><section id="jobs"></section>
+<details id="takeover-settings"><summary>Dosya indirmelerini yakala</summary>
+<section class="takeover-controls"><label class="inline"><input type="checkbox" id="takeover-enabled"> Tarayıcının dosya indirmelerinde Hypernab'a sor</label>
+<label for="takeover-min">En küçük dosya boyutu</label><select id="takeover-min"><option value="0">Hepsi</option><option value="1048576">1 MB</option><option value="10485760">10 MB</option><option value="104857600">100 MB</option></select>
+<p id="takeover-remembered"></p><div class="row"><button id="takeover-reset">Hatırlanan seçimleri sıfırla</button></div></section></details>
 <details id="setup"><summary>Bağlantı</summary>
 <section id="settings"><label for="token">Eşleştirme anahtarı</label><div class="row"><input id="token" type="password" placeholder="Anahtarı yapıştır" autocomplete="off"><button id="save">Bağlan</button></div></section>
 <section class="native-controls"><div class="row"><button id="connect-native">Native Messaging</button><button id="launch-app" disabled>Aç</button><button id="close-app" disabled>Kapat</button></div><p id="transport-state"></p></section>

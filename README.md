@@ -2,11 +2,12 @@
 
 Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
 
-**Sürüm:** uygulama 0.10.25 · eklenti 0.5.13 · Windows 10/11 (x64)
+**Sürüm:** uygulama 0.11.0 · eklenti 0.6.0 · Windows 10/11 (x64)
 
 ## Özellikler
 
 - **Hızlı indirme:** parçalı ve uyarlanabilir bağlantı sayısıyla indirme, kaldığı yerden devam, hız sınırı.
+- **Genel dosya indirme:** tarayıcının dosya indirmelerini (zip, pdf, iso, program, belge...) Hypernab alabilir. İndirme başlayınca küçük bir pencere sorar: **İndir**, **Sonra ekle**, **Tarayıcı ile indir** veya **İptal**. Dosya gerçek adıyla iner, parçalı hızlandırılır, boyutu ve dosya yapısı (zip, pdf, program, resim...) doğrulanır, Windows'un "internetten indirildi" işareti eklenir.
 - **Tarayıcıdan yakalama:** eklenti, oynattığın videoyu algılar ve sayfada "Hypernab ile indir" düğmesi gösterir. Kalite listesinden seçersin; seçmediğin kaliteye sessizce düşülmez.
 - **Kuyruk:** adlandırılmış kuyruklar, zamanlama, sürükleyerek sıralama, genel eşzamanlılık sınırı, "Sonra ekle".
 - **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir.
@@ -23,6 +24,15 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için me
 1. [Sürümler](../../releases) sayfasından `Hypernab-Setup-<sürüm>.exe` dosyasını indir ve çalıştır.
 2. Kurulum henüz **kod imzalı değildir**; Windows "bilinmeyen yayıncı" uyarısı gösterebilir.
 3. Kurulum Node.js, yt-dlp ve FFmpeg'i kendi içinde getirir; ayrıca bir şey kurman gerekmez.
+
+### Dosya indirmelerini yakalama
+
+Eklenti, tarayıcının kendi dosya indirmelerini kısa süre duraklatıp sana sorar. **Dosya hiçbir durumda kaybolmaz:** tarayıcının indirmesi ancak Hypernab dosyayı kabul ettikten sonra iptal edilir. Uygulama kapalıysa, hata olursa, pencereyi kapatırsan veya üç dakika yanıt vermezsen tarayıcı indirmeyi kendisi sürdürür. Çerezler yalnızca sen bir düğmeye bastığında, yalnızca o dosyanın adresi için kullanılır; hiçbir yere kaydedilmez.
+
+- Eklenti penceresindeki **Dosya indirmelerini yakala** bölümünden kapatabilir, en küçük dosya boyutunu seçebilir ve hatırlanan seçimleri sıfırlayabilirsin (varsayılan: 1 MB üstü ve boyutu bilinmeyenler).
+- "Bu türü bir daha sorma" dersen o tür dosyalar sormadan Hypernab ile iner; bir sorun olursa yine tarayıcıya geri verilir.
+- Program ve komut dosyaları (`exe`, `msi`, `ps1` ...) için pencerede uyarı gösterilir. Gizli pencerede (incognito) yakalama yapılmaz.
+- Eklenti yeni bir izin (`downloads`) ister; sürüm 0.6.0'a geçerken tarayıcı onay isteyebilir.
 
 ### Eklenti
 

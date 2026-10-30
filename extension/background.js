@@ -1,5 +1,5 @@
 // Only media URLs/metadata are kept in session storage. The background never reads cookies; the popup does, per user action.
-if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'float.js'); // float.js: on-page download panel backend
+if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'float.js', 'takeover.js'); // float.js: on-page download panel backend; takeover.js: browser file downloads
 const browserApi = globalThis.browser ?? globalThis.chrome;
 let writes = Promise.resolve();
 const generations = new Map();

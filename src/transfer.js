@@ -83,7 +83,7 @@ export async function probeRange({ url, headers = {}, signal, request = requestR
     const modified = response.headers['last-modified'];
     const validator = typeof etag === 'string' && /^"[^"\x00-\x20\x7f]*"$/.test(etag) ? { type: 'etag', value: etag }
       : typeof modified === 'string' && /GMT$/.test(modified) && Number.isFinite(Date.parse(modified)) ? { type: 'modified', value: modified } : null;
-    return { total, validator, contentType: String(response.headers['content-type'] || ''), url: String(finalUrl || url) };
+    return { total, validator, contentType: String(response.headers['content-type'] || ''), disposition: String(response.headers['content-disposition'] || ''), url: String(finalUrl || url) };
   } catch (error) {
     if (error instanceof RateLimitedError) error.host = new URL(finalUrl || url).hostname;
     throw error;

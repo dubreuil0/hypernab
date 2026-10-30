@@ -34,11 +34,11 @@ export function validateNativeRequest(message) {
   }
   if (message.action !== 'request' || !['GET', 'POST'].includes(message.method) || typeof message.route !== 'string') throw new Error('Geçersiz Native komutu.');
   const get = /^\/api\/(?:status|jobs|submissions\/[a-f0-9-]{36})$/i;
-  const post = /^\/api\/(?:inspect|sniff|subtitles|duplicates|jobs|jobs\/[a-f0-9-]{36}\/(?:pause|resume|cancel)|submissions\/[a-f0-9-]{36}\/abandon|app\/shutdown)$/i;
+  const post = /^\/api\/(?:inspect|sniff|subtitles|duplicates|jobs|files\/take|jobs\/[a-f0-9-]{36}\/(?:pause|resume|cancel)|submissions\/[a-f0-9-]{36}\/abandon|app\/shutdown)$/i;
   if (!(message.method === 'GET' ? get : post).test(message.route)) throw new Error('Bu Native komutuna izin verilmiyor.');
   if (message.method === 'GET' && message.body !== undefined) throw new Error('GET komutu gövde kabul etmez.');
   if (message.method === 'POST' && (!message.body || typeof message.body !== 'object' || Array.isArray(message.body))) throw new Error('Komut gövdesi bir nesne olmalı.');
-  if (message.route === '/api/jobs' && message.method === 'POST' && !/^[a-f0-9-]{36}$/i.test(message.body.submissionId || '')) throw new Error('Native gönderimde kalıcı gönderim kimliği gerekli.');
+  if (['/api/jobs', '/api/files/take'].includes(message.route) && message.method === 'POST' && !/^[a-f0-9-]{36}$/i.test(message.body.submissionId || '')) throw new Error('Native gönderimde kalıcı gönderim kimliği gerekli.');
   return { action: 'request', route: message.route, method: message.method, body: message.body };
 }
 export function validateNativeCaller(config, args) {

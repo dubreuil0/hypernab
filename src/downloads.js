@@ -21,6 +21,7 @@ import { downloadParallel, probeRange, publishFile, RangeUnsupportedError, Sourc
 import { selectSourcePlan, sourceHeaders, safeExtension, isManifest } from './source-plan.js';
 import { ConnectionBudget } from './connection-budget.js';
 import { verifyCompletedFile, mediaExpectation, isVideoFile } from './verification.js';
+import { fileNameFor, categoryFor, riskOf, verifyFileFormat, markFromInternet } from './file-download.js';
 import { readHls, readHlsResponse, hlsInfo } from './hls.js';
 import { enrichPlaylistFormats } from './playlist-probe.js';
 import { summarizeMedia } from './media.js';
@@ -556,13 +557,16 @@ export class DownloadQueue {
     }
     if (engine === 'extractor' && !nativeHls && !this.capabilities().ytDlp) throw new Error('Bu indirme için önce yt-dlp kurulmalı. Kurulum adımlarına bak.');
     if (nativeHls && !this.capabilities().ffmpeg) throw new Error('HLS indirmek için FFmpeg gerekli.');
+    // A plain file taken over from the browser keeps its real name (with extension) and never gets video-style naming.
+    const fileName = engine === 'direct' && input.fileMode === true && typeof input.fileName === 'string' ? fileNameFor({ hint: input.fileName }) : null;
     const job = {
-      id: randomUUID(), url, engine, title: safeTitle(input.title),
+      id: randomUUID(), url, engine, title: safeTitle(fileName ? fileName.replace(/\.[^.]+$/, '') : input.title),
+      ...(fileName ? { kind: 'file', fileName } : {}),
       pageHost, submissionId: sid, submissionFingerprint: fingerprint,
       headers: mediaHeaders(input),
       deepVerify: input.deepVerify === true || (input.deepVerify === undefined && this.settings.deepVerifyDefault && this.capabilities().ffmpeg), expectedSha256: expectedSha256?.toLowerCase() || null,
       directory: layoutDirectory(this.currentDirectory(), this.settings.folderLayout, { host: pageHost || new URL(url).hostname, series: input.seriesTitle }),
-      smartNames: this.settings.smartNames,
+      smartNames: fileName ? false : this.settings.smartNames,
       releaseYear: knownYear(this.offered.get(url)?.raw),
       quality: ['best', '1080', '720', '480'].includes(input.quality) ? input.quality : 'best',
       formatId, formatLabel, formatSlot, ...(nativeHls ? { nativeHls: true } : {}), ...(audioUrl ? { audioUrl } : {}),
@@ -732,6 +736,48 @@ export class DownloadQueue {
     return { added: ids.length, skipped, failed, full, ids };
   }
 
+  // ---- Files taken over from the browser's own download ----
+  // First look at the file (headers only, a few seconds), always with the address the browser was downloading. Servers that refuse
+  // byte ranges are still fine: one connection is used. Nothing is created unless the file is really reachable.
+  async probeFile(url, headers, signal) {
+    try {
+      const probe = await probeRange({ url, headers, signal, request: this.rangeRequest });
+      return { url: probe.url, total: probe.total, contentType: probe.contentType, disposition: probe.disposition || '', ranges: true };
+    } catch (error) {
+      if (signal.aborted) throw error;
+      if (error instanceof SourceExpiredError) throw Object.assign(new Error('Sunucu erişimi reddetti (giriş veya izin gerekebilir).'), { code: 'ACCESS_DENIED' });
+      if (!(error instanceof RangeUnsupportedError)) throw error;
+    }
+    const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, headers);
+    try {
+      const status = response.statusCode;
+      if (status && (status < 200 || status >= 300)) throw Object.assign(new Error(status === 401 || status === 403 ? 'Sunucu erişimi reddetti (giriş veya izin gerekebilir).' : `Sunucu HTTP ${status} yanıtı verdi.`), { code: [401, 403].includes(status) ? 'ACCESS_DENIED' : 'HTTP_ERROR' });
+      const length = Number(response.headers['content-length']);
+      return { url: String(finalUrl?.href || finalUrl || url), total: Number.isSafeInteger(length) && length > 0 ? length : null, contentType: String(response.headers['content-type'] || ''), disposition: String(response.headers['content-disposition'] || ''), ranges: false };
+    } finally { response.destroy(); }
+  }
+
+  async takeFile(input = {}) {
+    const url = parseRemoteUrl(input.url).href;
+    let referer; try { referer = input.referer ? parseRemoteUrl(input.referer).href : undefined; } catch { referer = undefined; }
+    const cookies = sanitizeCookies(input.cookies, [url, referer]);
+    const headers = withCookie(mediaHeaders({ userAgent: input.userAgent, referer }), cookies, url);
+    const start = input.start === 'queue' ? 'queue' : 'now';
+    if (input.allowDuplicate !== true) {
+      const found = this.findDuplicates({ url });
+      if (found.length) throw Object.assign(new Error('Bu dosya zaten listede.'), { code: 'duplicate', duplicates: found.map(item => ({ title: item.title, status: item.status })) });
+    }
+    const probe = await this.probeFile(url, headers, AbortSignal.timeout(12000));
+    if (/text\/html/i.test(probe.contentType)) throw Object.assign(new Error('Bağlantı dosya yerine bir web sayfası döndürdü.'), { code: 'NOT_A_FILE' });
+    if (isManifest(probe.contentType, probe.url) || isManifest('', url)) throw Object.assign(new Error('Bu bağlantı bir akış listesi; video olarak yakalanmalı.'), { code: 'NOT_A_FILE' });
+    const name = fileNameFor({ hint: typeof input.fileName === 'string' ? input.fileName : '', disposition: probe.disposition, url: probe.url, contentType: probe.contentType });
+    // The cookies live in memory only, for this job, exactly like the ones of a video the user picked.
+    this.rememberOffered(url, [], cookies);
+    const id = this.add({ url, engine: 'direct', fileMode: true, fileName: name, referer, userAgent: input.userAgent, pageUrl: referer, start, submissionId: input.submissionId, quality: 'best' });
+    const job = this.jobs.find(item => item.id === id);
+    return { id, name, total: probe.total, ranges: probe.ranges, category: categoryFor(name, probe.contentType), risk: riskOf(name), directory: job?.directory || this.currentDirectory(), queued: start === 'queue' };
+  }
+
   // Same source and same chosen quality as a job that is still wanted. Never changes or removes anything.
   findDuplicates(input = {}) {
     let url; try { url = parseRemoteUrl(input.url).href; } catch { return []; }
@@ -896,6 +942,7 @@ export class DownloadQueue {
         const seconds = this.meter(job).snapshot(job, jobPhase(job)).phaseSeconds.downloading || 0;
         if (job.measurementKey && !job.sourceRefreshes && job.measuredNetworkBytes > 0 && seconds > 0) job.speedReference = { key: job.measurementKey, networkBytes: job.measuredNetworkBytes, seconds, at: Date.now() };
         this.finalizeName(job);
+        if (job.kind === 'file' && job.file) markFromInternet(path.join(this.dirOf(job), job.file));
         await this.attachSubtitles(job, controller.signal);
       }
       if (job.status === 'running') {
@@ -954,6 +1001,11 @@ export class DownloadQueue {
     } });
   }
 
+  // Work file name: files taken over from the browser keep their real name, everything else gets "<id>-<title>.<ext>".
+  outputName(job, url, contentType) {
+    return job.kind === 'file' && job.fileName ? `${job.id}-${job.fileName}` : `${job.id}-${safeTitle(job.title)}.${safeExtension(url, contentType)}`;
+  }
+
   async verifyOutput(job, file, expectedSize, media, signal) {
     this.phase(job, 'verifying');
     job.verification = { status: 'running', level: job.deepVerify ? 'deep-media' : media ? 'media' : 'bytes' };
@@ -962,6 +1014,12 @@ export class DownloadQueue {
         probe: this.mediaVerifier, decoder: this.deepVerifier,
         onDeep: () => this.phase(job, 'deep-verifying')
       });
+      // Plain files: the bytes must also look like what the name says (a login page saved as ".zip" is not a finished download).
+      if (job.kind === 'file' && !media) {
+        const format = await verifyFileFormat(file, job.fileName, { sizeCompared: result.sizeCompared });
+        if (format.format) { result.level = 'format'; result.format = format.format; }
+        if (format.note) result.warning = [result.warning, format.note].filter(Boolean).join(' ');
+      }
       job.verification = { ...result, media: undefined };
       if (result.media) job.media = result.media;
       if (result.warning) job.notice = [job.notice, result.warning].filter(Boolean).join(' ');
@@ -981,8 +1039,7 @@ export class DownloadQueue {
       job.measurementKey = sourceMeasureKey([{ url: probe.url, protocol: 'https' }]);
       if (isManifest(probe.contentType, probe.url)) return this.routeManifest(job, signal);
       if (/text\/html/i.test(probe.contentType)) throw new RangeUnsupportedError('Kaynak dosya yerine HTML sayfası döndürdü.');
-      const extension = safeExtension(probe.url, probe.contentType);
-      const filename = `${job.id}-${safeTitle(job.title)}.${extension}`;
+      const filename = this.outputName(job, probe.url, probe.contentType);
       const isVideo = isVideoFile(filename, probe.contentType);
       const result = await downloadParallel({
         throttle: this.limiters.get(job.id), connections: this.settings.maxConnections,
@@ -1042,8 +1099,7 @@ export class DownloadQueue {
       response.destroy();
       throw new Error('Bu bağlantı bir sayfa veya akış listesi; akış/site motoruyla yeniden ekle.');
     }
-    const ext = `.${safeExtension(url.href, contentType)}`;
-    const filename = `${job.id}-${safeTitle(job.title)}${ext}`;
+    const filename = this.outputName(job, url.href, contentType);
     const destination = path.join(this.dirOf(job), filename);
     const partial = `${destination}.part`;
     if (fs.existsSync(partial)) {

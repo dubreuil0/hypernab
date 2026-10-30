@@ -475,3 +475,21 @@ function followActiveTab() {
 }
 const initialized = init().then(followActiveTab);
 initialized.catch(error => status(error.message, true));
+// ---- File download takeover settings (the work itself runs in takeover.js) ----
+(() => {
+  if (!$('takeover-enabled') || typeof browserApi.runtime?.sendMessage !== 'function') return;
+  try {
+  const ask = patch => Promise.resolve(browserApi.runtime.sendMessage({ type: 'hypernab:takeover:settings', ...(patch ? { patch } : {}) }));
+  const paint = settings => {
+    $('takeover-enabled').checked = settings.enabled; $('takeover-min').value = String(settings.minBytes);
+    if (![...$('takeover-min').options].some(option => option.value === String(settings.minBytes))) $('takeover-min').append(new Option(`${Math.round(settings.minBytes / 1048576)} MB`, String(settings.minBytes)));
+    $('takeover-min').value = String(settings.minBytes);
+    const parts = [settings.autoTypes.length ? `Sormadan indirilen türler: ${settings.autoTypes.map(item => `.${item}`).join(' ')}` : '', settings.excludedHosts.length ? `Tarayıcıya bırakılan siteler: ${settings.excludedHosts.join(', ')}` : ''].filter(Boolean);
+    $('takeover-remembered').textContent = parts.join(' · ') || 'Hatırlanan seçim yok.';
+  };
+  ask().then(answer => { if (answer?.ok) paint(answer.settings); }).catch(() => {});
+  $('takeover-enabled').addEventListener('change', () => ask({ enabled: $('takeover-enabled').checked }).then(answer => answer?.ok && paint(answer.settings)));
+  $('takeover-min').addEventListener('change', () => ask({ minBytes: Number($('takeover-min').value) }).then(answer => answer?.ok && paint(answer.settings)));
+  $('takeover-reset').addEventListener('click', () => ask({ autoTypes: [], excludedHosts: [] }).then(answer => answer?.ok && paint(answer.settings)));
+  } catch { /* the settings box is optional; capturing and downloading do not depend on it */ }
+})();

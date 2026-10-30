@@ -69,7 +69,7 @@ export async function chromiumBrowser(binary, profile, extensions) {
   } catch (error) { if (child.pid && child.exitCode === null) spawnSync('taskkill.exe', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }); throw error; }
 }
 
-export async function firefoxBrowser(binary, geckodriver, profile, addon) {
+export async function firefoxBrowser(binary, geckodriver, profile, addon, extraPrefs = {}) {
   profileDirectory(profile); const port = await freePort();
   const child = spawn(geckodriver, ['--host', '127.0.0.1', '--port', String(port), '--websocket-port', String(await freePort()), '--allow-system-access', '--log', 'error'], { windowsHide: true, stdio: 'ignore' });
   const origin = `http://127.0.0.1:${port}`;
@@ -80,7 +80,7 @@ export async function firefoxBrowser(binary, geckodriver, profile, addon) {
   let sessionId;
   try {
   await until(() => http('/status'), 15000);
-  const created = await http('/session', { capabilities: { alwaysMatch: { browserName: 'firefox', webSocketUrl: true, 'moz:firefoxOptions': { binary, args: ['-headless', '-no-remote', '-profile', profile], prefs: { 'media.autoplay.default': 0 } } } } });
+  const created = await http('/session', { capabilities: { alwaysMatch: { browserName: 'firefox', webSocketUrl: true, 'moz:firefoxOptions': { binary, args: ['-headless', '-no-remote', '-profile', profile], prefs: { 'media.autoplay.default': 0, ...extraPrefs } } } } });
   const id = created.sessionId, base = `/session/${id}`;
   sessionId = id;
   const addonId = await http(`${base}/moz/addon/install`, { path: addon, temporary: true });

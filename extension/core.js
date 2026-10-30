@@ -144,7 +144,7 @@
       return info;
     }
     async request(route, options = {}) {
-      if (!/^\/api\/(?:status|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error('Geçersiz uygulama komutu.');
+      if (!/^\/api\/(?:status|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error('Geçersiz uygulama komutu.');
       if (this.native) return this.native.request({ action: 'request', route, method: options.method || 'GET', ...(options.body ? { body: JSON.parse(options.body) } : {}) });
       if (!this.token) throw new Error('Önce yerel uygulamanın anahtarıyla eşleştir.');
       let response;
