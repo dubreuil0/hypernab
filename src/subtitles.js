@@ -102,6 +102,30 @@ export function languageInfo(code, label = '') {
   if (entry) return { iso1: entry[0], iso3: entry[1], name: entry[2] };
   return { iso1: /^[a-z]{2}$/.test(clean) ? clean : null, iso3: /^[a-z]{3}$/.test(clean) ? clean : 'und', name: String(label || '').replace(/[\x00-\x1f]/g, '').trim().slice(0, 60) || 'Altyazı' };
 }
+// Some pages name their subtitle files "1.vtt" and "2.vtt" and say nothing about the language. The words themselves tell: common
+// function words of each language (Latin script), plus Turkish letters. Returns an ISO 639-1 code or null when it is not clear.
+const STOPWORDS = {
+  tr: 'bir bu ve ne için ben sen değil çok var yok evet hayır gibi ama daha mi mı mu mü ya da de da ki şu o ne nasıl neden şimdi tamam lütfen bana sana bunu şunu olarak ise onu benim senin biz siz onlar çünkü artık hiç her kadar sonra önce burada orada'.split(' '),
+  en: 'the you and to is it that of in what was he for this are with have not but they his she her we me my your on be do at as can will just if so there no yes know like get go oh i\'m don\'t it\'s you\'re that\'s'.split(' '),
+  de: 'der die das und ist nicht ich du sie er es wir ihr ein eine zu mit auf für den dem von was wie aber auch noch nur ja nein doch kann wird sind war haben hat'.split(' '),
+  fr: 'le la les des un une et est que qui pas je tu il elle nous vous ils pour dans sur avec ce cette mais ou où ne se de du au aux plus très oui non suis es sont'.split(' '),
+  es: 'el la los las un una y es que no yo tú él ella nosotros por para con en de del al lo se su mi pero como más muy sí qué está son soy eres'.split(' '),
+  it: 'il lo la gli le un una e è che non io tu lui lei noi voi loro per con di del della in su ma come più molto sì no sono sei siamo questo questa'.split(' '),
+  pt: 'o a os as um uma e é que não eu tu ele ela nós vocês eles para com em de do da no na mas como mais muito sim está são sou você'.split(' ')
+};
+const STOPSETS = Object.fromEntries(Object.entries(STOPWORDS).map(([code, words]) => [code, new Set(words)]));
+export function guessLanguage(cues) {
+  const text = (cues || []).slice(0, 600).map(cue => cue.text).join(' ').toLowerCase().replace(/<[^>]+>/g, ' ');
+  const words = text.match(/[a-zçğıöşüâîûàèéêëïôùœäß'’]+/g) || [];
+  if (words.length < 20) return null;
+  const hits = Object.fromEntries(Object.keys(STOPSETS).map(code => [code, 0]));
+  for (const word of words) { const clean = word.replace(/’/g, "'"); for (const code of Object.keys(STOPSETS)) if (STOPSETS[code].has(clean)) hits[code]++; }
+  hits.tr += (text.match(/[ğşı]/g) || []).length / 3; // ğ, ş and the dotless ı are Turkish in practice
+  const ranked = Object.entries(hits).map(([code, count]) => [code, count / words.length]).sort((a, b) => b[1] - a[1]);
+  const [best, second] = ranked;
+  if (best[1] < 0.08 || (second && best[1] < second[1] * 1.4)) return null;
+  return best[0];
+}
 // A language hint hidden in a file name such as movie.tr.vtt or /subs/eng/1.vtt (only a hint, never required).
 export function languageFromAddress(raw) {
   try {

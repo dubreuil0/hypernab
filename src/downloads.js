@@ -29,7 +29,7 @@ import { downloadHls } from './hls-download.js';
 import { recoverRead, RemoteResponseError, recordRecovery } from './recovery.js';
 import { hlsTotalEstimate, sourceSize } from './hls-size.js';
 import { listPlaylist, episodeName, MAX_PLAYLIST } from './playlist.js';
-import { classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
+import { classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
 
 export function assertCompleteResponse(response) {
   if (![200, 206].includes(response.statusCode)) {
@@ -60,7 +60,7 @@ const SETTING_DEFAULTS = {
   theme: 'dark',            // 'dark', 'light' or 'system' (follows Windows)
   accent: 'green',          // accent colour: green, blue, orange or violet
   listLayout: { widths: {}, hidden: [], focus: false }, // visual only: column widths (px), hidden columns, focus view
-  subtitleMode: 'embed',    // subtitles found for a video: 'embed' into the file, 'sidecar' .srt next to it, or 'off'
+  subtitleMode: 'both',     // subtitles found for a video: 'both' (into the file + the leading track as .srt next to it), 'embed' only, 'sidecar' .srt only, or 'off'
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
   downloadDirectory: null,  // null = the default folder; changing it affects new downloads only
@@ -85,7 +85,7 @@ const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayou
 const SETTING_CHECKS = {
   smartNames: bool('Akıllı dosya adı'),
   folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || 'Klasör düzeni geçersiz.',
-  subtitleMode: value => ['embed', 'sidecar', 'off'].includes(value) || 'Altyazı seçimi geçersiz.',
+  subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || 'Altyazı seçimi geçersiz.',
   listLayout: value => validLayout(value) || 'Liste düzeni geçersiz.',
   appearance: value => ['compact', 'normal'].includes(value) || 'Görünüm geçersiz.',
   textSize: value => ['small', 'normal', 'large'].includes(value) || 'Yazı boyutu geçersiz.',
@@ -700,27 +700,34 @@ export class DownloadQueue {
         const raw = await this.readSubtitleSource(item, combined, headers, cookies).catch(() => null);
         const parsed = raw && parseSubtitle(raw);
         if (!parsed) continue;
-        const lang = languageInfo(item.lang || (item.url && languageFromAddress(item.url)), item.label);
+        let lang = languageInfo(item.lang || (item.url && languageFromAddress(item.url)), item.label);
+        if (lang.iso3 === 'und') { const guessed = guessLanguage(parsed.cues); if (guessed) lang = languageInfo(guessed, item.label); } // "1.vtt" / "2.vtt": the words tell the language
         const key = signature(parsed.cues, lang.iso3);
         if (seen.has(key)) continue; seen.add(key);
         found.push({ ...lang, name: item.label && item.label.length <= 60 ? item.label : lang.name, default: item.default === true, cues: parsed.cues });
       }
       const expected = candidates.some(item => item.kind === 'file' || item.sure);
       if (!found.length) { if (expected) job.subtitleResult = { mode: 'none', note: 'Sayfada altyazı vardı ama okunabilir bir altyazı dosyası alınamadı.' }; return; }
-      // The track the page was showing leads; otherwise Turkish, otherwise the first one.
+      // The track the page was showing leads; otherwise a full Turkish one, otherwise the first full-length one. A track with very few
+      // lines next to a full one is a "forced" track (only foreign phrases) and never leads: a player showing it looks like no subtitle.
+      const longest = Math.max(...found.map(track => track.cues.length));
+      const sparse = track => found.length > 1 && track.cues.length < longest * 0.2;
       found.sort((a, b) => Number(b.default) - Number(a.default));
-      const lead = found.findIndex(track => track.default) >= 0 ? 0 : Math.max(0, found.findIndex(track => track.iso1 === 'tr'));
+      const lead = found.findIndex(track => track.default) >= 0 ? 0
+        : Math.max(0, found.findIndex(track => track.iso1 === 'tr' && !sparse(track)) >= 0 ? found.findIndex(track => track.iso1 === 'tr' && !sparse(track)) : found.findIndex(track => !sparse(track)));
       found.forEach((track, index) => { track.default = index === lead; });
       if (lead > 0) found.unshift(...found.splice(lead, 1));
       fs.mkdirSync(directory, { recursive: true });
       found.forEach((track, index) => { track.file = path.join(directory, `track-${index}.vtt`); fs.writeFileSync(track.file, toVtt(track.cues)); });
       let embedded = false, note = null;
-      if (mode === 'embed') {
+      if (mode === 'embed' || mode === 'both') {
         if (!canEmbed(video)) note = 'Bu dosya türüne altyazı gömülemedi; altyazılar yan dosya olarak kaydedildi.';
         else { try { embedded = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined }); } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
       }
-      const files = embedded ? [] : writeSidecars(video, found);
-      job.subtitleResult = { mode: embedded ? 'embedded' : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note };
+      // 'both': the file carries every track, and the leading (default) one is also written next to it: players such as Windows Media Player
+      // and Films & TV ignore tracks inside an mp4 but load a same-named .srt on their own (VLC does too).
+      const files = embedded ? (mode === 'both' ? writeSidecars(video, found.slice(0, 1)) : []) : writeSidecars(video, found);
+      job.subtitleResult = { mode: embedded ? (files.length ? 'embedded+sidecar' : 'embedded') : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note };
       job.subtitlePending = undefined;
     } catch (error) {
       if (!signal.aborted) job.subtitleResult = { mode: 'none', note: 'Altyazı eklenirken sorun oluştu; video indirildi.' };

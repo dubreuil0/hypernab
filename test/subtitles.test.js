@@ -51,6 +51,7 @@ function video(file, extra = []) {
 function queueFixture(t, rangeRequest) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-subs-'));
   const queue = new DownloadQueue({ directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest });
+  queue.setSettings({ subtitleMode: 'embed' }); // these tests are about the embedding itself; the default ("both") is covered in subtitle-lead.test.js
   t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
   fs.mkdirSync(path.join(root, 'd'), { recursive: true });
   return { root, queue, directory: path.join(root, 'd') };

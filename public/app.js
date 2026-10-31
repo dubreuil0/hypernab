@@ -206,7 +206,7 @@ function render(force = false) {
     if (job.subtitleResult) {
       const s = job.subtitleResult;
       const names = (s.tracks || []).map(track => track.name).join(', ');
-      const text = s.mode === 'embedded' ? `Altyazı: ${names} (videoya gömülü)` : s.mode === 'sidecar' ? `Altyazı: ${names} (yan dosya: ${(s.files || []).join(', ')})` : s.note;
+      const text = s.mode === 'embedded' ? `Altyazı: ${names} (videoya gömülü)` : s.mode === 'embedded+sidecar' ? `Altyazı: ${names} (videoya gömülü + yan dosya: ${(s.files || []).join(', ')})` : s.mode === 'sidecar' ? `Altyazı: ${names} (yan dosya: ${(s.files || []).join(', ')})` : s.note;
       const line = el('div', `job-file${s.mode === 'none' ? ' job-error' : ''}`, [text, s.mode !== 'none' && s.note ? s.note : null].filter(Boolean).join(' · '));
       // The result of a download is worth seeing in the row itself, not only in the details.
       (s.mode === 'none' ? card : details).append(line);
