@@ -69,3 +69,35 @@ for (const [locale, setting, expectFlag, expectFiles] of [['en-US', 'auto', 'eng
     if (expectFlag) assert.deepEqual(subs.filter(sub => sub.disposition.default === 1).map(sub => sub.tags.language), [expectFlag]);
   });
 }
+
+test('a page that flags the short (foreign phrases) Turkish track as default: the full Turkish track leads, with an English system', { skip: !haveTools }, async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-twotr-'));
+  const queue = new DownloadQueue({ locale: 'en-US', directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });
+  t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+  const directory = path.join(root, 'd'); fs.mkdirSync(directory, { recursive: true });
+  const file = path.join(directory, 'm-Film.mp4');
+  const made = spawnSync(path.join(tools, 'ffmpeg.exe'), ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x120:rate=10:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', file]);
+  assert.equal(made.status, 0, String(made.stderr));
+  const job = { id: 'm', status: 'running', directory, file: 'm-Film.mp4', headers: {}, url: 'https://cdn.example.org/v.mp4',
+    subtitlePending: queue.storeSubtitleInputs('m', { subtitleTracks: [{ lang: 'tr', label: 'Türkçe', default: true, text: vtt(TURKISH.slice(0, 8)) }, { lang: 'tr', label: 'Türkçe', default: false, text: vtt(TURKISH) }] }) };
+  await queue.attachSubtitles(job, new AbortController().signal);
+  assert.equal(job.subtitleResult.mode, 'embedded+sidecar', job.subtitleResult.note);
+  assert.deepEqual(job.subtitleResult.files, ['m-Film.tr.srt']);
+  assert.match(fs.readFileSync(path.join(directory, 'm-Film.tr.srt'), 'utf8'), /Sen ne yapıyorsun burada/, 'the side file is the full track');
+  const subs = JSON.parse(spawnSync(path.join(tools, 'ffprobe.exe'), ['-v', 'error', '-select_streams', 's', '-show_entries', 'stream=index:stream_disposition=default', '-of', 'json', file]).stdout).streams;
+  assert.deepEqual(subs.map(sub => sub.disposition.default), [1, 0], 'the first track in the file (the full one) is the flagged default');
+  const first = spawnSync(path.join(tools, 'ffmpeg.exe'), ['-v', 'error', '-i', file, '-map', '0:s:0', '-f', 'srt', '-']).stdout.toString();
+  assert.match(first, /Sen ne yapıyorsun burada/, 'and it is the full one');
+});
+
+test('settings saved by the first version ("embed" as the untouched default) move to "embed + side file" once; a later explicit choice stays', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-mig-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const stateFile = path.join(root, 'queue.json');
+  fs.writeFileSync(`${stateFile}.settings.json`, JSON.stringify({ subtitleMode: 'embed', theme: 'dark' }));
+  const first = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools });
+  assert.equal(first.settings.subtitleMode, 'both', 'the old default moved over');
+  first.setSettings({ subtitleMode: 'embed' }); first.stop();
+  const second = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools });
+  assert.equal(second.settings.subtitleMode, 'embed', 'a choice made after the move is kept'); second.stop();
+});

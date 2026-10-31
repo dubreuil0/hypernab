@@ -198,6 +198,8 @@ export class DownloadQueue {
       if (Array.isArray(saved.queueNames) && saved.queueNames.length && saved.queueNames.length <= 20 && saved.queueNames.every(name => typeof name === 'string' && name.trim() && name.length <= 40)) this.settings.queueNames = [...new Set(['Genel', ...saved.queueNames])];
       if (this.settings.queueNames.includes(saved.selectedQueue)) this.settings.selectedQueue = saved.selectedQueue;
       if (Number.isInteger(saved.speedLimitKiB) && saved.speedLimitKiB >= 0 && saved.speedLimitKiB <= 1048576) this.settings.speedLimitKiB = saved.speedLimitKiB;
+      // The first version saved "embed only" as the default; the default is now "embed + side .srt": a file still holding the old value moves over once.
+      if (saved.settingsVersion !== 2 && this.settings.subtitleMode === 'embed') this.settings.subtitleMode = 'both';
     } catch { /* defaults: one at a time */ }
     this.queueRunning = false;
     this.runningQueue = null;
@@ -965,7 +967,7 @@ export class DownloadQueue {
     if (input.downloadDirectory) usableDirectory(next.downloadDirectory);
     this.settings = next;
     fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
-    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify(next, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
+    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: 2 }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
     if (input.speedLimitKiB !== undefined) this.applySpeedLimit();
     if (!Object.keys(input).length || !Object.keys(input).every(key => VISUAL_SETTINGS.includes(key))) this.pump();
     return { ...next };

@@ -50,3 +50,17 @@ test('language settings: system language, off, explicit code; sound is validated
   for (const ok of ['player', 'original', 'en']) assert.ok(validAudioLanguage(ok), ok);
   for (const bad of ['auto', '', 'EN', null, 'orig']) assert.ok(!validAudioLanguage(bad), String(bad));
 });
+
+test('lead track: a page default that is only foreign phrases gives way to the full track of the same language', () => {
+  const sparseDefault = track('tur', { default: true, cues: Array(20) }), full = track('tur', { cues: Array(100) });
+  assert.equal(pickLead([sparseDefault, full], 'en'), 1, 'two Turkish tracks, the page flagged the short one: the full one leads, whatever the user\'s language');
+  assert.equal(pickLead([track('tur', { default: true, cues: Array(60) }), track('tur', { cues: Array(100) })], 'en'), 0, 'a track that is not that short keeps the page\'s flag');
+  assert.equal(pickLead([track('tur', { default: true, cues: Array(20) }), track('eng', { cues: Array(100) })], 'en'), 0, 'no full track of the same language: the page\'s choice stays');
+});
+
+test('lead track: when the file offers one language only, its full track leads even if that is not the user\'s language', () => {
+  assert.equal(pickLead([track('tur', { cues: Array(20) }), track('tur', { cues: Array(100) })], 'en'), 1);
+  assert.equal(pickLead([track('tur', { cues: Array(100) }), track('tur', { cues: Array(90) })], null), 0, 'subtitle language off: still the single language of the file');
+  assert.equal(pickLead([track('eng', { cues: Array(100) }), track('deu', { cues: Array(100) })], 'tr'), -1, 'two languages, none preferred: nothing is guessed');
+  assert.equal(pickLead([track('und', { iso1: undefined, cues: Array(100) }), track('und', { iso1: undefined, cues: Array(90) })], 'tr'), -1, 'unknown languages are not "one language"');
+});

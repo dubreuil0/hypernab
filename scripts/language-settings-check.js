@@ -36,7 +36,7 @@ async function run(name, launch) {
     check(name, 'two language selects are drawn in Settings', await ev(`document.querySelectorAll('#language-settings .hd-select').length === 2`));
     check(name, 'no raw <select> among them', await ev(`document.querySelectorAll('#language-settings select').length === 0`));
     const labels = await ev(`[...document.querySelectorAll('#language-settings .hd-select-btn')].map(b => b.textContent.trim())`);
-    check(name, 'defaults: system language and "whatever the player plays"', /Sistem dili/.test(labels[0]) && /Oynat/.test(labels[1]), JSON.stringify(labels));
+    check(name, 'defaults: interface language and "whatever the player plays"', /Aray\u00fcz dili/.test(labels[0]) && /Oynat/.test(labels[1]), JSON.stringify(labels));
     const setting = key => ev(`fetch('/api/bootstrap').then(r => r.json()).then(b => fetch('/api/settings', { headers: { Authorization: 'Bearer ' + b.token } })).then(r => r.json()).then(s => s.${key})`);
     check(name, 'engine defaults are auto / player', (await setting('subtitleLanguage')) === 'auto' && (await setting('audioLanguage')) === 'player');
 

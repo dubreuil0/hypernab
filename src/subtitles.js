@@ -160,15 +160,28 @@ export function defaultSubtitleIndex(tracks, preferred = null) {
   if (tracks.length === 1) return 0;
   return tracks.findIndex(track => sameLanguage(track, preferred));
 }
-/** Which of the found tracks leads (is the default and gets the side .srt), or -1 for none. `tracks` has the page's default first. */
+/** Which of the found tracks leads (is the default and gets the side .srt), or -1 for none. `tracks` has the page's default first.
+ *  A track with very few lines next to a full-length one is a "forced" track (only foreign phrases): a player showing it by default looks
+ *  like having no subtitle at all, so it never leads while a full track of the same language exists, even when the page flagged it.
+ *  The page's own choice otherwise wins. Then the user's language. When no track has that language but all tracks share ONE language,
+ *  the file offers nothing else (like a single track): its full-length track leads. Otherwise nothing is guessed. */
 export function pickLead(tracks, preferred = null) {
   if (!tracks.length) return -1;
-  if (tracks[0].default) return 0; // the page said which one it showed
-  // A track with very few lines next to a full one is a "forced" track (only foreign phrases) and never leads: a player showing it looks like no subtitle.
-  const longest = Math.max(...tracks.map(track => track.cues.length));
-  const sparse = track => tracks.length > 1 && track.cues.length < longest * 0.2;
   if (tracks.length === 1) return 0;
-  return tracks.findIndex(track => sameLanguage(track, preferred) && !sparse(track));
+  const longest = Math.max(...tracks.map(track => track.cues.length));
+  const sparse = track => track.cues.length < longest * 0.35;
+  const sameAs = (track, other) => (track.iso1 && track.iso1 === other.iso1) || (track.iso3 && track.iso3 !== 'und' && track.iso3 === other.iso3);
+  const fullest = indexes => indexes.reduce((best, index) => best < 0 || tracks[index].cues.length > tracks[best].cues.length ? index : best, -1);
+  const full = tracks.map((track, index) => index).filter(index => !sparse(tracks[index]));
+  if (tracks[0].default) {
+    if (!sparse(tracks[0])) return 0;
+    const sameFull = full.filter(index => sameAs(tracks[index], tracks[0]));
+    return sameFull.length ? fullest(sameFull) : 0;
+  }
+  const wanted = full.filter(index => sameLanguage(tracks[index], preferred));
+  if (wanted.length) return fullest(wanted);
+  if (tracks.every(track => sameAs(track, tracks[0])) && (tracks[0].iso1 || tracks[0].iso3 !== 'und')) return fullest(full);
+  return -1;
 }
 export function muxArguments(video, tracks, output, preferred = null) {
   const fallback = defaultSubtitleIndex(tracks, preferred);

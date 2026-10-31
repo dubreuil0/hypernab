@@ -24,7 +24,7 @@ export function setupAdvanced(api, refreshStatus) {
   // Language preferences (shared design-system list with a search box; texts come from translation keys).
   const DS = globalThis.HypernabDS, T = globalThis.HypernabText, languageSelects = {};
   if (DS && T) {
-    const ui = T.language(), system = String(navigator.language || 'en').toLowerCase().split('-')[0];
+    const ui = T.language(), system = ui; // "automatic" = the interface language
     const rows = [
       ['subtitleLanguage', 'lang.subtitle', [{ value: 'auto', label: T.t('lang.auto', { name: DS.languageInfo(system, ui).name }) }, { value: 'off', label: T.t('lang.off') }]],
       ['audioLanguage', 'lang.audio', [{ value: 'player', label: T.t('lang.player') }, { value: 'original', label: T.t('lang.original') }]],

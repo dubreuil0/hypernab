@@ -2,7 +2,7 @@
 
 Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
 
-**Sürüm:** uygulama 0.12.0 · eklenti 0.7.0 · Windows 10/11 (x64)
+**Sürüm:** uygulama 0.12.1 · eklenti 0.7.0 · Windows 10/11 (x64)
 
 ## Özellikler
 
@@ -13,7 +13,7 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için me
 - **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir. HLS indirmelerinde duraklatma, yeniden başlatma ve yeniden deneme bitmiş parçaları korur; yalnızca eksikler indirilir.
 - **Akışlar:** HLS ve ayrı görüntü/ses akışları FFmpeg ile birleştirilir; sonuç ffprobe ile doğrulanır.
 - **Alt yazı:** oynatıcıdan veya akıştan yakalanan alt yazı videoya gömülür ve varsayılan (Türkçe) alt yazı ayrıca aynı adla `.srt` olarak yanına yazılır; böylece VLC, Media Player ve Films & TV kendiliğinden gösterir. Adı olmayan alt yazı dosyalarının dili içindeki kelimelerden anlaşılır. Ayarlar'dan yalnız gömme, yalnız yan dosya ya da kapalı seçilebilir.
-- **Dil tercihleri:** Ayarlar'dan varsayılan altyazı dili (varsayılan: sistem dili) ve ses dili seçilir. Sayfa kendi altyazısını söylediyse o kazanır; seçtiğin dilde parça yoksa hiçbiri işaretlenmez. Ses, altyazı diline bağlı değildir: oynatıcıda çalan ses, yoksa ayardaki ses tercihi, yoksa sitenin varsayılanı seçilir ve panelde yazılır.
+- **Dil tercihleri:** Ayarlar'dan varsayılan altyazı dili (varsayılan: arayüz dili) ve ses dili seçilir. Sayfa kendi altyazısını söylediyse o kazanır; seçtiğin dilde parça yoksa hiçbiri işaretlenmez. Ses, altyazı diline bağlı değildir: oynatıcıda çalan ses, yoksa ayardaki ses tercihi, yoksa sitenin varsayılanı seçilir ve panelde yazılır.
 - **Oynatma listeleri:** listeyi görüp istediğin bölümleri kuyruğa ekleme.
 - **Akıllı adlandırma ve klasörleme:** güvenli Windows dosya adları, isteğe bağlı klasör düzeni; mevcut dosyalar üzerine yazılmaz.
 - **Geçmiş:** kuyruğu temizlesen de silinmeyen, aranabilir geçmiş. Kuyruğu temizlemek dosyaları silmez.

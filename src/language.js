@@ -5,8 +5,11 @@ const CODE = /^[a-z]{2,3}$/;
 export const validSubtitleLanguage = value => value === 'auto' || value === 'off' || (typeof value === 'string' && CODE.test(value));
 export const validAudioLanguage = value => value === 'player' || value === 'original' || (typeof value === 'string' && CODE.test(value));
 
-/** The language of the system as a lower-case code ('tr', 'de'...), or null when it cannot be told. */
-export function systemLanguage(locale = Intl.DateTimeFormat().resolvedOptions().locale) {
+// "Automatic" means the language of the interface. Until the interface language is a setting of its own (multi-language work) the
+// interface is Turkish; the language of Windows says little about what the user reads (a Turkish user may run an English Windows).
+export const INTERFACE_LANGUAGE = 'tr';
+/** A lower-case language code ('tr', 'de'...) from a locale name such as 'de-DE', or null when it cannot be told. */
+export function systemLanguage(locale = INTERFACE_LANGUAGE) {
   const base = String(locale || '').toLowerCase().replace(/_/g, '-').split('-')[0];
   return CODE.test(base) ? base : null;
 }
