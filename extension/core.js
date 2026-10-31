@@ -144,7 +144,7 @@
       return info;
     }
     async request(route, options = {}) {
-      if (!/^\/api\/(?:status|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|hls\/active-audio|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error('Geçersiz uygulama komutu.');
+      if (!/^\/api\/(?:status|prefs|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|hls\/active-audio|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error('Geçersiz uygulama komutu.');
       if (this.native) return this.native.request({ action: 'request', route, method: options.method || 'GET', ...(options.body ? { body: JSON.parse(options.body) } : {}) });
       if (!this.token) throw new Error('Önce yerel uygulamanın anahtarıyla eşleştir.');
       let response;
@@ -231,5 +231,20 @@
       return { ...(subtitleUpload ? { subtitleUpload } : {}), ...(urls.length ? { subtitleUrls: urls } : {}) };
     } catch { return {}; }
   }
-  globalThis.Hypernab = { API, subtitlePayload, gatherSubtitles, httpUrl, mediaKind, isFileKind, fileRank, segmentLike, fileSources, streamSources, rangeLimited, sourceFor, groupEntries, bytes, duration, size, jobView, sessionCookies, optionIdentity, transientError, reselect, Client };
+  // Which sound is pre-selected, and why (the panel says so). Sound never follows the subtitle language: someone may watch the original
+  // sound with subtitles of their own language. Order: what the player is playing now; then the user's sound preference ('original' or
+  // a language code), only when exactly one sound matches; then the site's own default; then the first. A preference that matches
+  // nothing (or several sounds) is not guessed: the site default stays and the panel shows that it is the site's choice.
+  function pickSound(tracks, activeId, preference = 'player') {
+    if (!Array.isArray(tracks) || tracks.length < 2) return null;
+    const active = tracks.find(track => track.id === activeId);
+    if (active) return { id: active.id, why: 'playing' };
+    const base = value => String(value || '').toLowerCase().replace(/_/g, '-').split('-')[0];
+    const matches = preference === 'original' ? tracks.filter(track => /\b(original|orijinal|orig)\b/i.test(String(track.name || '')))
+      : /^[a-z]{2,3}$/.test(preference || '') ? tracks.filter(track => base(track.language) === preference) : [];
+    if (matches.length === 1) return { id: matches[0].id, why: 'preference' };
+    const site = tracks.find(track => track.default);
+    return site ? { id: site.id, why: 'site-default' } : { id: tracks[0].id, why: 'first' };
+  }
+  globalThis.Hypernab = { pickSound, API, subtitlePayload, gatherSubtitles, httpUrl, mediaKind, isFileKind, fileRank, segmentLike, fileSources, streamSources, rangeLimited, sourceFor, groupEntries, bytes, duration, size, jobView, sessionCookies, optionIdentity, transientError, reselect, Client };
 })();

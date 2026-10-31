@@ -1,0 +1,76 @@
+/* Hypernab design system: the shared controls of the app, the page panel and the small windows.
+   Rules: flat colours only (no blur, no big shadow, no endless animation, no transitions), sizes in em so every surface scales with its own
+   text size, logical properties so right-to-left languages mirror correctly, colours only from the theme variables (theme.css in the app,
+   HypernabDS.tokens() in the extension). Never put a raw browser control (select, checkbox, button) on screen: use these. */
+
+.hd-btn { appearance:none;box-sizing:border-box;margin:0;display:inline-flex;align-items:center;justify-content:center;gap:.5em;min-height:2.3em;padding:0 1em;border-radius:.6em;border:1px solid var(--border-strong,#46534e);background:var(--raised,#20272b);color:var(--text,#edf2ee);font:inherit;font-weight:600;line-height:1.2;cursor:pointer;text-decoration:none;white-space:nowrap; }
+.hd-btn:hover { background:var(--hover,#2a3530); }
+.hd-btn:disabled,.hd-btn[aria-disabled="true"] { opacity:.5;cursor:default; }
+.hd-btn.primary { background:var(--accent,#b6f36b);border-color:var(--accent,#b6f36b);color:var(--accent-ink,#142010); }
+.hd-btn.primary:hover { background:var(--accent-hover,var(--accent,#b6f36b)); }
+.hd-btn.quiet { background:transparent;border-color:transparent;color:var(--muted,#93a19f); }
+.hd-btn.quiet:hover { background:var(--hover,#2a3530);color:var(--text,#edf2ee); }
+.hd-btn.danger { color:var(--danger,#f29b91); }
+
+.hd-icon-btn { appearance:none;box-sizing:border-box;margin:0;padding:0;flex:none;display:inline-grid;place-items:center;width:2em;height:2em;border-radius:.55em;border:1px solid var(--border-strong,#46534e);background:transparent;color:var(--accent,#b6f36b);cursor:pointer; }
+.hd-icon-btn:hover { background:var(--hover,#2a3530); }
+.hd-icon-btn.filled { background:var(--accent,#b6f36b);border-color:var(--accent,#b6f36b);color:var(--accent-ink,#142010); }
+.hd-icon-btn:disabled { opacity:.5;cursor:default; }
+.hd-ic { width:1.1em;height:1.1em;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round; }
+
+.hd-btn:focus-visible,.hd-icon-btn:focus-visible,.hd-select-btn:focus-visible,.hd-switch:focus-visible,.hd-check:focus-visible,.hd-opt:focus-visible,.hd-input:focus-visible { outline:2px solid var(--accent,#b6f36b);outline-offset:2px; }
+
+.hd-input { appearance:none;box-sizing:border-box;margin:0;width:100%;min-height:2.3em;padding:0 .75em;border-radius:.6em;border:1px solid var(--border-strong,#46534e);background:var(--field,#101618);color:var(--text,#edf2ee);font:inherit; }
+
+/* Switch and checkbox: a real <input type="checkbox">, so keyboard, label click and form state all work by themselves. */
+.hd-switch,.hd-check { appearance:none;box-sizing:border-box;margin:0;flex:none;position:relative;cursor:pointer;background:var(--switch-off,#3b4744);border:0; }
+.hd-switch { width:2.5em;height:1.4em;border-radius:999px; }
+.hd-switch::after { content:"";position:absolute;inset-block-start:.2em;inset-inline-start:.2em;width:1em;height:1em;border-radius:50%;background:var(--switch-knob,#d0dad5); }
+.hd-switch:checked { background:var(--accent,#b6f36b); }
+.hd-switch:checked::after { inset-inline-start:1.3em;background:var(--accent-ink,#142010); }
+.hd-check { width:1.25em;height:1.25em;border-radius:.3em;border:1.5px solid var(--border-strong,#46534e);background:var(--field,#101618); }
+.hd-check:checked { background:var(--accent,#b6f36b);border-color:var(--accent,#b6f36b); }
+.hd-check:checked::after { content:"";position:absolute;inset-block-start:.12em;inset-inline-start:.38em;width:.3em;height:.6em;border:solid var(--accent-ink,#142010);border-width:0 2px 2px 0;transform:rotate(45deg); }
+.hd-switch:disabled,.hd-check:disabled { opacity:.5;cursor:default; }
+.hd-toggle { display:inline-flex;align-items:center;gap:.6em;cursor:pointer; }
+
+/* Chip: a small label, optionally with a short code in front (language codes TR, EN, DE...). No flags: a language is not a country. */
+.hd-chip { display:inline-flex;align-items:center;gap:.4em;max-width:100%;min-width:0;padding:.12em .55em .12em .12em;border-radius:999px;background:var(--chip,#26302d);color:var(--text,#edf2ee);font-size:.9em;line-height:1.3;white-space:nowrap; }
+.hd-chip:not(:has(.hd-code)) { padding-inline-start:.55em; }
+.hd-code { flex:none;min-width:2.2em;padding:.12em .4em;border-radius:999px;background:var(--track,#2b3730);font-size:.78em;font-weight:700;letter-spacing:.05em;text-align:center;text-transform:uppercase; }
+.hd-chip-text { min-width:0;overflow:hidden;text-overflow:ellipsis; }
+.hd-chip-sub { color:var(--muted,#93a19f);font-size:.9em; }
+.hd-chip[data-tone="accent"] { background:var(--accent-soft,#26302d); }
+.hd-chip[data-tone="accent"] .hd-code { background:var(--accent,#b6f36b);color:var(--accent-ink,#142010); }
+.hd-chip[data-tone="warn"] { background:var(--warn-bg,#2e2a1d);color:var(--warn-text,#e8b48c); }
+
+/* Small badge for a state next to a name ("playing", "site default"). */
+.hd-badge { display:inline-flex;align-items:center;gap:.4em;flex:none;padding:.08em .55em;border-radius:999px;border:1px solid var(--border-strong,#46534e);color:var(--muted,#93a19f);font-size:.78em;font-weight:600;line-height:1.5;white-space:nowrap; }
+.hd-badge[data-tone="live"] { border-color:var(--accent-line,var(--accent,#b6f36b));color:var(--accent,#b6f36b); }
+.hd-dot { flex:none;width:.55em;height:.55em;border-radius:50%;background:var(--faint,#758581); }
+.hd-dot[data-tone="live"] { background:var(--accent,#b6f36b); }
+.hd-dot[data-tone="warn"] { background:var(--warn-text,#e8b48c); }
+.hd-dot[data-tone="off"] { background:transparent;border:1.5px solid var(--faint,#758581); }
+
+/* Select: a button that opens a list. Replaces the browser's own drop-down everywhere. */
+.hd-select { position:relative;display:block;min-width:0; }
+.hd-select-btn { appearance:none;box-sizing:border-box;margin:0;width:100%;display:flex;align-items:center;gap:.6em;min-height:2.4em;padding:.25em .7em;border-radius:.6em;border:1px solid var(--border-strong,#46534e);background:var(--field,#101618);color:var(--text,#edf2ee);font:inherit;text-align:start;cursor:pointer; }
+.hd-select-btn:hover { border-color:var(--accent-line,var(--faint,#758581)); }
+.hd-select-btn:disabled { opacity:.5;cursor:default; }
+.hd-select-value { flex:1;min-width:0;display:flex;align-items:center;gap:.5em; }
+.hd-select-value>.hd-label { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.hd-select-btn .hd-ic { color:var(--muted,#93a19f);width:1em;height:1em; }
+.hd-select[data-open="true"] .hd-select-btn .hd-ic { transform:rotate(180deg); }
+.hd-pop { position:absolute;z-index:20;inset-inline:0;min-width:max-content;top:calc(100% + 4px);box-sizing:border-box;max-height:16em;overflow:auto;overscroll-behavior:contain;padding:.25em;border-radius:.7em;border:1px solid var(--border-strong,#46534e);background:var(--panel,#171c1f);box-shadow:0 4px 12px #0005; }
+.hd-pop[hidden] { display:none; }
+.hd-pop.up { top:auto;bottom:calc(100% + 4px); }
+.hd-pop-search { margin:.1em .1em .3em;width:calc(100% - .2em); }
+.hd-opt { display:flex;align-items:center;gap:.6em;padding:.45em .6em;border-radius:.5em;cursor:pointer;color:var(--text,#edf2ee); }
+.hd-opt.active { background:var(--hover,#2a3530); }
+.hd-opt[aria-disabled="true"] { opacity:.5;cursor:default; }
+.hd-opt-copy { flex:1;min-width:0;display:flex;flex-direction:column; }
+.hd-opt-copy .hd-label { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.hd-opt-copy .hd-sub { color:var(--muted,#93a19f);font-size:.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.hd-opt .hd-tick { width:1em;height:1em;flex:none;visibility:hidden;color:var(--accent,#b6f36b); }
+.hd-opt[aria-selected="true"] .hd-tick { visibility:visible; }
+.hd-empty { padding:.6em;color:var(--muted,#93a19f);font-size:.9em; }

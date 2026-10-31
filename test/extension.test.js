@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { runContentScripts } from './content-scripts.js';
 
 function load(context, file) {
+  if (file === 'content.js') return runContentScripts(context);
   if (file) return vm.runInContext(fs.readFileSync(new URL(`../extension/${file}`, import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../extension/core.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../extension/background.js', import.meta.url), 'utf8'), context);
@@ -165,7 +167,8 @@ function overlayContext({ top, alreadyPlaying = false }) {
   page.self = page; page.parent = { postMessage(message) { posted.push(message); } }; page.top = top ? page : { elsewhere: true };
   const created = [];
   const document = { title: 'Sayfa', body: { append(el) { created.push(el); } }, documentElement: {}, querySelectorAll() { return [video]; }, querySelector() { return video; },
-    createElement() { return { style: {}, className: '', classList: { add() {}, remove() {} }, append() {}, addEventListener() {}, attachShadow() { return { append() {} }; }, remove() {}, offsetWidth: 150, offsetHeight: 30 }; } };
+    createElement() { return { style: {}, className: '', classList: { add() {}, remove() {} }, append() {}, addEventListener() {}, attachShadow() { return { append() {} }; }, remove() {}, offsetWidth: 150, offsetHeight: 30 }; },
+    createElementNS() { return { setAttribute() {}, append() {} }; } };
   // globalThis (the sandbox) deliberately differs from `window`, like in Firefox.
   const context = vm.createContext({ document, window: page, browser: { runtime: { async sendMessage() { return { ok: true }; } } }, MutationObserver: class { observe() {} }, setTimeout() {}, setInterval(fn) { timers.push(fn); return 1; }, clearInterval() {} });
   load(context, 'content.js');

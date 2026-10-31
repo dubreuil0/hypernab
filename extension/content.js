@@ -1,6 +1,7 @@
 // Isolated-world metadata only. No page scripts, cookies, keys or request headers are read. Also draws the optional download button.
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
+  const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars); // shared design system and texts (strings.js, ds.js)
   const videos = new WeakSet();
   let last = '', drm = false, queued = false;
   const closers = new Set(); // every open overlay of this window can close its panel
@@ -27,11 +28,11 @@
     const host = document.createElement('div');
     host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0;';
     const root = host.attachShadow({ mode: 'closed' });
-    // Semi-transparent on purpose: the page text behind stays readable. Full strength on hover or while dragging.
-    const css = '.panel{overscroll-behavior:contain;position:fixed;width:min(320px,calc(100vw - 16px));box-sizing:border-box;background:#161b13;color:#e8f0e0;border:1px solid #3b4a2c;border-radius:10px;box-shadow:0 8px 28px #0009;font:13px system-ui,sans-serif;padding:12px;display:flex;flex-direction:column;gap:8px}.panel[hidden]{display:none}.ptitle{font-weight:600;line-height:1.3;max-height:2.6em;overflow:hidden}.pmeta{color:#9fb08e;font-size:11px}.opts{overscroll-behavior:contain;display:flex;flex-direction:column;gap:4px;max-height:210px;overflow:auto}.opt{display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:6px;padding:5px 6px 5px 9px;border-radius:6px;cursor:pointer;border:1px solid transparent;background:#1f2819;box-sizing:border-box}.opt:hover{background:#2a3822;border-color:#47603a}.opt:focus-visible{outline:2px solid #c7ff90}.opt small{color:#9fb08e;padding-right:4px;font-size:11px;white-space:nowrap}.oname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ib{all:unset;cursor:pointer;min-width:24px;height:24px;padding:0 4px;box-sizing:border-box;border-radius:6px;display:grid;place-items:center;border:1px solid #47603a;background:#10170c;color:#c7ff90;font:700 12px system-ui,sans-serif}.ib:hover{background:#2f4126}.ib.now{background:#c7ff90;color:#10170c;border-color:#c7ff90}.ib.now:hover{background:#d8ffb0}.panel.busy{opacity:.6;pointer-events:none}.go{all:unset;text-align:center;cursor:pointer;color:#10170c;background:#c7ff90;padding:9px;border-radius:6px;font-weight:700}.go:disabled{opacity:.5;cursor:default}.sub{all:unset;cursor:pointer;color:#9fd070;font-size:11px;text-align:center}.skel{height:32px;border-radius:6px;background:linear-gradient(90deg,#1f2819,#2a3822,#1f2819);background-size:200% 100%;animation:sh 1.2s linear infinite}@keyframes sh{to{background-position:-200% 0}}.err{color:#ffb4a0;line-height:1.4}.toast{position:fixed;font:600 11px system-ui,sans-serif;color:#10170c;background:#c7ff90;padding:4px 9px;border-radius:5px;box-shadow:0 2px 8px #0006;white-space:nowrap}.toast[hidden]{display:none}.bar{position:fixed;display:flex;align-items:center;gap:2px;font:600 12px system-ui,sans-serif;border-radius:6px;overflow:hidden;box-shadow:0 1px 6px #0005;opacity:.5;transition:opacity .15s;cursor:grab;user-select:none;touch-action:none}.bar:hover,.bar.drag{opacity:1}.bar.drag{cursor:grabbing}button{all:unset;cursor:pointer;color:#10170c;background:#c7ff90;padding:7px 11px}button.x{background:#2a3322;color:#c7ff90;padding:7px 8px}button:hover{filter:brightness(1.1)}.hint{position:fixed;font:12px system-ui,sans-serif;color:#fff;background:#222c;padding:5px 8px;border-radius:4px}';
     const bar = document.createElement('div'); bar.className = 'bar';
-    const start = document.createElement('button'); try { const dot = document.createElement('span'); dot.className = 'dot'; const svg = document.createElementNS?.('http://www.w3.org/2000/svg', 'svg') ?? document.createElement('i'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', 'M12 4v11M7 10.5l5 5 5-5M5 20h14'); svg.append(path); dot.append(svg); const label = document.createElement('span'); label.textContent = 'İndir'; start.append(dot, label); } catch { start.textContent = 'İndir'; } start.title = 'Hypernab ile indir — kaliteleri göster'; start.setAttribute?.('aria-label', 'Hypernab ile indir');
-    const close = document.createElement('button'); close.className = 'x'; close.textContent = '×'; close.title = 'Bu sayfada gizle';
+    const start = document.createElement('button'); start.className = 'start';
+    { const dot = document.createElement('span'); dot.className = 'dot'; dot.append(DS.icon(document, 'download')); const label = document.createElement('span'); label.textContent = T('panel.download'); start.append(dot, label); }
+    start.title = T('panel.download.title'); start.setAttribute?.('aria-label', T('panel.download.aria'));
+    const close = document.createElement('button'); close.className = 'x'; close.append(DS.icon(document, 'close')); close.title = T('panel.hide'); close.setAttribute?.('aria-label', T('panel.hide'));
     const hint = document.createElement('div'); hint.className = 'hint'; hint.hidden = true;
     const panel = document.createElement('div'); panel.className = 'panel'; panel.hidden = true;
     // Scrolling inside the panel never scrolls the page behind it: the quality list scrolls on its own and, once it hits either end,
@@ -44,20 +45,23 @@
         if ((up && atTop) || (!up && atBottom)) event.preventDefault();
       } else event.preventDefault();
     }, { passive: false });
-    const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = '✓ Kuyruğa eklendi'; toast.hidden = true;
+    const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = T('panel.toast.queued'); toast.hidden = true;
     toast.setAttribute?.('role', 'status'); toast.setAttribute?.('aria-live', 'polite');
     bar.append(start, close); root.append(bar, panel, toast, hint);
     // A constructed stylesheet is not blocked by a page's Content-Security-Policy (an inline <style> can be); fall back to <style> only without it.
-    const dupeCss = '.dupe{background:#262015;border:1px solid #6b5a2c;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;font-size:11px;line-height:1.5;color:#f2e3b8}.dupe .pactions{display:flex;gap:8px}.dupe .go{padding:7px;font-size:11px;background:#e3c870;color:#1a1608}.dupe .sub{padding:7px;border:1px solid #6b5a2c;border-radius:8px;color:#f2e3b8}';
-    // Calm, solid look: no blur, no large shadows. Motion is one short fade-in per open (transform/opacity only) and is off with reduced motion.
-    const premiumCss = '.bar{border-radius:999px!important;background:#171c1f!important;border:1px solid #354039!important;box-shadow:0 2px 8px #0004!important;opacity:.8;transition:opacity .12s ease!important}.bar:hover,.bar.drag{opacity:1!important}.bar button{display:flex!important;align-items:center;gap:6px;color:#edf2ee!important;background:transparent!important;padding:4px 10px 4px 4px!important;font:600 11px system-ui,sans-serif!important}.bar .x{padding:4px 9px!important;color:#93a19f!important;font-weight:400!important}.bar .dot{width:20px;height:20px;border-radius:50%;background:#b6f36b;color:#142010;display:grid;place-items:center;flex:none}.bar .dot svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.panel{border-radius:14px!important;background:#14181a!important;border:1px solid #2b3439!important;box-shadow:0 8px 20px #0006!important;animation:rise .14s ease-out}@keyframes rise{from{opacity:0;transform:translateY(4px)}}.ptitle{font-size:12.5px!important;font-weight:600;color:#edf2ee}.pmeta{color:#93a19f!important}.pactions .go{border-radius:10px!important;background:#b6f36b!important;color:#142010!important}.pactions .sub{border-radius:10px!important}.quality,.opt{border-radius:10px!important}.opt.preferred{border-color:#b6f36b66!important}.toast{border-radius:999px!important;box-shadow:none!important;background:#b6f36b!important;color:#142010!important}@media(prefers-reduced-motion:reduce){.panel{animation:none}.bar{transition:none!important}}';
-    const compactCss = '.panel{width:min(280px,calc(100vw - 16px));background:#171c1f;border-color:#354039;border-radius:12px;padding:12px;gap:10px;max-height:calc(100vh - 16px);overflow:auto}.bar{border-radius:7px!important;background:#b6f36b!important;box-shadow:0 2px 8px #0003!important}.bar button{font:600 11px system-ui,sans-serif!important;padding:5px 8px!important}.bar .x{padding:5px!important}.ptitle{font-size:12px;white-space:nowrap;text-overflow:ellipsis;max-height:none;color:#edf2ee}.pmeta{color:#93a19f;font-size:11px;line-height:1.5}.quality{width:100%;box-sizing:border-box;background:#101618;color:#edf2ee;border:1px solid #3b4840;border-radius:8px;padding:9px;font:12px system-ui,sans-serif}.quality:focus-visible,.go:focus-visible,.sub:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.pactions{display:flex;gap:8px;align-items:center}.pactions .go{flex:1;padding:8px;border-radius:8px;font-size:12px;background:#b6f36b}.pactions .sub{padding:8px;border:1px solid #354039;border-radius:8px;color:#d0dacd;font-size:11px}.detail{font:11px system-ui,sans-serif;color:#93a19f}.detail summary{cursor:pointer}.detail p{margin:6px 0 0;line-height:1.6}.skel{height:34px;background:#26312a;animation:none}.panel.busy{pointer-events:auto}.panel.busy button,.panel.busy select{pointer-events:none;opacity:.5}';
-    const listCss = '.opts{max-height:min(300px,55vh);gap:5px}.opt{grid-template-columns:minmax(0,1fr) 26px 26px;gap:6px;padding:7px 8px;background:#20272b;border-color:#2b3439;border-radius:8px;min-height:44px}.opt:hover{background:#2a3430;border-color:#638447}.opt.preferred{border-color:#638447;background:#222e23}.option-copy{min-width:0}.oname{display:block;font-size:11px;font-weight:600}.opt small{display:block;font-size:10px;color:#93a19f;margin-top:3px;padding:0}.ib{padding:0;width:26px;height:26px;background:transparent;color:#b6f36b;border-color:#3b4b3b}.ib.now{background:#b6f36b;border-color:#b6f36b;color:#142010}.ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ib:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.opts>.sub{padding:7px;font-size:10px}.panel.busy .opt{pointer-events:none;opacity:.55}';
-    const headCss = '.phead{display:flex;gap:8px;align-items:flex-start}.phead .ptitle{flex:1;min-width:0}.rfr{all:unset;cursor:pointer;flex:none;width:24px;height:24px;display:grid;place-items:center;border-radius:6px;border:1px solid #3b4b3b;color:#b6f36b;font:600 13px system-ui,sans-serif}.rfr:hover{background:#1f2a1f}.rfr:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.rfr svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.soundrow{display:flex;flex-direction:column;gap:4px}';
+    // The panel follows the system's light/dark and the app's accent: the first look-up reports them (result.look); until then dark/green.
+    let look = { scheme: 'auto', accent: 'green' }, sheet = null, styleNode = null;
+    const sheetText = () => DS.tokens(look.scheme, look.accent, ':host') + (globalThis.HypernabPanelCss || '');
     try {
-      if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in root) { const sheet = new CSSStyleSheet(); sheet.replaceSync(css + compactCss + listCss + dupeCss + premiumCss + headCss); root.adoptedStyleSheets = [sheet]; }
+      if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in root) { sheet = new CSSStyleSheet(); sheet.replaceSync(sheetText()); root.adoptedStyleSheets = [sheet]; }
       else throw new Error('no constructed stylesheets');
-    } catch { const style = document.createElement('style'); style.textContent = css + compactCss + listCss + dupeCss + premiumCss + headCss; root.append(style); }
+    } catch { sheet = null; styleNode = document.createElement('style'); styleNode.textContent = sheetText(); root.append(styleNode); }
+    const applyLook = value => {
+      const scheme = { dark: 'dark', light: 'light', system: 'auto' }[value?.theme], accent = ['green', 'blue', 'orange', 'violet'].includes(value?.accent) ? value.accent : null;
+      if (!scheme || !accent || (scheme === look.scheme && accent === look.accent)) return;
+      look = { scheme, accent };
+      try { if (sheet) sheet.replaceSync(sheetText()); else if (styleNode) styleNode.textContent = sheetText(); } catch { /* keep the previous look */ }
+    };
     document.body.append(host);
     // Default spot: just OUTSIDE the video, above its top-right corner. If the video touches the top of the window,
     // use the space to its right, and only as a last resort the inside corner. The user can drag it anywhere on the page:
@@ -126,8 +130,8 @@
     close.addEventListener('click', () => remove('closed'));
     // ---- Floating panel (floating panel): quality list + Download, right on the page. Nothing starts until the user presses the button.
     const message = body => {
-      try { return Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:float', ...body })).then(answer => answer || { ok: false, code: 'REPLY_LOST', error: 'Gönderimin sonucu doğrulanamadı.' }, () => ({ ok: false, code: 'REPLY_LOST', error: 'Eklentiyle bağlantı kesildi; gönderimin sonucu doğrulanamadı.' })); }
-      catch { return Promise.resolve({ ok: false, code: 'REPLY_LOST', error: 'Eklentiyle bağlantı kesildi; gönderimin sonucu doğrulanamadı.' }); }
+      try { return Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:float', ...body })).then(answer => answer || { ok: false, code: 'REPLY_LOST', error: T('panel.replyLost') }, () => ({ ok: false, code: 'REPLY_LOST', error: T('panel.replyLostDisconnected') })); }
+      catch { return Promise.resolve({ ok: false, code: 'REPLY_LOST', error: T('panel.replyLostDisconnected') }); }
     };
     const el = (tag, className, text) => { const e = document.createElement(tag); if (className) e.className = className; if (text !== undefined) e.textContent = text; return e; };
     // The first look-up starts when the button appears and runs WITHOUT cookies; the user's click later may add the session.
@@ -153,29 +157,31 @@
     function openPanel() {
       if (!panel.hidden) { closePanel(); return; }
       panel.hidden = false; showLoading(); place();
-      outside = event => { if (event.type === 'keydown' ? event.key === 'Escape' : event.target !== host) closePanel(); };
+      // Escape closes an open sound list first, and the panel only when no list is open.
+      outside = event => { if (event.type === 'keydown' ? event.key === 'Escape' && !panel.querySelector?.('.hd-select[data-open="true"]') : event.target !== host) closePanel(); };
       win.addEventListener('pointerdown', outside, true); win.addEventListener('keydown', outside, true);
       const serial = ++loadSerial;
       load().then(result => { if (serial === loadSerial && !panel.hidden) { showResult(result); place(); } });
     }
     function showLoading() {
-      panel.replaceChildren(el('div', 'ptitle', 'Hazırlanıyor…'), el('div', 'skel'));
+      panel.replaceChildren(el('div', 'ptitle', T('panel.preparing')), el('div', 'skel'));
     }
     function showError(text, retry = true) {
       const children = [el('div', 'err', text)];
-      const open = el('button', 'sub', 'Eklenti penceresini aç'); open.addEventListener('click', () => { closePanel(); try { api.runtime.sendMessage({ type: 'hypernab:open-panel' }); } catch { /* extension reloaded */ } }); children.push(open);
+      const open = el('button', 'sub hd-btn quiet', T('panel.openExtension')); open.addEventListener('click', () => { closePanel(); try { api.runtime.sendMessage({ type: 'hypernab:open-panel' }); } catch { /* extension reloaded */ } }); children.push(open);
       panel.replaceChildren(...children);
     }
     function showResult(result) {
       shownSig = JSON.stringify(result);
-      if (!result.ok) { showError(result.error || 'Video bilgisi alınamadı.', result.code !== 'drm'); return; }
+      if (!result.ok) { showError(result.error || T('panel.infoFailed'), result.code !== 'drm'); return; }
+      applyLook(result.look);
       const options = result.options || [], main = options.filter(option => option.recommended !== false), more = options.filter(option => option.recommended === false);
       const list = el('div', 'opts'), note = el('div', 'err'); note.hidden = true;
       let expanded = false, go = null;
       // Several sounds (dubbed / original ...): the one the player is playing is selected when that could be told; otherwise the site's
       // default, and the user can pick. What is chosen here is exactly what is downloaded.
       const sounds = result.audioTracks || [];
-      let chosenAudio = sounds.length ? (sounds.find(track => track.id === result.audioActive) || sounds.find(track => track.default) || sounds[0]).id : null;
+      let chosenAudio = sounds.length ? (sounds.find(track => track.id === result.audioPick?.id) || sounds.find(track => track.id === result.audioActive) || sounds.find(track => track.default) || sounds[0]).id : null;
       async function begin(optionId, mode, allowDuplicate = false) {
         if (pendingStart?.working) return;
         const page = String(win.location?.href || '');
@@ -183,8 +189,8 @@
         if (!pendingStart || !pendingStart.ambiguous || pendingStart.page !== page) pendingStart = { page, optionId, mode, audioTrack: chosenAudio, intentId: globalThis.crypto?.randomUUID?.() || null };
         const intent = pendingStart; intent.working = true;
         note.hidden = true; panel.classList.add('busy'); panel.setAttribute?.('aria-busy', 'true');
-        const previous = go?.textContent; if (go) go.textContent = 'Hazırlanıyor…';
-        note.className = 'pmeta'; note.textContent = 'Hazırlanıyor…'; note.hidden = false;
+        const previous = go?.textContent; if (go) go.textContent = T('panel.preparing');
+        note.className = 'pmeta'; note.textContent = T('panel.preparing'); note.hidden = false;
         let answer;
         for (let attempt = 0; attempt < 3; attempt++) {
           answer = await message({ action: 'start', optionId: intent.optionId, mode: intent.mode, intentId: intent.intentId, ...(intent.audioTrack ? { audioTrack: intent.audioTrack } : {}), ...(allowDuplicate ? { allowDuplicate: true } : {}) });
@@ -195,7 +201,7 @@
         panel.classList.remove('busy'); panel.setAttribute?.('aria-busy', 'false'); if (go) go.textContent = previous; note.hidden = true;
         if (removed || page !== String(win.location?.href || '')) return;
         if (answer.ok) {
-          toast.textContent = answer.queued ? '✓ Kuyruğa eklendi' : '✓ İndirmeye eklendi';
+          toast.textContent = answer.queued ? T('panel.toast.queued') : T('panel.toast.started');
           closePanel(); toast.hidden = false; place(); clearTimeout(toastTimer); toastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
           if (refreshPending) { refreshPending = false; refresher(); }
           return;
@@ -204,26 +210,22 @@
         if (answer.code === 'duplicate') { askDuplicate(answer, optionId, mode); return; }
         if (answer.refresh?.ok) { lookup = Promise.resolve(answer.refresh); showResult(answer.refresh); const warning = panel.querySelector?.('.err'); if (warning) { warning.textContent = answer.error; warning.hidden = false; } place(); return; }
         const errorNote = panel.querySelector?.('.err') || note;
-        errorNote.className = 'err'; errorNote.textContent = answer.error || 'Başlatılamadı.'; errorNote.hidden = false;
+        errorNote.className = 'err'; errorNote.textContent = answer.error || T('panel.startFailed'); errorNote.hidden = false;
       }
       // The same source in the same quality is already in the app: say so, and let the user decide. Nothing is removed or replaced.
-      const states = { running: 'iniyor', queued: 'sırasını bekliyor', held: 'sonra eklenenlerde', paused: 'duraklatıldı', interrupted: 'kesintiye uğradı', completed: 'tamamlandı' };
+      const states = Object.fromEntries(['running', 'queued', 'held', 'paused', 'interrupted', 'completed'].map(key => [key, T(`panel.status.${key}`)]));
       function askDuplicate(answer, optionId, mode) {
         panel.querySelector?.('.dupe')?.remove();
         const box = el('div', 'dupe'), actions = el('div', 'pactions');
-        for (const item of (answer.duplicates || []).slice(-2)) box.append(el('div', '', `• ${item.title === 'video' ? 'Adsız video' : item.title}${item.formatLabel ? ` · ${item.formatLabel}` : ''} — ${states[item.status] || item.status}`));
-        box.prepend(el('div', '', 'Bu video aynı kalitede zaten listede:'));
-        const again = el('button', 'go', 'Yine de indir'), cancel = el('button', 'sub', 'Vazgeç');
+        for (const item of (answer.duplicates || []).slice(-2)) box.append(el('div', '', `• ${item.title === 'video' ? T('panel.unnamed') : item.title}${item.formatLabel ? ` · ${item.formatLabel}` : ''} — ${states[item.status] || item.status}`));
+        box.prepend(el('div', '', T('panel.dupe.title')));
+        const again = el('button', 'go hd-btn primary', T('panel.dupe.again')), cancel = el('button', 'sub hd-btn quiet', T('panel.dupe.cancel'));
         again.addEventListener('click', () => { box.remove(); begin(optionId, mode, true); }); cancel.addEventListener('click', () => box.remove());
         actions.append(again, cancel); box.append(actions); panel.append(box); place();
       }
       const rowButton = (kind, title, act) => {
-        const button = el('button', `ib ${kind}`); button.title = title; button.setAttribute('aria-label', title);
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
-        const path = document.createElementNS(svg.namespaceURI, 'path');
-        path.setAttribute('d', kind === 'now' ? 'M12 4v12m-5-5 5 5 5-5M5 20h14' : 'M4 6h12M4 12h12M4 18h6m8-4v8m-4-4h8');
-        svg.append(path); button.append(svg);
+        const button = el('button', `ib ${kind} hd-icon-btn${kind === 'now' ? ' filled' : ''}`); button.title = title; button.setAttribute('aria-label', title);
+        button.append(DS.icon(document, kind === 'now' ? 'download' : 'queue'));
         button.addEventListener('click', event => { event.stopPropagation(); act(); }); return button;
       };
       // Complete files the page loaded sit under the qualities: MP4 and other common containers in view, odd containers and sound folded away.
@@ -233,50 +235,44 @@
         for (const option of expanded ? [...primaryRows, ...extraRows] : primaryRows) {
           const row = el('div', `opt${option.id === result.defaultOptionId ? ' preferred' : ''}`), text = el('div', 'option-copy');
           row.tabIndex = 0; row.setAttribute('role', 'group'); row.setAttribute('aria-label', option.label);
-          row.title = `${option.label} · ${option.size} — hemen indir`;
+          row.title = T('panel.row.title', { label: option.label, size: option.size });
           text.append(el('span', 'oname', option.label), el('small', '', option.size));
-          row.append(text, rowButton('now', `${option.label} indir`, () => begin(option.id, 'now')), rowButton('later', `${option.label} sonra ekle`, () => begin(option.id, 'queue')));
+          row.append(text, rowButton('now', T('panel.row.now', { label: option.label }), () => begin(option.id, 'now')), rowButton('later', T('panel.row.later', { label: option.label }), () => begin(option.id, 'queue')));
           row.addEventListener('click', () => begin(option.id, 'now'));
           row.addEventListener('keydown', event => { if (event.target === row && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); begin(option.id, 'now'); } });
           list.append(row);
         }
         if (extraRows.length) {
-          const toggle = el('button', 'sub', expanded ? 'Diğer kaynakları gizle' : `Diğer kaynaklar (${extraRows.length})`);
+          const toggle = el('button', 'sub hd-btn quiet', expanded ? T('panel.more.hide') : T('panel.more.show', { n: extraRows.length }));
           toggle.setAttribute('aria-expanded', String(expanded)); toggle.addEventListener('click', () => { expanded = !expanded; draw(); place(); }); list.append(toggle);
         }
       };
       const meta = [result.duration, !options.length ? result.fileNote : null].filter(Boolean).join(' · ');
       // Refresh sits next to the title: the page may have changed what it plays (language, source) without any request the extension could notice.
-      const head = el('div', 'phead'), again = el('button', 'rfr');
-      again.title = 'Yenile: sayfada şu an oynatılanı sıfırdan yeniden tara'; again.setAttribute('aria-label', 'Yenile');
-      try {
-        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
-        const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'); svg.append(path); again.append(svg);
-      } catch { again.textContent = '↻'; }
+      const head = el('div', 'phead'), again = el('button', 'rfr hd-icon-btn');
+      again.title = T('panel.refresh.title'); again.setAttribute('aria-label', T('panel.refresh.aria')); again.append(DS.icon(document, 'refresh'));
       again.addEventListener('click', event => { event.stopPropagation?.(); reloadFresh(); });
-      head.append(el('div', 'ptitle', result.title || 'Video'), again);
+      head.append(el('div', 'ptitle', result.title || T('panel.video')), again);
       const children = [head, ...(meta ? [el('div', 'pmeta', meta)] : []), ...(result.alert ? [el('div', 'err', result.alert)] : [])];
       const hasRows = options.length > 0 || files.length > 0;
       if (hasRows) draw();
       if (sounds.length) {
-        const row = el('div', 'soundrow'), select = el('select', 'quality'), hint = el('div', 'pmeta');
-        select.setAttribute('aria-label', 'Ses');
-        for (const track of sounds) {
-          const option = el('option', '', [track.name || track.language || 'Ses', track.language && track.name && !String(track.name).toLowerCase().includes(String(track.language).toLowerCase()) ? `(${track.language})` : '', track.id === result.audioActive ? '· çalıyor' : track.default ? '· sitenin varsayılanı' : ''].filter(Boolean).join(' '));
-          option.value = track.id; select.append(option);
-        }
-        select.value = chosenAudio;
-        select.addEventListener('change', () => { chosenAudio = select.value; });
-        hint.textContent = result.audioActive ? 'Oynatıcıda çalan ses seçili.' : 'Oynatıcıda hangi ses seçili anlaşılamadı. Gerekirse sesi seç; oynatıcıda başka ses seçtiysen birkaç saniye oynatıp Yenile’ye bas.';
-        row.append(el('div', 'pmeta', 'Ses'), select, hint);
+        const row = el('div', 'soundrow'), hint = el('div', 'pmeta'), caption = el('div', 'pmeta');
+        const codeOf = track => { const base = String(track.language || '').toLowerCase().split(/[-_]/)[0]; return /^[a-z]{2,3}$/.test(base) ? base.toUpperCase() : undefined; };
+        const picker = DS.select(document, { label: T('panel.sound'), value: chosenAudio, onChange: value => { chosenAudio = value; },
+          options: sounds.map(track => ({ value: track.id, code: codeOf(track), label: track.name || track.language || T('panel.sound.unnamed'),
+            ...(track.id === result.audioActive ? { badge: { text: T('panel.sound.playing'), tone: 'live' } } : track.default ? { badge: { text: T('panel.sound.default') } } : {}) })) });
+        hint.textContent = result.audioPick?.why === 'preference' ? T('panel.sound.hint.pref') : result.audioActive ? T('panel.sound.hint.playing') : T('panel.sound.hint.unknown');
+        caption.append(DS.icon(document, 'sound'), el('span', '', T('panel.sound')));
+        row.append(caption, picker.el, hint);
         children.push(row);
       }
       const detail = el('details', 'detail'), facts = el('p', ''), actions = el('div', 'pactions');
-      detail.append(el('summary', '', 'Ayrıntılar'), facts);
+      detail.append(el('summary', '', T('panel.details')), facts);
       const defaultOption = options.find(option => option.id === result.defaultOptionId) || options[0];
-      facts.textContent = [defaultOption ? ({ included: 'Ses dahil', merged: 'Ses birleştirilir', none: 'Ses yok' }[defaultOption.audio]) : result.qualityNote, result.sessionUsed ? 'Tarayıcı oturumun kullanılıyor' : null, result.warning].filter(Boolean).join(' · ') || 'Kaynak olduğu gibi indirilir.';
+      facts.textContent = [defaultOption ? (['included', 'merged', 'none'].includes(defaultOption.audio) ? T(`panel.audio.${defaultOption.audio}`) : null) : result.qualityNote, result.sessionUsed ? T('panel.session') : null, result.warning].filter(Boolean).join(' · ') || T('panel.asIs');
       if (!options.length) {
-        go = el('button', 'go', 'İndir'); const later = el('button', 'sub', 'Sonra ekle');
+        go = el('button', 'go hd-btn primary', T('panel.download')); const later = el('button', 'sub hd-btn quiet', T('panel.later'));
         go.addEventListener('click', () => begin(null, 'now')); later.addEventListener('click', () => begin(null, 'queue'));
         actions.append(go, later); children.push(actions);
       }

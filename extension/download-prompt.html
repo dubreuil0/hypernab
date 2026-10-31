@@ -1,19 +1,19 @@
 <!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><title>Hypernab</title><link rel="stylesheet" href="download-prompt.css"></head>
+<html lang="tr"><head><meta charset="utf-8"><title>Hypernab</title><link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="download-prompt.css"><script src="strings.js"></script><script src="ds.js"></script></head>
 <body>
 <main id="card" hidden>
   <div class="file"><img src="icons/icon-48.png" alt=""><div class="info"><strong id="name"></strong><span id="meta"></span></div></div>
-  <div class="where"><span>Kayıt yeri</span><span id="directory"></span></div>
+  <div class="where"><span data-t="prompt.where"></span><span id="directory"></span></div>
   <p id="risk" class="notice warn" hidden></p>
-  <p id="duplicate" class="notice" hidden>Bu bağlantı Hypernab listesinde zaten var.</p>
+  <p id="duplicate" class="notice" data-t="prompt.duplicate" hidden></p>
   <p id="message" class="notice error" role="alert" hidden></p>
-  <label class="check" id="remember"><input type="checkbox" id="remember-type"> <span id="remember-type-text">Bu dosya türünü bir daha sorma</span></label>
+  <label class="hd-toggle remember" id="remember"><input type="checkbox" id="remember-type" class="hd-check"><span id="remember-type-text"></span></label>
   <div class="actions">
     <span id="queue-note"></span>
-    <button id="browser" hidden>Tarayıcı ile indir</button>
-    <button id="cancel">İptal</button>
-    <button id="later">Sonra</button>
-    <button id="now" class="primary" autofocus>İndir</button>
+    <button id="browser" class="hd-btn" data-t="prompt.browser" hidden></button>
+    <button id="cancel" class="hd-btn quiet" data-t="prompt.cancel"></button>
+    <button id="later" class="hd-btn" data-t="prompt.later"></button>
+    <button id="now" class="hd-btn primary" autofocus></button>
   </div>
 </main>
 <p id="done" class="done" role="status" hidden></p>

@@ -29,7 +29,8 @@ import { downloadHls } from './hls-download.js';
 import { recoverRead, RemoteResponseError, recordRecovery } from './recovery.js';
 import { hlsTotalEstimate, sourceSize } from './hls-size.js';
 import { listPlaylist, episodeName, MAX_PLAYLIST } from './playlist.js';
-import { classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
+import { resolveLanguage, validSubtitleLanguage, validAudioLanguage } from './language.js';
+import { pickLead, classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
 
 export function assertCompleteResponse(response) {
   if (![200, 206].includes(response.statusCode)) {
@@ -61,6 +62,8 @@ const SETTING_DEFAULTS = {
   accent: 'green',          // accent colour: green, blue, orange or violet
   listLayout: { widths: {}, hidden: [], focus: false }, // visual only: column widths (px), hidden columns, focus view
   subtitleMode: 'both',     // subtitles found for a video: 'both' (into the file + the leading track as .srt next to it), 'embed' only, 'sidecar' .srt only, or 'off'
+  subtitleLanguage: 'auto', // default subtitle when the page names none: 'auto' (system language), 'off', or a language code such as 'de'
+  audioLanguage: 'player',  // sound: 'player' (what the page's player plays), 'original', or a language code
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
   downloadDirectory: null,  // null = the default folder; changing it affects new downloads only
@@ -83,6 +86,8 @@ const validLayout = value => value && typeof value === 'object' && !Array.isArra
   && typeof value.focus === 'boolean';
 const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout'];
 const SETTING_CHECKS = {
+  subtitleLanguage: value => validSubtitleLanguage(value) || 'Altyazı dili geçersiz.',
+  audioLanguage: value => validAudioLanguage(value) || 'Ses dili geçersiz.',
   smartNames: bool('Akıllı dosya adı'),
   folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || 'Klasör düzeni geçersiz.',
   subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || 'Altyazı seçimi geçersiz.',
@@ -114,7 +119,7 @@ function usableDirectory(dir) {
 const uploadKey = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value) ? value.toLowerCase() : null;
 
 export class DownloadQueue {
-  constructor({ directory, stateFile, toolsDirectory, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = new ConnectionBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist }) {
+  constructor({ directory, stateFile, toolsDirectory, locale = undefined, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = new ConnectionBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist }) {
     this.playlistLister = playlistLister;
     this.pageSniffer = pageSniffer;
     // Browser session cookies: memory only, per job. Never written to queue.json, logs or API responses.
@@ -183,6 +188,7 @@ export class DownloadQueue {
     // Queue ("add to queue") state. The list order is persisted with the jobs; "queue running" is deliberately NOT: after a restart
     // nothing starts by itself until the user presses "Start queue".
     this.settingsFile = `${stateFile}.settings.json`;
+    this.locale = locale; // the system language for the default subtitle; tests pass their own
     this.settings = { queueLimit: 'all', queueNames: ['Genel'], selectedQueue: 'Genel', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
     try {
       const saved = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
@@ -683,6 +689,7 @@ export class DownloadQueue {
     return /^﻿?#EXTM3U/.test(fetched.text) ? this.readSubtitlePlaylist(fetched.text, fetched.url, signal, headers, cookies) : fetched.text;
   }
   // Runs on the finished video of ANY download path. It must never fail the download.
+  subtitleLanguage() { return resolveLanguage(this.settings.subtitleLanguage, this.locale); }
   async attachSubtitles(job, signal) {
     const directory = this.subtitleDirectory(job.id);
     try {
@@ -708,13 +715,10 @@ export class DownloadQueue {
       }
       const expected = candidates.some(item => item.kind === 'file' || item.sure);
       if (!found.length) { if (expected) job.subtitleResult = { mode: 'none', note: 'Sayfada altyazı vardı ama okunabilir bir altyazı dosyası alınamadı.' }; return; }
-      // The track the page was showing leads; otherwise a full Turkish one, otherwise the first full-length one. A track with very few
-      // lines next to a full one is a "forced" track (only foreign phrases) and never leads: a player showing it looks like no subtitle.
-      const longest = Math.max(...found.map(track => track.cues.length));
-      const sparse = track => found.length > 1 && track.cues.length < longest * 0.2;
+      // The track the page was showing leads; otherwise a full-length one in the user's subtitle language (system language unless changed).
+      // No such track: nothing is flagged and no side file is written, so no player shows a wrong language by itself.
       found.sort((a, b) => Number(b.default) - Number(a.default));
-      const lead = found.findIndex(track => track.default) >= 0 ? 0
-        : Math.max(0, found.findIndex(track => track.iso1 === 'tr' && !sparse(track)) >= 0 ? found.findIndex(track => track.iso1 === 'tr' && !sparse(track)) : found.findIndex(track => !sparse(track)));
+      const lead = pickLead(found, this.subtitleLanguage());
       found.forEach((track, index) => { track.default = index === lead; });
       if (lead > 0) found.unshift(...found.splice(lead, 1));
       fs.mkdirSync(directory, { recursive: true });
@@ -722,11 +726,11 @@ export class DownloadQueue {
       let embedded = false, note = null;
       if (mode === 'embed' || mode === 'both') {
         if (!canEmbed(video)) note = 'Bu dosya türüne altyazı gömülemedi; altyazılar yan dosya olarak kaydedildi.';
-        else { try { embedded = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined }); } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
+        else { try { embedded = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined, preferred: this.subtitleLanguage() }); } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
       }
       // 'both': the file carries every track, and the leading (default) one is also written next to it: players such as Windows Media Player
       // and Films & TV ignore tracks inside an mp4 but load a same-named .srt on their own (VLC does too).
-      const files = embedded ? (mode === 'both' ? writeSidecars(video, found.slice(0, 1)) : []) : writeSidecars(video, found);
+      const files = embedded ? (mode === 'both' && lead >= 0 ? writeSidecars(video, found.slice(0, 1)) : []) : writeSidecars(video, found);
       job.subtitleResult = { mode: embedded ? (files.length ? 'embedded+sidecar' : 'embedded') : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note };
       job.subtitlePending = undefined;
     } catch (error) {

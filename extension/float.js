@@ -180,7 +180,9 @@
       // No master list (at most one quality known): the page's other playlists are the other qualities.
       const alts = (info.options || []).length <= 1 ? await resolveAlts(client, tab, withCookies, H.streamSources(entries, source.kind === 'PAGE' ? null : source.url, 5), fresh) : [];
       const active = await activeAudioOf(client, tab, held);
-      const shown = active ? { ...held, info: { ...info, activeAudio: active } } : held;
+      const prefs = await prefsOf(client);
+      const pick = H.pickSound(info.audioTracks, active, prefs.audioLanguage);
+      const shown = { ...held, info: { ...info, ...(active ? { activeAudio: active } : {}), ...(pick ? { audioPick: pick } : {}), look: { theme: prefs.theme, accent: prefs.accent } } };
       watchAudio(tab.id, info.audioTracks?.length > 1 ? active : undefined);
       if (inspectionVersion.get(scope) === version) await api.storage.session.set({ [`float:${tab.id}`]: { ...shown, files, alts, playing, companionAudio: (alts.find(alt => alt.info?.audioOnly)?.sourceInput?.url) || null, pageUrl: tab.url, optionIds: (info.options || []).map(option => option.id), hasOptions: Boolean(info.options?.length) } });
       return present(shown.info, files, alts, playing);
@@ -203,6 +205,10 @@
     // A failed speculative HLS sniff is not the diagnosis of the whole video. Prefer the page's actionable reason.
     return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || 'Video bilgisi alınamadı.' };
   }
+  // The user's sound preference and the app's look (theme, accent) from the app; the app being unreachable never blocks the panel.
+  async function prefsOf(client) {
+    try { const prefs = await client.request('/api/prefs'); return { audioLanguage: typeof prefs?.audioLanguage === 'string' ? prefs.audioLanguage : 'player', theme: prefs?.theme, accent: prefs?.accent }; } catch { return { audioLanguage: 'player' }; }
+  }
   // Own qualities first; qualities of the page's other playlists join them (same label = same quality, shown once), best picture first.
   function mergedOptions(info, alts) {
     const view = (option, id) => ({ id, label: option.label, size: H.size(option).replace(/^Yaklaşık /, '~'), recommended: option.recommended !== false, audio: option.audio, fps: option.fps, hdr: option.hdr, height: option.height || 0 });
@@ -220,7 +226,8 @@
     return {
           ok: true,
           // The sounds of the master (dubbed / original ...) and the one the player is playing now, when it could be told.
-          ...(info.audioTracks?.length > 1 ? { audioTracks: info.audioTracks.map(({ id, name, language, default: isDefault }) => ({ id, name, language, default: isDefault })), audioActive: info.activeAudio || null } : {}),
+          ...(info.audioTracks?.length > 1 ? { audioTracks: info.audioTracks.map(({ id, name, language, default: isDefault }) => ({ id, name, language, default: isDefault })), audioActive: info.activeAudio || null, ...(info.audioPick ? { audioPick: info.audioPick } : {}) } : {}),
+          ...(info.look?.theme && info.look?.accent ? { look: info.look } : {}),
           // Complete files seen on the page. rank 0-1 (MP4, webm/mkv/mov) are shown with the qualities, the rest under "other sources".
           files: files.map(file => ({ id: file.id, label: file.label, size: file.size > 0 ? H.bytes(file.size) : 'Boyut bilinmiyor', main: file.rank <= 1 })), title: info.title, duration: info.duration > 0 ? H.duration(info.duration) : null, sessionUsed: info.sessionUsed === true,
            options,

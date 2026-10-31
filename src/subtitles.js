@@ -152,14 +152,26 @@ export async function probeStreams(file, toolsDirectory, signal) {
   return { video: count('video'), audio: count('audio'), subtitle: count('subtitle'), duration: Number(info.format?.duration) || null };
 }
 // Players such as VLC only switch a subtitle on by themselves when one track carries the "default" flag. A page player that does not
-// say which track it showed leaves none flagged: then a single track, or else the (first) Turkish one, becomes the default.
-export function defaultSubtitleIndex(tracks) {
+// say which track it showed leaves none flagged: then a single track, or else the one in the user's preferred language, becomes the
+// default. No match means nothing is flagged: a wrong language is never chosen silently.
+const sameLanguage = (track, code) => Boolean(code) && (track.iso1 === code || track.iso3 === code);
+export function defaultSubtitleIndex(tracks, preferred = null) {
   if (tracks.some(track => track.default)) return -1; // the page already said which one; flags stay as they are
   if (tracks.length === 1) return 0;
-  return tracks.findIndex(track => track.iso3 === 'tur');
+  return tracks.findIndex(track => sameLanguage(track, preferred));
 }
-export function muxArguments(video, tracks, output) {
-  const fallback = defaultSubtitleIndex(tracks);
+/** Which of the found tracks leads (is the default and gets the side .srt), or -1 for none. `tracks` has the page's default first. */
+export function pickLead(tracks, preferred = null) {
+  if (!tracks.length) return -1;
+  if (tracks[0].default) return 0; // the page said which one it showed
+  // A track with very few lines next to a full one is a "forced" track (only foreign phrases) and never leads: a player showing it looks like no subtitle.
+  const longest = Math.max(...tracks.map(track => track.cues.length));
+  const sparse = track => tracks.length > 1 && track.cues.length < longest * 0.2;
+  if (tracks.length === 1) return 0;
+  return tracks.findIndex(track => sameLanguage(track, preferred) && !sparse(track));
+}
+export function muxArguments(video, tracks, output, preferred = null) {
+  const fallback = defaultSubtitleIndex(tracks, preferred);
   const codec = textCodec(path.extname(video)), args = ['-v', 'error', '-nostdin', '-n', '-protocol_whitelist', 'file,pipe', '-i', video];
   for (const track of tracks) args.push('-protocol_whitelist', 'file,pipe', '-i', track.file);
   args.push('-map', '0:v?', '-map', '0:a?');
@@ -173,14 +185,14 @@ export function muxArguments(video, tracks, output) {
   return args;
 }
 // Writes a new file next to the video; the original is replaced only after the new one is verified. Returns false when not possible.
-export async function embedSubtitles({ video, tracks, toolsDirectory, signal }) {
+export async function embedSubtitles({ video, tracks, toolsDirectory, signal, preferred = null }) {
   if (!tracks.length || !canEmbed(video)) return false;
   const before = await probeStreams(video, toolsDirectory, signal);
   if (before.subtitle > 0 || before.video < 1) return false; // already has subtitles (or no picture): leave it untouched
   const output = `${video}.subtitles.part${path.extname(video)}`;
   fs.rmSync(output, { force: true });
   try {
-    await run(path.join(toolsDirectory, 'ffmpeg.exe'), muxArguments(video, tracks, output), signal);
+    await run(path.join(toolsDirectory, 'ffmpeg.exe'), muxArguments(video, tracks, output, preferred), signal);
     const after = await probeStreams(output, toolsDirectory, signal);
     const durationOk = !before.duration || !after.duration || Math.abs(after.duration - before.duration) <= Math.max(1.5, before.duration * 0.01);
     if (after.subtitle !== tracks.length || after.video !== before.video || after.audio !== before.audio || !durationOk) throw new Error('Altyazılı dosya doğrulanamadı.');

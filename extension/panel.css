@@ -1,0 +1,56 @@
+/* The on-page panel (button, panel, toast) inside its closed shadow root. Built from the design system (ds.css) and the theme variables
+   that HypernabDS.tokens() defines on the host. Flat colours only: no blur, no animation, no transition; one small list shadow. */
+*{box-sizing:border-box}
+.bar,.panel,.toast,.hint{position:fixed;font:13px/1.4 system-ui,'Segoe UI',sans-serif;color:var(--text)}
+.panel[hidden],.toast[hidden],.hint[hidden]{display:none}
+
+/* The small download button next to the video: draggable, calm until hovered. */
+.bar{display:flex;align-items:center;border-radius:999px;background:var(--panel);border:1px solid var(--border-strong);box-shadow:0 2px 8px #0004;opacity:.8;cursor:grab;user-select:none;touch-action:none}
+.bar:hover,.bar.drag{opacity:1}
+.bar.drag{cursor:grabbing}
+.bar button{appearance:none;margin:0;border:0;background:transparent;color:var(--text);font:600 11px/1 system-ui,'Segoe UI',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px}
+.bar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.bar .x{padding:4px 9px;color:var(--muted);font-weight:400}
+.bar .x .hd-ic{width:10px;height:10px}
+.bar .dot{width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.bar .dot .hd-ic{width:12px;height:12px;stroke-width:2.2}
+
+.panel{width:min(300px,calc(100vw - 16px));max-height:calc(100vh - 16px);padding:12px;display:flex;flex-direction:column;gap:10px;border-radius:14px;background:var(--panel);border:1px solid var(--border-strong);box-shadow:0 4px 12px #0005}
+.panel.busy .opt{pointer-events:none;opacity:.55}
+.panel.busy button,.panel.busy .hd-select-btn{pointer-events:none;opacity:.5}
+.phead{display:flex;gap:8px;align-items:flex-start}
+.phead .ptitle{flex:1;min-width:0}
+.ptitle{font-size:13px;font-weight:600;line-height:1.3;max-height:2.6em;overflow:hidden}
+.pmeta{color:var(--muted);font-size:11px;line-height:1.5}
+.err{color:var(--danger);font-size:12px;line-height:1.4}
+.skel{height:34px;border-radius:8px;background:var(--raised)}
+
+/* Sound */
+.soundrow{display:flex;flex-direction:column;gap:6px}
+.soundrow>.pmeta:first-child{display:flex;align-items:center;gap:6px}
+.soundrow .hd-select-btn{font-size:12px}
+
+/* Qualities and files: one row each, tap anywhere to download now; the two small buttons are the same as the row. */
+.opts{display:flex;flex-direction:column;gap:5px;max-height:min(260px,40vh);overflow:auto;overscroll-behavior:contain}
+.opt{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:6px;min-height:44px;padding:6px 8px;border-radius:10px;cursor:pointer;border:1px solid var(--border);background:var(--raised)}
+.opt:hover{background:var(--hover);border-color:var(--accent-line)}
+.opt.preferred{border-color:var(--accent-line);background:var(--accent-soft)}
+.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.option-copy{min-width:0}
+.oname{display:block;font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.opts>.sub{align-self:center;min-height:0;padding:.35em .8em;font-size:11px}
+
+.pactions{display:flex;gap:8px;align-items:center}
+.pactions .go{flex:1}
+.detail{color:var(--muted);font-size:11px}
+.detail summary{cursor:pointer}
+.detail p{margin:6px 0 0;line-height:1.6}
+
+.dupe{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:10px;border:1px solid var(--border-strong);background:var(--warn-bg);color:var(--warn-text);font-size:11px;line-height:1.5}
+.dupe .pactions{display:flex;gap:8px}
+
+.toast{padding:5px 11px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:600;white-space:nowrap}
+.hint{padding:5px 8px;border-radius:6px;background:var(--raised);color:var(--text);font-size:12px}
+
+@media (forced-colors:active){.bar,.panel,.opt{border:1px solid CanvasText}}

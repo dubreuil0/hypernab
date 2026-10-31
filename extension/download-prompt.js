@@ -2,13 +2,17 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   const $ = id => document.getElementById(id);
+  const T = (key, vars) => globalThis.HypernabText.t(key, vars);
+  // Colours follow the system's light/dark (the app's accent is not known here: green). Texts come from the translation keys.
+  { const theme = document.createElement('style'); theme.textContent = globalThis.HypernabDS.tokens('auto', 'green', ':root'); document.head.append(theme); }
+  for (const node of document.querySelectorAll('[data-t]')) node.textContent = T(node.dataset.t);
   const IDLE_MS = 180000;
   let current = null, busy = false, idle;
   const send = message => Promise.resolve(api.runtime.sendMessage(message));
   const formatSize = bytes => {
-    if (!Number.isFinite(bytes) || bytes <= 0) return 'Bilinmiyor';
+    if (!Number.isFinite(bytes) || bytes <= 0) return T('prompt.unknownSize');
     const units = ['B', 'KB', 'MB', 'GB', 'TB'], power = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
-    return `${(bytes / 1024 ** power).toLocaleString('tr-TR', { maximumFractionDigits: power > 1 ? 1 : 0 })} ${units[power]}`;
+    return `${(bytes / 1024 ** power).toLocaleString(globalThis.HypernabText.language(), { maximumFractionDigits: power > 1 ? 1 : 0 })} ${units[power]}`;
   };
   const show = (id, text) => { const node = $(id); if (text !== undefined) node.textContent = text; node.hidden = !text && text !== undefined; };
 
@@ -28,16 +32,16 @@
     current = item;
     $('name').textContent = item.name; $('name').title = item.name;
     $('meta').textContent = [formatSize(item.bytes), item.host].filter(Boolean).join('  ·  ');
-    $('directory').textContent = item.directory ? `\u202A${item.directory}` : 'Hypernab indirme klasörü';
+    $('directory').textContent = item.directory ? `\u202A${item.directory}` : T('prompt.defaultDir');
     $('directory').title = item.directory || '';
-    $('queue-note').textContent = item.remaining > 0 ? `Sırada ${item.remaining} dosya daha` : '';
-    show('risk', item.risk === 'program' ? 'Program dosyası: yalnızca güvendiğin bir kaynaktansa çalıştır.' : item.risk === 'script' ? 'Bu dosya komut veya makro çalıştırabilir.' : '');
-    show('duplicate', item.duplicate ? 'Bu bağlantı Hypernab listesinde zaten var.' : '');
+    $('queue-note').textContent = item.remaining > 0 ? T('prompt.queueNote', { n: item.remaining }) : '';
+    show('risk', item.risk === 'program' ? T('prompt.risk.program') : item.risk === 'script' ? T('prompt.risk.script') : '');
+    show('duplicate', item.duplicate ? T('prompt.duplicate') : '');
     show('message', '');
     $('browser').hidden = true;
-    $('now').textContent = item.duplicate ? 'Yine de indir' : 'İndir';
+    $('now').textContent = item.duplicate ? T('prompt.again') : T('prompt.now');
     $('remember-type').checked = false;
-    $('remember-type-text').textContent = item.ext ? `Bir daha sorma: .${item.ext} dosyalarını hep Hypernab ile indir` : 'Bir daha sorma: bu tür dosyaları hep Hypernab ile indir';
+    $('remember-type-text').textContent = item.ext ? T('prompt.remember.ext', { ext: item.ext }) : T('prompt.remember.type');
     $('remember').hidden = !item.ext;
     $('card').hidden = false; $('done').hidden = true;
     $('now').focus();
@@ -60,17 +64,17 @@
       if (answer?.ok) {
         if (choice === 'now' || choice === 'later') {
           $('card').hidden = true;
-          show('done', answer.browserDone ? 'Tarayıcı dosyayı zaten indirmiş; Hypernab’a eklenmedi.' : answer.gone ? 'İndirme tarayıcıdan kaldırılmıştı; işlem yapılmadı.' : answer.browserCopy ? 'Hypernab’a eklendi. Tarayıcı da bitirmişti; iki kopya olabilir.' : choice === 'later' ? 'Hypernab listesine eklendi (Sonra ekle).' : 'Hypernab indiriyor.');
+          show('done', answer.browserDone ? T('prompt.done.browserDone') : answer.gone ? T('prompt.done.gone') : answer.browserCopy ? T('prompt.done.browserCopy') : choice === 'later' ? T('prompt.done.later') : T('prompt.done.now'));
           await new Promise(resolve => setTimeout(resolve, answer.browserCopy || answer.browserDone ? 2600 : 450));
         }
         working(false); await next(); return;
       }
       // Hypernab could not take the file: the browser's download is untouched and still waiting.
-      show('message', answer?.error || 'Hypernab dosyayı alamadı.');
-      if (answer?.duplicate) { current.allowDuplicate = true; $('now').textContent = 'Yine de indir'; }
+      show('message', answer?.error || T('prompt.failed'));
+      if (answer?.duplicate) { current.allowDuplicate = true; $('now').textContent = T('prompt.again'); }
       else $('browser').hidden = false; // the way out when Hypernab cannot take it: the browser downloads it itself
     } catch (error) {
-      show('message', 'Hypernab ile bağlantı kurulamadı.');
+      show('message', T('prompt.noConnection'));
       $('browser').hidden = false;
     }
     working(false); void fit();

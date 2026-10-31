@@ -33,7 +33,7 @@ export function validateNativeRequest(message) {
     return { action: message.action };
   }
   if (message.action !== 'request' || !['GET', 'POST'].includes(message.method) || typeof message.route !== 'string') throw new Error('Geçersiz Native komutu.');
-  const get = /^\/api\/(?:status|jobs|submissions\/[a-f0-9-]{36})$/i;
+  const get = /^\/api\/(?:status|prefs|jobs|submissions\/[a-f0-9-]{36})$/i;
   const post = /^\/api\/(?:inspect|sniff|subtitles|duplicates|jobs|files\/take|hls\/active-audio|jobs\/[a-f0-9-]{36}\/(?:pause|resume|cancel)|submissions\/[a-f0-9-]{36}\/abandon|app\/shutdown)$/i;
   if (!(message.method === 'GET' ? get : post).test(message.route)) throw new Error('Bu Native komutuna izin verilmiyor.');
   if (message.method === 'GET' && message.body !== undefined) throw new Error('GET komutu gövde kabul etmez.');

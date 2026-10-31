@@ -15,6 +15,15 @@ html[data-scheme="light"][data-accent="violet"] { --accent:#6a45d1; }
 /* Long lists stay light: rows that are off screen are not laid out or painted. */
 html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic-size:auto 41px; }
 .btn:focus-visible,button:focus-visible { outline-offset:2px; }
+/* A design-system list in a settings row is wide enough for language names and its search box. */
+.setting-control .hd-select { width:19em;max-width:100%; }
+/* Upgraded native lists (select-upgrade.js): the native one stays in the page, hidden. Toolbar lists size to their content. */
+.hd-gone { display:none!important; }
+.hd-select.hd-native { display:inline-block;min-width:8em; }
+.hd-select.hd-native.wide { display:block;width:100%; }
+.hd-select.hd-native .hd-select-btn { min-height:2.1em; }
+.job-subs { display:flex;flex-wrap:wrap;align-items:center;gap:.4em .5em; }
+.job-subs .hd-ic { color:var(--muted); }
 @media (prefers-reduced-motion:reduce) { * { animation:none!important;transition:none!important; } }
 .playlist-items { max-height:min(320px,40vh);overflow:auto;display:grid;gap:2px;margin:8px 0; }
 .playlist-row { display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:6px 8px;border-radius:6px;cursor:pointer; }

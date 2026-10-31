@@ -7,7 +7,7 @@ const read = name => fs.readFileSync(new URL(`../extension/${name}`, import.meta
 const TOKEN = 'a'.repeat(64);
 
 // Real core.js + float.js against a fake browser and a fake app server (an async one, so concurrency can be watched).
-function setup({ entries = [], frames = {}, inspect, activity = [], onJob } = {}) {
+function setup({ entries = [], frames = {}, inspect, activity = [], onJob, settings = {} } = {}) {
   const session = { 'tab:7': entries, 'context:7': { frames } }, local = { token: TOKEN };
   const requests = [];
   let listener = null, running = 0, peak = 0;
@@ -23,16 +23,18 @@ function setup({ entries = [], frames = {}, inspect, activity = [], onJob } = {}
   const fetcher = async (url, options) => {
     const route = new URL(url).pathname, body = options.body ? JSON.parse(options.body) : null;
     requests.push({ route, body });
-    running++; peak = Math.max(peak, running);
+    const inspection = ['/api/inspect', '/api/sniff'].includes(route); // the limit is about inspections, not tiny reads
+    if (inspection) { running++; peak = Math.max(peak, running); }
     try {
       await new Promise(resolve => setTimeout(resolve, 8));
       const data = route === '/api/status' ? { extensionProtocol: 1, instanceId: 'engine-1' }
         : ['/api/inspect', '/api/sniff'].includes(route) ? await inspect(body)
+          : route === '/api/prefs' ? settings
           : route === '/api/hls/active-audio' ? { active: activity.length ? 'a1' : null }
             : route === '/api/duplicates' ? { duplicates: [] }
               : route.startsWith('/api/submissions/') ? { known: false } : (onJob?.(body), { id: 'job-1' });
       return { ok: !data?.httpError, status: data?.httpError ? 422 : 200, json: async () => data?.httpError ? { error: data.httpError } : data };
-    } finally { running--; }
+    } finally { if (inspection) running--; }
   };
   const context = vm.createContext({ browser, URL, AbortSignal, JSON, Promise, Date, Math, crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' }, navigator: { userAgent: 'UA' }, setTimeout, clearTimeout, fetch: fetcher, globalThis: null });
   context.globalThis = context;
@@ -112,4 +114,29 @@ test('lists are looked at two at a time at most: the app is never sent more than
   const answer = await ask(app);
   assert.equal(answer.ok, true, answer.error);
   assert.ok(app.peak() <= 2, `at most two requests at once (saw ${app.peak()})`);
+});
+
+test('sound preselection: playing wins; else the preference (one match only); else the site default, said as such', async () => {
+  const plain = value => JSON.parse(JSON.stringify(value ?? null)); // objects from the test's own vm realm
+  const pick = async settings => plain((await ask(setup({ entries: [stream('ml/master', 615)], inspect: () => master, settings }))).audioPick);
+  assert.deepEqual(await pick({}), { id: 'a0', why: 'site-default' }, 'no preference, nothing playing: the site\'s own default');
+  assert.deepEqual(await pick({ audioLanguage: 'player' }), { id: 'a0', why: 'site-default' });
+  assert.deepEqual(await pick({ audioLanguage: 'original' }), { id: 'a1', why: 'preference' }, 'the sound named "Orijinal"');
+  assert.deepEqual(await pick({ audioLanguage: 'en' }), { id: 'a1', why: 'preference' });
+  assert.deepEqual(await pick({ audioLanguage: 'tr' }), { id: 'a0', why: 'preference' });
+  assert.deepEqual(await pick({ audioLanguage: 'ja' }), { id: 'a0', why: 'site-default' }, 'no Japanese sound: never a wrong one, the site default stays');
+  const playing = await ask(setup({ entries: [stream('ml/master', 615)], activity: [{ url: 'https://cdn.example.org/m/en/en-0.ts', at: 5 }], inspect: () => master, settings: { audioLanguage: 'tr' } }));
+  assert.deepEqual(plain(playing.audioPick), { id: 'a1', why: 'playing' }, 'what the player plays beats the preference');
+});
+
+test('pickSound on its own: the subtitle language never decides the sound; ambiguous matches are not guessed', () => {
+  const context = vm.createContext({}); vm.runInContext(fs.readFileSync(new URL('../extension/core.js', import.meta.url), 'utf8'), context);
+  const plain = value => JSON.parse(JSON.stringify(value ?? null));
+  const core = { pickSound: (...args) => plain(context.Hypernab.pickSound(...args)) };
+  const tracks = [{ id: 'a0', name: 'Deutsch', language: 'de', default: true }, { id: 'a1', name: 'English', language: 'en-US' }, { id: 'a2', name: 'English Commentary', language: 'en' }];
+  assert.equal(core.pickSound(tracks, null, 'de').id, 'a0');
+  assert.deepEqual(core.pickSound(tracks, null, 'en'), { id: 'a0', why: 'site-default' }, 'two English sounds: not guessed');
+  assert.deepEqual(core.pickSound(tracks, 'a2', 'de'), { id: 'a2', why: 'playing' });
+  assert.equal(core.pickSound([tracks[0]], null, 'de'), null, 'one sound: nothing to choose');
+  assert.deepEqual(core.pickSound([{ id: 'a0', name: 'x' }, { id: 'a1', name: 'y' }], null, 'player'), { id: 'a0', why: 'first' });
 });

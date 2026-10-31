@@ -205,9 +205,17 @@ function render(force = false) {
     }
     if (job.subtitleResult) {
       const s = job.subtitleResult;
-      const names = (s.tracks || []).map(track => track.name).join(', ');
-      const text = s.mode === 'embedded' ? `Altyazı: ${names} (videoya gömülü)` : s.mode === 'embedded+sidecar' ? `Altyazı: ${names} (videoya gömülü + yan dosya: ${(s.files || []).join(', ')})` : s.mode === 'sidecar' ? `Altyazı: ${names} (yan dosya: ${(s.files || []).join(', ')})` : s.note;
-      const line = el('div', `job-file${s.mode === 'none' ? ' job-error' : ''}`, [text, s.mode !== 'none' && s.note ? s.note : null].filter(Boolean).join(' · '));
+      const DS = globalThis.HypernabDS, T = globalThis.HypernabText.t;
+      let line;
+      if (s.mode === 'none') line = el('div', 'job-file job-error', s.note);
+      else {
+        // Subtitles as language chips (code + name; the default one in the accent), then where they went: inside the video and/or next to it.
+        line = el('div', 'job-file job-subs'); line.append(DS.icon(document, 'subtitle'), el('span', '', T('job.sub.title')));
+        for (const track of s.tracks || []) { const base = String(track.lang || '').toLowerCase(); line.append(DS.chip(document, { code: /^[a-z]{2,3}$/.test(base) ? base : undefined, text: track.name, tone: track.default ? 'accent' : undefined })); }
+        if (s.mode === 'embedded' || s.mode === 'embedded+sidecar') line.append(DS.badge(document, T('job.sub.embedded')));
+        if (s.mode === 'sidecar' || s.mode === 'embedded+sidecar') { const side = DS.badge(document, T('job.sub.sidecar')); side.title = (s.files || []).join(', '); line.append(side); }
+        if (s.note) line.append(el('span', '', s.note));
+      }
       // The result of a download is worth seeing in the row itself, not only in the details.
       (s.mode === 'none' ? card : details).append(line);
     }

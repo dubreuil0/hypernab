@@ -27,7 +27,7 @@ test('the language of an unnamed subtitle file is read from its words', () => {
 
 test('files named only "1.vtt" / "2.vtt": the full Turkish track leads and is the default, not the sparse foreign-phrases track that came first', { skip: !haveTools }, async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-lead-'));
-  const queue = new DownloadQueue({ directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });
+  const queue = new DownloadQueue({ locale: 'tr-TR', directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });
   t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
   const directory = path.join(root, 'd'); fs.mkdirSync(directory, { recursive: true });
   const file = path.join(directory, 'j-Film.mp4');
@@ -46,3 +46,26 @@ test('files named only "1.vtt" / "2.vtt": the full Turkish track leads and is th
   assert.equal(subs[0].tags.language, 'tur', 'and it is the Turkish one'); assert.equal(job.subtitleResult.tracks[0].name, 'Türkçe'); assert.equal(job.subtitleResult.tracks[1].lang, 'en');
   assert.equal(subs[1].disposition.default, 0); assert.notEqual(subs[1].tags.language, 'tur');
 });
+
+// Same two files, different system languages: the default follows the user, and without a match nothing is flagged or written.
+for (const [locale, setting, expectFlag, expectFiles] of [['en-US', 'auto', 'eng', ['k-Film.en.srt']], ['de-DE', 'auto', null, []], ['de-DE', 'tr', 'tur', ['k-Film.tr.srt']], ['tr-TR', 'off', null, []]]) {
+  test(`default subtitle for system language ${locale}, setting "${setting}": ${expectFlag || 'none flagged'}`, { skip: !haveTools }, async t => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-pref-'));
+    const queue = new DownloadQueue({ locale, directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });
+    t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+    queue.setSettings({ subtitleLanguage: setting });
+    const directory = path.join(root, 'd'); fs.mkdirSync(directory, { recursive: true });
+    const file = path.join(directory, 'k-Film.mp4');
+    const made = spawnSync(path.join(tools, 'ffmpeg.exe'), ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x120:rate=10:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', file]);
+    assert.equal(made.status, 0, String(made.stderr));
+    const job = { id: 'k', status: 'running', directory, file: 'k-Film.mp4', headers: {}, url: 'https://cdn.example.org/v.mp4',
+      subtitlePending: queue.storeSubtitleInputs('k', { subtitleTracks: [{ text: vtt(ENGLISH_FULL) }, { text: vtt(TURKISH) }] }) };
+    await queue.attachSubtitles(job, new AbortController().signal);
+    assert.deepEqual(job.subtitleResult.files, expectFiles);
+    const subs = JSON.parse(spawnSync(path.join(tools, 'ffprobe.exe'), ['-v', 'error', '-select_streams', 's', '-show_entries', 'stream=index:stream_tags=language:stream_disposition=default', '-of', 'json', file]).stdout).streams;
+    assert.equal(subs.length, 2, 'every track is still inside the file');
+    assert.deepEqual(job.subtitleResult.tracks.filter(track => track.default).length, expectFlag ? 1 : 0, 'what Hypernab flags as the default');
+    // The mp4 container itself always enables its first subtitle when none is flagged (the muxer does this), so only a flagged case is checked in the file.
+    if (expectFlag) assert.deepEqual(subs.filter(sub => sub.disposition.default === 1).map(sub => sub.tags.language), [expectFlag]);
+  });
+}

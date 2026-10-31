@@ -43,6 +43,10 @@ const assets = new Map([
   ['/tray.js', ['tray.js', 'text/javascript; charset=utf-8']],
   ['/history-view.js', ['history-view.js', 'text/javascript; charset=utf-8']],
   ['/theme.css', ['theme.css', 'text/css; charset=utf-8']],
+  ['/ds.css', ['ds.css', 'text/css; charset=utf-8']],
+  ['/ds.js', ['ds.js', 'text/javascript; charset=utf-8']],
+  ['/strings.js', ['strings.js', 'text/javascript; charset=utf-8']],
+  ['/select-upgrade.js', ['select-upgrade.js', 'text/javascript; charset=utf-8']],
   ['/list-tools.js', ['list-tools.js', 'text/javascript; charset=utf-8']],
   ['/compact.css', ['compact.css', 'text/css; charset=utf-8']],
   ['/appearance.js', ['appearance.js', 'text/javascript; charset=utf-8']],
@@ -137,6 +141,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/duplicates') return json(res, 200, { duplicates: queue.findDuplicates(await body(req)) });
     if (req.method === 'POST' && url.pathname === '/api/jobs') { const id = queue.add(await body(req)); return json(res, 201, { id }); }
     if (req.method === 'POST' && url.pathname === '/api/files/take') return json(res, 200, await queue.takeFile(await body(req, 131072))); // cookies of the one file travel with it
+    // The extension may read only the two language preferences and the look (theme, accent), never the other settings.
+    if (req.method === 'GET' && url.pathname === '/api/prefs') return json(res, 200, { subtitleLanguage: queue.settings.subtitleLanguage, audioLanguage: queue.settings.audioLanguage, theme: queue.settings.theme, accent: queue.settings.accent });
     if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, { ...queue.settings, queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/settings') return json(res, 200, { ...queue.setSettings(await body(req)), queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/queue/start') return json(res, 200, queue.startQueue());

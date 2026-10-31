@@ -104,7 +104,8 @@ export async function firefoxBrowser(binary, geckodriver, profile, addon, extraP
       await rpc.call('input.performActions', { context, actions: [{ type: 'wheel', id: 'wheel', actions: [{ type: 'scroll', x: Math.round(x), y: Math.round(y), deltaX: 0, deltaY: Math.round(deltaY) }] }] });
     },
     async key(context, key) {
-      const value = key === 'Escape' ? '' : key;
+      // WebDriver wants single characters; named keys are private-use codes.
+      const value = { Escape: '\uE00C', Enter: '\uE007', ArrowDown: '\uE015', ArrowUp: '\uE013', ArrowLeft: '\uE012', ArrowRight: '\uE014', Home: '\uE011', End: '\uE010', Tab: '\uE004', Backspace: '\uE003' }[key] ?? key;
       await rpc.call('input.performActions', { context, actions: [{ type: 'key', id: 'keyboard', actions: [{ type: 'keyDown', value }, { type: 'keyUp', value }] }] });
     },
     async closeTab(context) { await rpc.call('browsingContext.close', { context }); },

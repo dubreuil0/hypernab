@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="tr" data-appearance="compact" data-text-size="normal">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/reorder.css"><link rel="stylesheet" href="/compact.css"><link rel="stylesheet" href="/theme.css"><script src="/appearance.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/reorder.css"><link rel="stylesheet" href="/compact.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/ds.css"><script src="/appearance.js"></script><script src="/ds.js"></script><script src="/strings.js"></script></head>
 <body>
   <!-- One icon set for the whole app: 24px grid, 1.8px rounded strokes (filled where a solid shape reads better). -->
   <svg class="sprite" aria-hidden="true">
@@ -195,6 +195,7 @@
               <div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-preferCompatible"><span></span></label></div></div>
             <div class="setting"><div><strong>Altyazılar</strong><p class="hint">Sayfadaki videonun altyazısı otomatik bulunur. Göm: video dosyasının içine (oynatıcıda açılır). Yan dosya: videonun yanına .srt. Videoyu yeniden kodlamaz.</p></div>
               <div class="setting-control"><span class="select"><select id="set-subtitleMode"><option value="both">Videoya göm + yan dosya (.srt) (varsayılan)</option><option value="embed">Yalnızca videoya göm</option><option value="sidecar">Yan dosya (.srt)</option><option value="off">İndirme</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div id="language-settings"></div>
             <div class="setting"><div><strong>Her indirmede derin doğrulama</strong><p class="hint">Bitince videoyu baştan sona çözerek hata arar. Güvenli ama yavaştır; FFmpeg gerekir.</p></div>
               <div class="setting-control"><label class="switch"><input type="checkbox" role="switch" id="set-deepVerifyDefault"><span></span></label></div></div>
             <div class="setting"><div><strong>Onay pencereleri</strong><p class="hint">“Bir daha sorma” dediğin iptal ve temizleme onaylarını yeniden göster.</p></div>

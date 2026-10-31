@@ -1,3 +1,4 @@
+import { upgradeSelects } from './select-upgrade.js';
 export function setupAdvanced(api, refreshStatus) {
   const $ = id => document.getElementById(id), desktop = globalThis.hypernabDesktop;
   let loaded = false;
@@ -20,6 +21,23 @@ export function setupAdvanced(api, refreshStatus) {
       if (key === 'deepVerifyDefault') $('deep-verify').checked = node.checked;
     });
   }
+  // Language preferences (shared design-system list with a search box; texts come from translation keys).
+  const DS = globalThis.HypernabDS, T = globalThis.HypernabText, languageSelects = {};
+  if (DS && T) {
+    const ui = T.language(), system = String(navigator.language || 'en').toLowerCase().split('-')[0];
+    const rows = [
+      ['subtitleLanguage', 'lang.subtitle', [{ value: 'auto', label: T.t('lang.auto', { name: DS.languageInfo(system, ui).name }) }, { value: 'off', label: T.t('lang.off') }]],
+      ['audioLanguage', 'lang.audio', [{ value: 'player', label: T.t('lang.player') }, { value: 'original', label: T.t('lang.original') }]],
+    ];
+    for (const [key, prefix, first] of rows) {
+      const row = document.createElement('div'); row.className = 'setting';
+      const copy = document.createElement('div'), title = document.createElement('strong'), hint = document.createElement('p'), control = document.createElement('div');
+      title.textContent = T.t(`${prefix}.title`); hint.className = 'hint'; hint.textContent = T.t(`${prefix}.hint`); control.className = 'setting-control';
+      const select = DS.select(document, { options: DS.languageOptions(DS.LANGUAGE_CODES, ui, first), value: first[0].value, label: title.textContent, search: true, searchLabel: T.t('lang.search'), emptyText: T.t('lang.empty'),
+        onChange: value => run(() => save({ [key]: value }))() });
+      languageSelects[key] = select; copy.append(title, hint); control.append(select.el); row.append(copy, control); $('language-settings').append(row);
+    }
+  }
   $('named-queue').onchange = run(() => save({ selectedQueue: $('named-queue').value }));
   $('new-queue').onclick = run(async () => { await save({ addQueue: $('new-queue-name').value }); $('new-queue-name').value = ''; });
   $('save-speed').onclick = run(() => save({ speedLimitKiB: Math.round(Number($('speed-limit-mb').value) * 1024) }));
@@ -40,11 +58,13 @@ export function setupAdvanced(api, refreshStatus) {
     $('desktop-startup').onchange = run(() => desktop.action('startup', $('desktop-startup').checked));
     for (const [id, action] of [['open-downloads', 'downloads'], ['open-extensions', 'extensions'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }
+  upgradeSelects(); // every drop-down of the app window becomes the design system's list
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);
     globalThis.HypernabAppearance?.apply(settings);
     globalThis.HypernabLayoutSync?.(settings.listLayout);
     for (const key of keys) { const node = $(`set-${key}`); if (document.activeElement === node) continue; if (node.type === 'checkbox') node.checked = settings[key]; else node.value = String(settings[key]); }
+    for (const [key, select] of Object.entries(languageSelects)) if (settings[key] && select.getValue() !== settings[key]) select.setValue(settings[key]);
     if (!loaded) { $('deep-verify').checked = settings.deepVerifyDefault; loaded = true; }
     const parts = [];
     if (info.schedule) parts.push(`${info.schedule.queue}: ${new Date(info.schedule.at).toLocaleString('tr-TR')} tarihinde başlayacak.`);

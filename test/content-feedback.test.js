@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import { runContentScripts } from './content-scripts.js';
 
 class Element {
   constructor(tag) { this.tag = tag; this.children = []; this.style = {}; this.hidden = false; this.className = ''; this.events = {}; this.offsetWidth = 120; this.offsetHeight = 28; this.attrs = {}; this.classList = { contains: n => this.className.split(' ').includes(n), add: n => { if (!this.classList.contains(n)) this.className += ` ${n}`; }, remove: n => { this.className = this.className.split(' ').filter(s => s !== n).join(' '); } }; }
@@ -25,7 +26,7 @@ function setup({ start = async () => ({ ok: true }), inspect } = {}) {
   let refresh;
   const browser = { runtime: { onMessage: { addListener(fn) { refresh = fn; } }, async sendMessage(message) { sent.push(message); return message.action === 'start' ? start(message) : message.action === 'inspect' ? inspect?.(message) || info : {}; } } };
   const context = vm.createContext({ document, window: page, browser, crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' }, MutationObserver: class { observe() {} }, setInterval() {}, clearInterval() {}, setTimeout() {}, clearTimeout() {} });
-  vm.runInContext(fs.readFileSync(new URL('../extension/content.js', import.meta.url), 'utf8'), context);
+  runContentScripts(context);
   const root = body.children[0].shadow, find = name => root.all().find(e => e.classList.contains(name));
   return { sent, root, page, find, open: () => root.children[0].children[0].click(), refresh: () => refresh({ type: 'hypernab:refresh' }) };
 }
