@@ -83,6 +83,10 @@
       'job.sub.embedded': 'in the video',
       'job.sub.sidecar': 'side file',
       'job.sub.default': 'default',
+      'sub.container.title': 'Video format with subtitles',
+      'sub.container.hint': 'Left as mp4, VLC does not switch on an embedded subtitle by itself (a side .srt file it does). As mkv the video is copied without any loss, the file ends in .mkv and VLC opens the default subtitle by itself.',
+      'sub.container.keep': 'Keep the format (mp4)',
+      'sub.container.mkv': 'Save as mkv',
     },
     tr: {
       'lang.subtitle.title': 'Varsayılan altyazı dili',
@@ -164,6 +168,10 @@
       'job.sub.embedded': 'videoya gömülü',
       'job.sub.sidecar': 'yan dosya',
       'job.sub.default': 'varsayılan',
+      'sub.container.title': 'Altyazılı videonun biçimi',
+      'sub.container.hint': 'mp4 kalırsa VLC gömülü altyazıyı kendiliğinden açmaz (yan .srt dosyasını açar). mkv seçilirse video kayıpsız kopyalanır, dosya .mkv olur ve VLC varsayılan altyazıyı kendisi açar.',
+      'sub.container.keep': 'Biçim kalsın (mp4)',
+      'sub.container.mkv': 'mkv olarak kaydet',
     },
   };
   let current = 'tr'; // the interface language; becomes a setting with the multi-language work

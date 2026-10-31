@@ -33,7 +33,7 @@ async function run(name, launch) {
     const ev = expr => browser.eval(tab, expr);
     await sleep(1200);
     await ev(`document.getElementById('open-settings').click()`); await sleep(500);
-    check(name, 'two language selects are drawn in Settings', await ev(`document.querySelectorAll('#language-settings .hd-select').length === 2`));
+    check(name, 'the language lists and the video-format list are drawn in Settings', await ev(`document.querySelectorAll('#language-settings .hd-select').length === 3`));
     check(name, 'no raw <select> among them', await ev(`document.querySelectorAll('#language-settings select').length === 0`));
     const labels = await ev(`[...document.querySelectorAll('#language-settings .hd-select-btn')].map(b => b.textContent.trim())`);
     check(name, 'defaults: interface language and "whatever the player plays"', /Aray\u00fcz dili/.test(labels[0]) && /Oynat/.test(labels[1]), JSON.stringify(labels));
@@ -54,6 +54,10 @@ async function run(name, launch) {
     await ev(`document.querySelectorAll('#language-settings .hd-select-btn')[1].click()`); await sleep(150);
     await ev(`document.querySelectorAll('#language-settings .setting')[1].querySelectorAll('.hd-opt')[1].click()`); await sleep(500);
     check(name, 'sound preference saved as "original"', (await setting('audioLanguage')) === 'original');
+    check(name, 'the video format with subtitles is "keep" until chosen', (await setting('subtitleContainer')) === 'keep');
+    await ev(`document.querySelectorAll('#language-settings .hd-select-btn')[2].click()`); await sleep(150);
+    await ev(`document.querySelectorAll('#language-settings .setting')[2].querySelectorAll('.hd-opt')[1].click()`); await sleep(500);
+    check(name, 'choosing mkv saves it', (await setting('subtitleContainer')) === 'mkv');
     const prefs = await ev(`fetch('/api/bootstrap').then(r => r.json()).then(b => fetch('/api/prefs', { headers: { Authorization: 'Bearer ' + b.token } })).then(r => r.json())`);
     check(name, 'the extension\'s narrow /api/prefs route shows only the language choices and the look', JSON.stringify(Object.keys(prefs).sort()) === '["accent","audioLanguage","subtitleLanguage","theme"]' && prefs.subtitleLanguage === 'de' && prefs.audioLanguage === 'original', JSON.stringify(prefs));
     // settings page survives a reload with the stored values

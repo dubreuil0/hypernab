@@ -64,6 +64,7 @@ const SETTING_DEFAULTS = {
   subtitleMode: 'both',     // subtitles found for a video: 'both' (into the file + the leading track as .srt next to it), 'embed' only, 'sidecar' .srt only, or 'off'
   subtitleLanguage: 'auto', // default subtitle when the page names none: 'auto' (system language), 'off', or a language code such as 'de'
   audioLanguage: 'player',  // sound: 'player' (what the page's player plays), 'original', or a language code
+  subtitleContainer: 'keep', // video with subtitles: 'keep' its format (mp4) or 'mkv' (lossless copy; VLC then opens the default subtitle by itself)
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
   downloadDirectory: null,  // null = the default folder; changing it affects new downloads only
@@ -88,6 +89,7 @@ const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayou
 const SETTING_CHECKS = {
   subtitleLanguage: value => validSubtitleLanguage(value) || 'Altyazı dili geçersiz.',
   audioLanguage: value => validAudioLanguage(value) || 'Ses dili geçersiz.',
+  subtitleContainer: value => ['keep', 'mkv'].includes(value) || 'Altyazılı video biçimi geçersiz.',
   smartNames: bool('Akıllı dosya adı'),
   folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || 'Klasör düzeni geçersiz.',
   subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || 'Altyazı seçimi geçersiz.',
@@ -697,7 +699,7 @@ export class DownloadQueue {
     try {
       const mode = this.settings.subtitleMode, pending = job.subtitlePending || [];
       if (mode === 'off' || !pending.length || !job.file || !isVideoFile(job.file)) return;
-      const video = path.join(this.dirOf(job), job.file);
+      let video = path.join(this.dirOf(job), job.file);
       if (!fs.existsSync(video)) return;
       this.phase(job, 'processing');
       const combined = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
@@ -728,7 +730,7 @@ export class DownloadQueue {
       let embedded = false, note = null;
       if (mode === 'embed' || mode === 'both') {
         if (!canEmbed(video)) note = 'Bu dosya türüne altyazı gömülemedi; altyazılar yan dosya olarak kaydedildi.';
-        else { try { embedded = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined, preferred: this.subtitleLanguage() }); } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
+        else { try { const finished = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined, preferred: this.subtitleLanguage(), container: this.settings.subtitleContainer }); embedded = Boolean(finished); if (finished && finished !== video) { video = finished; job.file = path.basename(finished); } } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
       }
       // 'both': the file carries every track, and the leading (default) one is also written next to it: players such as Windows Media Player
       // and Films & TV ignore tracks inside an mp4 but load a same-named .srt on their own (VLC does too).

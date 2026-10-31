@@ -29,12 +29,15 @@ export function setupAdvanced(api, refreshStatus) {
       ['subtitleLanguage', 'lang.subtitle', [{ value: 'auto', label: T.t('lang.auto', { name: DS.languageInfo(system, ui).name }) }, { value: 'off', label: T.t('lang.off') }]],
       ['audioLanguage', 'lang.audio', [{ value: 'player', label: T.t('lang.player') }, { value: 'original', label: T.t('lang.original') }]],
     ];
-    for (const [key, prefix, first] of rows) {
+    const container = [{ value: 'keep', label: T.t('sub.container.keep') }, { value: 'mkv', label: T.t('sub.container.mkv') }];
+    for (const [key, prefix, first, plain] of [...rows.map(row => [...row, false]), ['subtitleContainer', 'sub.container', container, true]]) {
       const row = document.createElement('div'); row.className = 'setting';
       const copy = document.createElement('div'), title = document.createElement('strong'), hint = document.createElement('p'), control = document.createElement('div');
       title.textContent = T.t(`${prefix}.title`); hint.className = 'hint'; hint.textContent = T.t(`${prefix}.hint`); control.className = 'setting-control';
-      const select = DS.select(document, { options: DS.languageOptions(DS.LANGUAGE_CODES, ui, first), value: first[0].value, label: title.textContent, search: true, searchLabel: T.t('lang.search'), emptyText: T.t('lang.empty'),
-        onChange: value => run(() => save({ [key]: value }))() });
+      const select = DS.select(document, plain
+        ? { options: first, value: first[0].value, label: title.textContent, onChange: value => run(() => save({ [key]: value }))() }
+        : { options: DS.languageOptions(DS.LANGUAGE_CODES, ui, first), value: first[0].value, label: title.textContent, search: true, searchLabel: T.t('lang.search'), emptyText: T.t('lang.empty'),
+          onChange: value => run(() => save({ [key]: value }))() });
       languageSelects[key] = select; copy.append(title, hint); control.append(select.el); row.append(copy, control); $('language-settings').append(row);
     }
   }

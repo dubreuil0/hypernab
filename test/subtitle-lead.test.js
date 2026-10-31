@@ -101,3 +101,54 @@ test('settings saved by the first version ("embed" as the untouched default) mov
   const second = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools });
   assert.equal(second.settings.subtitleMode, 'embed', 'a choice made after the move is kept'); second.stop();
 });
+
+// Optional "save as mkv" (off by default): VLC opens a default subtitle by itself in mkv, never in mp4.
+async function mkvFixture(t, name, settings, prepare = () => {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-mkv-'));
+  const queue = new DownloadQueue({ locale: 'tr-TR', directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });
+  t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+  if (settings) queue.setSettings(settings);
+  const directory = path.join(root, 'd'); fs.mkdirSync(directory, { recursive: true });
+  prepare(directory);
+  const file = path.join(directory, `${name}-Film.mp4`);
+  const made = spawnSync(path.join(tools, 'ffmpeg.exe'), ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=size=160x120:rate=10:duration=6', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=6', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', file]);
+  assert.equal(made.status, 0, String(made.stderr));
+  const job = { id: name, status: 'running', directory, file: `${name}-Film.mp4`, headers: {}, url: 'https://cdn.example.org/v.mp4',
+    subtitlePending: queue.storeSubtitleInputs(name, { subtitleTracks: [{ lang: 'tr', label: 'Türkçe', default: true, text: vtt(TURKISH.slice(0, 8)) }, { lang: 'tr', label: 'Türkçe', default: false, text: vtt(TURKISH) }] }) };
+  await queue.attachSubtitles(job, new AbortController().signal);
+  const probe = target => JSON.parse(spawnSync(path.join(tools, 'ffprobe.exe'), ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name:stream_disposition=default', '-of', 'json', target]).stdout).streams;
+  return { job, directory, queue, probe };
+}
+
+test('the video format with subtitles is "keep" by default and only "keep" or "mkv" are accepted', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-mkvset-'));
+  const queue = new DownloadQueue({ directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools });
+  t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+  assert.equal(queue.settings.subtitleContainer, 'keep');
+  assert.throws(() => queue.setSettings({ subtitleContainer: 'avi' }));
+  assert.equal(queue.setSettings({ subtitleContainer: 'mkv' }).subtitleContainer, 'mkv');
+});
+
+test('"mkv": the mp4 becomes an mkv with the same picture and sound, the full subtitle flagged default, the side .srt still written', { skip: !haveTools }, async t => {
+  const { job, directory, probe } = await mkvFixture(t, 'n', { subtitleContainer: 'mkv' });
+  assert.equal(job.file, 'n-Film.mkv', 'the job now points at the mkv');
+  assert.ok(fs.existsSync(path.join(directory, 'n-Film.mkv')) && !fs.existsSync(path.join(directory, 'n-Film.mp4')), 'one file, not both');
+  const streams = probe(path.join(directory, 'n-Film.mkv'));
+  assert.deepEqual(streams.map(s => s.codec_type), ['video', 'audio', 'subtitle', 'subtitle']);
+  assert.equal(streams[0].codec_name, 'h264'); assert.equal(streams[1].codec_name, 'aac', 'copied, not re-encoded');
+  assert.deepEqual(streams.filter(s => s.codec_type === 'subtitle').map(s => s.disposition.default), [1, 0], 'the full track (first) is the default');
+  assert.deepEqual(job.subtitleResult.files, ['n-Film.tr.srt']);
+  assert.match(fs.readFileSync(path.join(directory, 'n-Film.tr.srt'), 'utf8'), /Sen ne yapıyorsun burada/);
+});
+
+test('"mkv" never overwrites an mkv that is already there: the mp4 keeps the subtitles', { skip: !haveTools }, async t => {
+  const { job, directory, probe } = await mkvFixture(t, 'o', { subtitleContainer: 'mkv' }, dir => fs.writeFileSync(path.join(dir, 'o-Film.mkv'), 'someone else'));
+  assert.equal(job.file, 'o-Film.mp4');
+  assert.equal(fs.readFileSync(path.join(directory, 'o-Film.mkv'), 'utf8'), 'someone else');
+  assert.equal(probe(path.join(directory, 'o-Film.mp4')).filter(s => s.codec_type === 'subtitle').length, 2);
+});
+
+test('default ("keep"): the file stays an mp4', { skip: !haveTools }, async t => {
+  const { job, directory } = await mkvFixture(t, 'p', null);
+  assert.equal(job.file, 'p-Film.mp4'); assert.ok(!fs.existsSync(path.join(directory, 'p-Film.mkv')));
+});

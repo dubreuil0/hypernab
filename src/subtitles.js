@@ -185,7 +185,7 @@ export function pickLead(tracks, preferred = null) {
 }
 export function muxArguments(video, tracks, output, preferred = null) {
   const fallback = defaultSubtitleIndex(tracks, preferred);
-  const codec = textCodec(path.extname(video)), args = ['-v', 'error', '-nostdin', '-n', '-protocol_whitelist', 'file,pipe', '-i', video];
+  const codec = textCodec(path.extname(output)), args = ['-v', 'error', '-nostdin', '-n', '-protocol_whitelist', 'file,pipe', '-i', video];
   for (const track of tracks) args.push('-protocol_whitelist', 'file,pipe', '-i', track.file);
   args.push('-map', '0:v?', '-map', '0:a?');
   tracks.forEach((_, index) => args.push('-map', `${index + 1}:0`));
@@ -197,20 +197,30 @@ export function muxArguments(video, tracks, output, preferred = null) {
   args.push(output);
   return args;
 }
-// Writes a new file next to the video; the original is replaced only after the new one is verified. Returns false when not possible.
-export async function embedSubtitles({ video, tracks, toolsDirectory, signal, preferred = null }) {
+// Writes a new file next to the video; the original is replaced only after the new one is verified. Returns the path of the finished
+// file (the same as `video`, or a .mkv next to it when container is 'mkv'), or false when not possible.
+// Why mkv: VLC switches on a subtitle flagged "default" by itself in a Matroska file, but never in an mp4 (measured with a real window).
+// The picture and sound are copied as they are; an existing .mkv of that name is never overwritten (the mp4 stays then).
+export async function embedSubtitles({ video, tracks, toolsDirectory, signal, preferred = null, container = 'keep' }) {
   if (!tracks.length || !canEmbed(video)) return false;
   const before = await probeStreams(video, toolsDirectory, signal);
   if (before.subtitle > 0 || before.video < 1) return false; // already has subtitles (or no picture): leave it untouched
-  const output = `${video}.subtitles.part${path.extname(video)}`;
+  const ext = path.extname(video);
+  const finished = container === 'mkv' && ['.mp4', '.m4v', '.mov'].includes(ext.toLowerCase()) && !fs.existsSync(`${video.slice(0, video.length - ext.length)}.mkv`)
+    ? `${video.slice(0, video.length - ext.length)}.mkv` : video;
+  const output = `${video}.subtitles.part${path.extname(finished)}`;
   fs.rmSync(output, { force: true });
   try {
     await run(path.join(toolsDirectory, 'ffmpeg.exe'), muxArguments(video, tracks, output, preferred), signal);
     const after = await probeStreams(output, toolsDirectory, signal);
-    const durationOk = !before.duration || !after.duration || Math.abs(after.duration - before.duration) <= Math.max(1.5, before.duration * 0.01);
+    // A Matroska file reports the length of its longest track: a subtitle that runs past the picture makes it longer, which is fine.
+    // What must never happen is a shorter file (lost picture or sound). An mp4 keeps the stricter two-sided check.
+    const tolerance = Math.max(1.5, (before.duration || 0) * 0.01);
+    const durationOk = !before.duration || !after.duration || (finished !== video ? after.duration >= before.duration - tolerance : Math.abs(after.duration - before.duration) <= tolerance);
     if (after.subtitle !== tracks.length || after.video !== before.video || after.audio !== before.audio || !durationOk) throw new Error('Altyazılı dosya doğrulanamadı.');
-    fs.renameSync(output, video);
-    return true;
+    fs.renameSync(output, finished);
+    if (finished !== video) fs.rmSync(video, { force: true }); // the mkv replaces the mp4, never both
+    return finished;
   } catch (error) {
     fs.rmSync(output, { force: true });
     if (signal?.aborted) throw error;
