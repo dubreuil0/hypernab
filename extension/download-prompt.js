@@ -15,24 +15,33 @@
   // No answer for three minutes: the browser carries on by itself (nothing is ever lost or stuck).
   const arm = () => { clearTimeout(idle); idle = setTimeout(async () => { try { await send({ type: 'hypernab:takeover:release' }); } catch { /* window closes anyway */ } window.close(); }, IDLE_MS); };
 
+  // The window is only as tall as its content (the frame around the page differs between systems).
+  async function fit() {
+    try {
+      const win = await api.windows.getCurrent();
+      const height = Math.ceil(document.documentElement.scrollHeight + (window.outerHeight - window.innerHeight));
+      if (Math.abs(height - win.height) > 3) await api.windows.update(win.id, { height });
+    } catch { /* the default size is fine */ }
+  }
+
   function fill(item) {
     current = item;
     $('name').textContent = item.name; $('name').title = item.name;
-    $('size').textContent = formatSize(item.bytes);
-    $('host').textContent = item.host || '—';
-    $('directory').textContent = item.directory || 'Hypernab indirme klasörü';
-    $('queue-note').textContent = item.remaining > 0 ? `Sırada ${item.remaining} dosya daha var` : '';
-    show('risk', item.risk === 'program' ? 'Bu bir program dosyası. Yalnızca güvendiğin bir kaynaktan indirdiysen çalıştır.' : item.risk === 'script' ? 'Bu dosya komut veya makro çalıştırabilir. Yalnızca güvendiğin bir kaynaktan indirdiysen aç.' : '');
-    show('duplicate', item.duplicate ? 'Bu bağlantı Hypernab listesinde zaten var. İstersen yine de indirebilirsin.' : '');
+    $('meta').textContent = [formatSize(item.bytes), item.host].filter(Boolean).join('  ·  ');
+    $('directory').textContent = item.directory ? `\u202A${item.directory}` : 'Hypernab indirme klasörü';
+    $('directory').title = item.directory || '';
+    $('queue-note').textContent = item.remaining > 0 ? `Sırada ${item.remaining} dosya daha` : '';
+    show('risk', item.risk === 'program' ? 'Program dosyası: yalnızca güvendiğin bir kaynaktansa çalıştır.' : item.risk === 'script' ? 'Bu dosya komut veya makro çalıştırabilir.' : '');
+    show('duplicate', item.duplicate ? 'Bu bağlantı Hypernab listesinde zaten var.' : '');
     show('message', '');
+    $('browser').hidden = true;
     $('now').textContent = item.duplicate ? 'Yine de indir' : 'İndir';
-    $('remember-type').checked = false; $('remember-host').checked = false;
-    $('remember-type-text').textContent = item.ext ? `.${item.ext} dosyalarını bir daha sormadan Hypernab ile indir` : 'Bu dosya türünü bir daha sormadan Hypernab ile indir';
-    $('remember-type').parentElement.hidden = !item.ext;
-    $('remember-host-text').textContent = item.host ? `${item.host} sitesinde bir daha sorma; tarayıcı kendisi indirsin` : 'Bu sitede bir daha sorma';
-    $('remember-host').parentElement.hidden = !item.host;
+    $('remember-type').checked = false;
+    $('remember-type-text').textContent = item.ext ? `Bir daha sorma: .${item.ext} dosyalarını hep Hypernab ile indir` : 'Bir daha sorma: bu tür dosyaları hep Hypernab ile indir';
+    $('remember').hidden = !item.ext;
     $('card').hidden = false; $('done').hidden = true;
     $('now').focus();
+    void fit();
   }
 
   async function next() {
@@ -47,26 +56,28 @@
     if (!current || busy) return;
     arm(); working(true);
     try {
-      const answer = await send({ type: 'hypernab:takeover:decide', id: current.id, choice, rememberType: $('remember-type').checked, rememberHost: $('remember-host').checked, allowDuplicate: current.duplicate === true || current.allowDuplicate === true });
+      const answer = await send({ type: 'hypernab:takeover:decide', id: current.id, choice, rememberType: $('remember-type').checked, allowDuplicate: current.duplicate === true || current.allowDuplicate === true });
       if (answer?.ok) {
         if (choice === 'now' || choice === 'later') {
           $('card').hidden = true;
           show('done', answer.browserDone ? 'Tarayıcı dosyayı zaten indirmiş; Hypernab’a eklenmedi.' : answer.gone ? 'İndirme tarayıcıdan kaldırılmıştı; işlem yapılmadı.' : answer.browserCopy ? 'Hypernab’a eklendi. Tarayıcı da bitirmişti; iki kopya olabilir.' : choice === 'later' ? 'Hypernab listesine eklendi (Sonra ekle).' : 'Hypernab indiriyor.');
-          await new Promise(resolve => setTimeout(resolve, answer.browserCopy || answer.browserDone ? 2600 : 900));
+          await new Promise(resolve => setTimeout(resolve, answer.browserCopy || answer.browserDone ? 2600 : 450));
         }
         working(false); await next(); return;
       }
       // Hypernab could not take the file: the browser's download is untouched and still waiting.
-      show('message', `${answer?.error || 'Hypernab dosyayı alamadı.'} Tarayıcı ile indirmeyi seçebilirsin.`);
+      show('message', answer?.error || 'Hypernab dosyayı alamadı.');
       if (answer?.duplicate) { current.allowDuplicate = true; $('now').textContent = 'Yine de indir'; }
+      else $('browser').hidden = false; // the way out when Hypernab cannot take it: the browser downloads it itself
     } catch (error) {
-      show('message', 'Hypernab ile bağlantı kurulamadı. Tarayıcı ile indirmeyi seçebilirsin.');
+      show('message', 'Hypernab ile bağlantı kurulamadı.');
+      $('browser').hidden = false;
     }
-    working(false);
+    working(false); void fit();
   }
 
   for (const [id, choice] of [['now', 'now'], ['later', 'later'], ['browser', 'browser'], ['cancel', 'cancel']]) $(id).addEventListener('click', () => { void decide(choice); });
-  document.addEventListener('keydown', event => { arm(); if (event.key === 'Escape') { event.preventDefault(); $('remember-host').checked = false; void decide('browser'); } });
+  document.addEventListener('keydown', event => { arm(); if (event.key === 'Escape') { event.preventDefault(); void decide('cancel'); } });
   document.addEventListener('pointerdown', arm);
   arm(); next().catch(() => window.close());
 })();

@@ -9,9 +9,9 @@ const read = name => fs.readFileSync(new URL(`../extension/${name}`, import.meta
 
 // Real core.js + takeover.js against a fake browser and a fake Hypernab connection.
 const plain = value => JSON.parse(JSON.stringify(value));
-function setup({ online = true, items = {}, take, duplicates = [], receipt = { known: false } } = {}) {
+function setup({ online = true, items = {}, take, duplicates = [], receipt = { known: false }, firefox = false } = {}) {
   const log = [], local = {}, session = {}, windows = new Map(), listeners = [], requests = [], cookieReads = [];
-  let onCreated, onRemoved, nextWindow = 1;
+  let onCreated, onRemoved, onHeaders, nextWindow = 1;
   const store = area => ({
     get: async key => Object.fromEntries((Array.isArray(key) ? key : [key]).filter(k => k in area).map(k => [k, structuredClone(area[k])])),
     set: async value => { Object.assign(area, structuredClone(value)); },
@@ -37,6 +37,11 @@ function setup({ online = true, items = {}, take, duplicates = [], receipt = { k
     },
     cookies: { getAll: async ({ url }) => { cookieReads.push(url); return [{ name: 'sid', value: 'SECRET-COOKIE', domain: new URL(url).hostname, path: '/', secure: true, hostOnly: true, expirationDate: 4102444800 }]; } }
   };
+  if (firefox) { // Firefox can hold a response while the user decides
+    api.runtime.getBrowserInfo = async () => ({ name: 'Firefox' });
+    api.webRequest = { onHeadersReceived: { addListener: (listener, filter, extra) => { onHeaders = listener; log.push(['webrequest', extra.join(',')]); } } };
+    api.tabs = { get: async id => { if (id < 0) throw new Error('no tab'); return { id, url: 'https://files.example.org/page' }; } };
+  }
   const client = {
     request: async (route, options = {}) => {
       requests.push({ route, body: options.body ? JSON.parse(options.body) : undefined });
@@ -47,7 +52,9 @@ function setup({ online = true, items = {}, take, duplicates = [], receipt = { k
       throw new Error(`unexpected ${route}`);
     }
   };
-  const context = vm.createContext({ URL, crypto: webcrypto, navigator: { userAgent: 'UA/Test' }, console, setTimeout, clearTimeout, chrome: api });
+  const context = vm.createContext({ URL, crypto: webcrypto, navigator: { userAgent: 'UA/Test' }, console, clearInterval, clearTimeout, chrome: api,
+    // timers must not keep the test process alive (a held request has a long safety timer)
+    setTimeout: (fn, ms) => { const timer = setTimeout(fn, ms); timer.unref?.(); return timer; }, setInterval: (fn, ms) => { const timer = setInterval(fn, ms); timer.unref?.(); return timer; }, ...(firefox ? { browser: api } : {}) });
   vm.runInContext(read('core.js'), context);
   context.HypernabFloat = { connection: async () => { if (!online) throw Object.assign(new Error('offline'), { code: 'APP_OFFLINE' }); return client; } };
   vm.runInContext(read('takeover.js'), context);
@@ -57,7 +64,9 @@ function setup({ online = true, items = {}, take, duplicates = [], receipt = { k
   });
   const download = (id, extra = {}) => { items[id] = { id, url: `https://files.example.org/f${id}.zip`, referrer: 'https://files.example.org/page', filename: `D:\\Indirilenler\\f${id}.zip`, mime: 'application/zip', totalBytes: 50 * 1048576, state: 'in_progress', ...extra }; return items[id]; };
   const created = async item => { onCreated(item); await wait(30); };
-  return { api, log, local, session, windows, requests, cookieReads, send, download, created, close: id => onRemoved(id), items };
+  const headers = (extra = {}) => ({ method: 'GET', statusCode: 200, tabId: 7, type: 'main_frame', incognito: false, url: 'https://files.example.org/get/a', originUrl: 'https://files.example.org/page', responseHeaders: [{ name: 'Content-Type', value: 'application/zip' }, { name: 'Content-Length', value: String(50 * 1048576) }, { name: 'Content-Disposition', value: 'attachment; filename="Veri Paketi.zip"' }], ...extra });
+  const response = details => onHeaders(details);
+  return { api, log, local, session, windows, requests, cookieReads, send, download, created, close: id => onRemoved(id), items, headers, response };
 }
 const actions = (f, name) => f.log.filter(entry => entry[0] === name).map(entry => entry[1]);
 
@@ -237,4 +246,75 @@ test('a browser that cannot resume the stopped download is asked to download the
   h.api.downloads.resume = async id => { h.log.push(['resume', id]); h.items[id].state = 'complete'; };
   await h.send({ type: 'hypernab:takeover:decide', id: 3, choice: 'browser' });
   assert.deepEqual(actions(h, 'download'), [], 'a finished download is never started a second time');
+});
+
+// ---- Firefox: the response is held, so the file never becomes a browser download ----
+const settle = async promise => { let result = 'waiting'; promise?.then?.(value => { result = value; }); await wait(40); return result; };
+
+test('Firefox: a file response is held (no browser download exists) until the user decides; cookies are read only after that', async () => {
+  const f = setup({ firefox: true });
+  assert.deepEqual(actions(f, 'webrequest'), ['blocking,responseHeaders']);
+  const held = f.response(f.headers());
+  assert.equal(await settle(held), 'waiting'); assert.equal(actions(f, 'window').length, 1); assert.deepEqual(f.cookieReads, []);
+  assert.deepEqual(actions(f, 'pause'), []); assert.deepEqual(actions(f, 'cancel'), []);
+  const view = await f.send({ type: 'hypernab:takeover:next' });
+  assert.equal(view.name, 'Veri Paketi.zip'); assert.equal(view.host, 'files.example.org'); assert.equal(view.bytes, 50 * 1048576);
+  const answer = await f.send({ type: 'hypernab:takeover:decide', id: view.id, choice: 'now' });
+  assert.equal(answer.ok, true);
+  const take = f.requests.find(request => request.route === '/api/files/take').body;
+  assert.equal(take.url, 'https://files.example.org/get/a'); assert.equal(take.fileName, 'Veri Paketi.zip'); assert.equal(take.referer, 'https://files.example.org/page'); assert.equal(take.cookies[0].value, 'SECRET-COOKIE');
+  assert.deepEqual(plain(await held), { cancel: true }, 'the request ends only after Hypernab accepted the file');
+  assert.deepEqual(actions(f, 'cancel'), []); assert.deepEqual(actions(f, 'erase'), []);
+});
+
+test('Firefox: "browser" lets the very same request continue and its download is not asked about again', async () => {
+  const f = setup({ firefox: true });
+  const held = f.response(f.headers()); await wait(40);
+  const view = await f.send({ type: 'hypernab:takeover:next' });
+  await f.send({ type: 'hypernab:takeover:decide', id: view.id, choice: 'browser' });
+  assert.deepEqual(plain(await held), {});
+  await f.created(f.download(5, { url: 'https://files.example.org/get/a' }));
+  assert.deepEqual(actions(f, 'pause'), [], 'the released download is left alone');
+});
+
+test('Firefox: cancel ends the request; a closed window or a failure hands the request back to the browser', async () => {
+  const f = setup({ firefox: true });
+  const first = f.response(f.headers()); await wait(40); const view = await f.send({ type: 'hypernab:takeover:next' });
+  await f.send({ type: 'hypernab:takeover:decide', id: view.id, choice: 'cancel' });
+  assert.deepEqual(plain(await first), { cancel: true });
+  const second = f.response(f.headers({ url: 'https://files.example.org/get/b' }));
+  await wait(30); f.close(1);
+  assert.deepEqual(plain(await second), {}, 'closing the window never loses the file');
+  const failing = setup({ firefox: true, take: async () => { throw Object.assign(new Error('x'), { code: 'ACCESS_DENIED' }); } });
+  const third = failing.response(failing.headers()); await wait(40); const shown = await failing.send({ type: 'hypernab:takeover:next' });
+  const answer = await failing.send({ type: 'hypernab:takeover:decide', id: shown.id, choice: 'now' });
+  assert.equal(answer.ok, false); assert.equal(await settle(third), 'waiting', 'still held, the user can pick the browser');
+  await failing.send({ type: 'hypernab:takeover:decide', id: shown.id, choice: 'browser' });
+  assert.deepEqual(plain(await third), {});
+});
+
+test('Firefox: "always this type" takes the file without a window and still falls back to the browser on any failure', async () => {
+  const f = setup({ firefox: true });
+  await f.send({ type: 'hypernab:takeover:settings', patch: { autoTypes: ['zip'] } });
+  assert.deepEqual(plain(await f.response(f.headers())), { cancel: true }); assert.equal(actions(f, 'window').length, 0);
+  const failing = setup({ firefox: true, take: async () => { throw new Error('down'); } });
+  await failing.send({ type: 'hypernab:takeover:settings', patch: { autoTypes: ['zip'] } });
+  assert.deepEqual(plain(await failing.response(failing.headers())), {});
+});
+
+test('Firefox: only real file downloads are held; pages, inline types, other methods, private windows, small files and a closed app are not', async () => {
+  const f = setup({ firefox: true });
+  const types = type => [{ name: 'Content-Type', value: type }, { name: 'Content-Length', value: String(50 * 1048576) }];
+  const left = [f.headers({ responseHeaders: types('text/html') }), f.headers({ responseHeaders: types('image/png') }), f.headers({ responseHeaders: types('application/pdf') }), f.headers({ responseHeaders: types('video/mp4') }),
+    f.headers({ method: 'POST' }), f.headers({ statusCode: 206 }), f.headers({ incognito: true }), f.headers({ tabId: -1 }), f.headers({ originUrl: 'moz-extension://abc/page.html' }), f.headers({ responseHeaders: [] })];
+  for (const details of left) assert.equal(f.response(details), undefined, JSON.stringify(details.responseHeaders?.[0]));
+  assert.equal(actions(f, 'window').length, 0);
+  assert.deepEqual(plain(await f.response(f.headers({ url: 'http://127.0.0.1:17846/x.zip' }))), {}, 'the app\'s own pages are left alone');
+  assert.deepEqual(plain(await f.response(f.headers({ responseHeaders: [{ name: 'Content-Type', value: 'application/zip' }, { name: 'Content-Length', value: '1000' }] }))), {}, 'below the minimum size');
+  // octet-stream without a name is a download too; a pdf marked "attachment" as well (with an encoded name)
+  assert.equal(await settle(f.response(f.headers({ url: 'https://files.example.org/x', responseHeaders: [{ name: 'Content-Type', value: 'application/octet-stream' }] }))), 'waiting');
+  assert.equal(await settle(f.response(f.headers({ url: 'https://files.example.org/y', responseHeaders: [{ name: 'Content-Type', value: 'application/pdf' }, { name: 'Content-Disposition', value: "attachment; filename*=UTF-8''r%C3%A2por.pdf" }] }))), 'waiting');
+  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).name, 'x');
+  const offline = setup({ firefox: true, online: false });
+  assert.deepEqual(plain(await offline.response(offline.headers())), {}, 'app closed: the browser downloads by itself'); assert.equal(actions(offline, 'window').length, 0);
 });

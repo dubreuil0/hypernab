@@ -77,7 +77,8 @@ export async function probeRange({ url, headers = {}, signal, request = requestR
     checkStatus(response);
     const match = /^bytes 0-0\/(\d+)$/.exec(response.headers['content-range'] || '');
     const total = match ? Number(match[1]) : 0;
-    if (!Number.isSafeInteger(total) || total <= 0) throw new RangeUnsupportedError('Kaynak byte-range indirmeyi desteklemiyor.');
+    // What the server did say stays with the error, so a caller can use the headers without asking a second time.
+    if (!Number.isSafeInteger(total) || total <= 0) throw Object.assign(new RangeUnsupportedError('Kaynak byte-range indirmeyi desteklemiyor.'), { observed: { status: response.statusCode, headers: { ...response.headers }, url: String(finalUrl?.href || finalUrl || url) } });
     validateRange(response, 0, 0, total);
     const etag = response.headers.etag;
     const modified = response.headers['last-modified'];

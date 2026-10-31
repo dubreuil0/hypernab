@@ -127,14 +127,22 @@ export async function probeStreams(file, toolsDirectory, signal) {
   const count = type => (info.streams || []).filter(stream => stream.codec_type === type).length;
   return { video: count('video'), audio: count('audio'), subtitle: count('subtitle'), duration: Number(info.format?.duration) || null };
 }
+// Players such as VLC only switch a subtitle on by themselves when one track carries the "default" flag. A page player that does not
+// say which track it showed leaves none flagged: then a single track, or else the (first) Turkish one, becomes the default.
+export function defaultSubtitleIndex(tracks) {
+  if (tracks.some(track => track.default)) return -1; // the page already said which one; flags stay as they are
+  if (tracks.length === 1) return 0;
+  return tracks.findIndex(track => track.iso3 === 'tur');
+}
 export function muxArguments(video, tracks, output) {
+  const fallback = defaultSubtitleIndex(tracks);
   const codec = textCodec(path.extname(video)), args = ['-v', 'error', '-nostdin', '-n', '-protocol_whitelist', 'file,pipe', '-i', video];
   for (const track of tracks) args.push('-protocol_whitelist', 'file,pipe', '-i', track.file);
   args.push('-map', '0:v?', '-map', '0:a?');
   tracks.forEach((_, index) => args.push('-map', `${index + 1}:0`));
   args.push('-c:v', 'copy', '-c:a', 'copy', '-c:s', codec);
   tracks.forEach((track, index) => {
-    args.push(`-metadata:s:s:${index}`, `language=${track.iso3 || 'und'}`, `-metadata:s:s:${index}`, `title=${track.name}`, `-disposition:s:${index}`, track.default ? 'default' : '0');
+    args.push(`-metadata:s:s:${index}`, `language=${track.iso3 || 'und'}`, `-metadata:s:s:${index}`, `title=${track.name}`, `-disposition:s:${index}`, track.default || index === fallback ? 'default' : '0');
   });
   if (['mov_text'].includes(codec)) args.push('-movflags', '+faststart');
   args.push(output);

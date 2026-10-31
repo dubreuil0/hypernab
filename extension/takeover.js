@@ -67,9 +67,47 @@
     try { await api.downloads.download({ url: address, ...(name && !/[\\/:*?"<>|]/.test(name) ? { filename: name } : {}), conflictAction: 'uniquify' }); } catch { /* the page's own link still works */ }
   }
 
+  // ---- Requests held while the user decides (Firefox): the file never becomes a browser download at all ----
+  // The response of the file is kept waiting inside the browser's own request machinery. Taken or cancelled: the request ends and
+  // the browser never shows a download. Released: the very same request simply continues as a normal browser download.
+  const held = new Map(); // record id -> function that answers the waiting request
+  const released = new Map(); // address -> time: the browser was told to carry on, its download must not be asked about again
+  const markReleased = url => { const now = Date.now(); released.set(url, now); for (const [key, at] of released) if (now - at > 180000) released.delete(key); };
+  let beat = null;
+  const keepAlive = () => { // a waiting request must not let the background page fall asleep
+    if (beat || !held.size) return;
+    beat = setInterval(() => { if (!held.size) { clearInterval(beat); beat = null; return; } Promise.resolve(api.runtime.getPlatformInfo?.()).catch(() => {}); }, 15000);
+  };
+  async function releaseRecord(record, { revive = false } = {}) {
+    if (record.via !== 'request') return resumeBrowser(record.id, record.url, record.name);
+    const answer = held.get(record.id); held.delete(record.id); markReleased(record.url);
+    if (answer) {
+      answer({});
+      // Firefox aborts a held request when the window that asked about it is closed. If no browser download shows up, the browser is
+      // asked for the file itself, so closing the window never loses a download (unless the user closed the page too).
+      setTimeout(async () => {
+        if (!released.delete(record.url)) return; // a download appeared: the held request continued
+        try { if (!(record.tabId >= 0) || !(await api.tabs.get(record.tabId))) return; } catch { return; }
+        await redownload(record);
+      }, 2500);
+      return;
+    }
+    // The waiting request is gone (the background restarted): only an explicit choice asks the browser to download it again.
+    if (revive) await redownload(record);
+  }
+  async function redownload(record) {
+    try { await api.downloads.download({ url: record.url, ...(record.name && !/[\\/:*?"<>|]/.test(record.name) ? { filename: record.name } : {}), conflictAction: 'uniquify' }); } catch { /* the page's own link still works */ }
+  }
+  async function dropRecord(record) {
+    if (record.via !== 'request') return dropBrowserDownload(record.id);
+    const answer = held.get(record.id); held.delete(record.id);
+    if (answer) answer({ cancel: true });
+    return false;
+  }
+
   async function releaseAll() {
     const list = await serial(async () => { const items = await readPending(); await writePending([]); return items; });
-    await Promise.all(list.map(record => resumeBrowser(record.id, record.url, record.name)));
+    await Promise.all(list.map(record => releaseRecord(record)));
     await api.storage.session.remove(WINDOW).catch(() => {});
   }
 
@@ -80,7 +118,7 @@
   }
   async function ensureWindow() {
     if (await windowAlive()) { try { await api.windows.update((await api.storage.session.get(WINDOW))[WINDOW], { focused: true }); } catch { /* best effort */ } return; }
-    const created = await api.windows.create({ url: api.runtime.getURL('download-prompt.html'), type: 'popup', width: 520, height: 470, focused: true });
+    const created = await api.windows.create({ url: api.runtime.getURL('download-prompt.html'), type: 'popup', width: 440, height: 250, focused: true });
     await api.storage.session.set({ [WINDOW]: created.id });
   }
 
@@ -96,13 +134,27 @@
       if (H.transientError(error)) { try { const receipt = await client.request(`/api/submissions/${submissionId}`); if (receipt.known && receipt.listed !== false) result = { id: receipt.id, name: record.name }; } catch { /* still unknown */ } }
       if (!result) throw error;
     }
-    const browserCopy = await dropBrowserDownload(record.id); // only now: the app has the file
+    const browserCopy = await dropRecord(record); // only now: the app has the file
     return { ...result, browserCopy };
+  }
+
+  // Chrome and Edge cannot hold a request, so their download list still sees the file for a moment. Their download bubble is hidden
+  // for that moment (and restored right after) so nothing flashes by; the entry itself is erased as soon as Hypernab has the file.
+  const canHideUi = typeof api.downloads.setUiOptions === 'function';
+  const setUi = enabled => { try { return Promise.resolve(api.downloads.setUiOptions({ enabled })).catch(() => {}); } catch { return Promise.resolve(); } };
+  let uiTimer = null;
+  function quietUi() {
+    if (!canHideUi) return;
+    void setUi(false); clearTimeout(uiTimer);
+    const restore = async () => { if ((await readPending()).length) { uiTimer = setTimeout(restore, 3000); return; } void setUi(true); };
+    uiTimer = setTimeout(restore, 4000);
   }
 
   async function onCreated(created) {
     const s = await readSettings();
+    if (released.has(created.url)) { released.delete(created.url); return; } // the user already chose "browser" for this one
     if (!eligible(created, s)) return;
+    quietUi();
     // Pause first: a small file can finish within milliseconds. A paused download that is not wanted is simply resumed.
     try { await api.downloads.pause(created.id); } catch { return; } // already finished or not pausable: leave it alone
     try { await F.connection(false); } catch { await resumeBrowser(created.id, created.url, baseName(created.filename) || undefined); return; } // app not running: the browser keeps downloading
@@ -111,7 +163,7 @@
     if (item.state === 'complete') return; // the browser was faster than the pause: nothing to take over
     if (!eligible(item, s)) { await resumeBrowser(created.id, created.url, baseName(created.filename) || undefined); return; }
     const name = baseName(item.filename) || nameFromUrl(item.url) || 'dosya';
-    const record = { id: item.id, url: item.url, referrer: H.httpUrl(item.referrer) ? item.referrer : '', name, bytes: item.totalBytes > 0 ? item.totalBytes : item.fileSize > 0 ? item.fileSize : null, mime: item.mime || '', cookieStoreId: item.cookieStoreId || undefined, at: Date.now() };
+    const record = { via: 'download', id: item.id, url: item.url, referrer: H.httpUrl(item.referrer) ? item.referrer : '', name, bytes: item.totalBytes > 0 ? item.totalBytes : item.fileSize > 0 ? item.fileSize : null, mime: item.mime || '', cookieStoreId: item.cookieStoreId || undefined, at: Date.now() };
     if (s.autoTypes.includes(extOf(name))) { // the user said "always" for this type: no window, same safety
       try { await take(record, { start: 'now' }); } catch { await resumeBrowser(record.id, record.url, record.name); }
       return;
@@ -123,6 +175,58 @@
     });
     if (!accepted) { await resumeBrowser(record.id, record.url, record.name); return; }
     try { await ensureWindow(); } catch { await releaseAll(); }
+  }
+
+  // ---- Firefox: the file is caught while its response arrives, before the browser turns it into a download ----
+  const NOT_A_DOWNLOAD = /^(?:text|image|video|audio)\//i; // the browser shows these itself unless the server says "attachment"
+  const SHOWN_INLINE = /^application\/(?:pdf|json|xml|xhtml\+xml|javascript|x-javascript|rss\+xml|atom\+xml)$|\+(?:xml|json)$/i;
+  const headerOf = (details, name) => details.responseHeaders?.find(header => header.name.toLowerCase() === name)?.value || '';
+  function dispositionName(value) {
+    const star = /filename\*\s*=\s*([^']*)'[^']*'([^;]+)/i.exec(value);
+    if (star) { try { return decodeURIComponent(star[2].trim()); } catch { /* fall through to the plain name */ } }
+    const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(value);
+    return plain ? String(plain[1] ?? plain[2]).trim() : '';
+  }
+  // Decides synchronously (every request of the browser passes here): is this response a file the browser would download?
+  function requestParts(details) {
+    if (details.method !== 'GET' || details.statusCode !== 200 || details.tabId < 0 || details.incognito) return null;
+    if (details.originUrl && /^(?:moz|chrome)-extension:/i.test(details.originUrl)) return null;
+    const mime = headerOf(details, 'content-type').split(';')[0].trim().toLowerCase();
+    const disposition = headerOf(details, 'content-disposition');
+    const attachment = /^\s*attachment/i.test(disposition);
+    if (!attachment && (!mime || NOT_A_DOWNLOAD.test(mime) || SHOWN_INLINE.test(mime))) return null;
+    const length = Number(headerOf(details, 'content-length'));
+    return { mime, name: baseName(dispositionName(disposition)), bytes: Number.isSafeInteger(length) && length > 0 ? length : null };
+  }
+
+  async function holdRequest(details, parts) {
+    const s = await readSettings();
+    if (!eligible({ url: details.url, mime: parts.mime, incognito: details.incognito, totalBytes: parts.bytes || 0 }, s)) return {};
+    try { await F.connection(false); } catch { return {}; } // app not running: the browser downloads by itself
+    let tab = null; try { tab = await api.tabs.get(details.tabId); } catch { /* the tab is gone: no referrer then */ }
+    const name = parts.name || nameFromUrl(details.url) || 'dosya';
+    const record = { via: 'request', id: `r-${globalThis.crypto.randomUUID()}`, url: details.url, referrer: [details.originUrl, tab?.url].find(value => H.httpUrl(value)) || '', name, bytes: parts.bytes, mime: parts.mime, cookieStoreId: details.cookieStoreId || undefined, tabId: details.tabId, at: Date.now() };
+    const answered = new Promise(resolve => {
+      const guard = setTimeout(() => { void forget(record); }, 240000); // nobody answered: let the browser carry on
+      held.set(record.id, value => { clearTimeout(guard); resolve(value); });
+    });
+    keepAlive();
+    if (s.autoTypes.includes(extOf(name))) { // "always" for this type: no window, same safety
+      try { await take(record, { start: 'now' }); } catch { await releaseRecord(record); }
+      return answered;
+    }
+    const accepted = await serial(async () => {
+      const list = await readPending();
+      if (list.length >= MAX_PENDING) return false;
+      await writePending([...list, record]); return true;
+    });
+    if (!accepted) { await releaseRecord(record); return answered; }
+    try { await ensureWindow(); } catch { await releaseAll(); }
+    return answered;
+  }
+  async function forget(record) {
+    await serial(async () => { await writePending((await readPending()).filter(item => item.id !== record.id)); });
+    await releaseRecord(record);
   }
 
   async function view() {
@@ -147,16 +251,18 @@
       if (!record) return { ok: true, gone: true };
       const finish = () => serial(async () => { await writePending((await readPending()).filter(item => item.id !== id)); });
       if (choice === 'browser') {
-        await finish(); await resumeBrowser(id, record.url, record.name);
+        await finish(); await releaseRecord(record, { revive: true });
         if (rememberHost && hostOf(record.url)) { const s = await readSettings(); await writeSettings({ excludedHosts: [...s.excludedHosts, hostOf(record.url)] }); }
         return { ok: true };
       }
-      if (choice === 'cancel') { await finish(); await dropBrowserDownload(id); return { ok: true }; }
+      if (choice === 'cancel') { await finish(); await dropRecord(record); return { ok: true }; }
       if (choice !== 'now' && choice !== 'later') return { ok: false, error: 'Geçersiz seçim.' };
-      let current = null;
-      try { current = (await api.downloads.search({ id }))[0] || null; } catch { /* ask the app anyway */ }
-      if (!current) { await finish(); return { ok: true, gone: true, name: record.name }; } // removed in the browser meanwhile
-      if (current.state === 'complete') { await finish(); return { ok: true, browserDone: true, name: record.name }; } // the browser finished it itself
+      if (record.via !== 'request') {
+        let current = null;
+        try { current = (await api.downloads.search({ id }))[0] || null; } catch { /* ask the app anyway */ }
+        if (!current) { await finish(); return { ok: true, gone: true, name: record.name }; } // removed in the browser meanwhile
+        if (current.state === 'complete') { await finish(); return { ok: true, browserDone: true, name: record.name }; } // the browser finished it itself
+      }
       try {
         const result = await take(record, { start: choice === 'later' ? 'queue' : 'now', allowDuplicate: allowDuplicate === true });
         await finish();
@@ -180,10 +286,22 @@
     work.then(respond, error => respond({ ok: false, error: String(error?.message || 'Hata').slice(0, 200) }));
     return true;
   });
-  api.downloads.onCreated.addListener(item => { onCreated(item).catch(() => {}); });
+  api.downloads.onCreated.addListener(item => { onCreated(item).catch(() => {}); }); // everything the request path above cannot see
+  // Only Firefox lets an extension hold a response (webRequest blocking); elsewhere the download list path above does the work.
+  if (typeof globalThis.browser?.runtime?.getBrowserInfo === 'function' && api.webRequest?.onHeadersReceived) {
+    try {
+      api.webRequest.onHeadersReceived.addListener(details => {
+        const parts = requestParts(details);
+        return parts ? holdRequest(details, parts).catch(() => ({})) : undefined;
+      }, { urls: ['http://*/*', 'https://*/*'], types: ['main_frame', 'sub_frame'] }, ['blocking', 'responseHeaders']);
+    } catch { /* the blocking permission is missing: the download list path still works */ }
+  }
   api.windows.onRemoved?.addListener(async id => {
     if ((await api.storage.session.get(WINDOW))[WINDOW] === id) await releaseAll();
   });
   // A browser restart or a stopped background must never leave a download paused for good.
-  (async () => { if ((await readPending()).length && !(await windowAlive())) await releaseAll(); })().catch(() => {});
+  (async () => {
+    if ((await readPending()).length && !(await windowAlive())) await releaseAll();
+    if (canHideUi && !(await readPending()).length) void setUi(true); // never leave the download bubble hidden
+  })().catch(() => {});
 })();

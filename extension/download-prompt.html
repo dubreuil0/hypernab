@@ -1,26 +1,20 @@
 <!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><title>Hypernab ile indir</title><link rel="stylesheet" href="download-prompt.css"></head>
+<html lang="tr"><head><meta charset="utf-8"><title>Hypernab</title><link rel="stylesheet" href="download-prompt.css"></head>
 <body>
-<header><img src="icons/icon-48.png" alt=""><div><strong>Hypernab ile indirilsin mi?</strong><span id="queue-note"></span></div></header>
 <main id="card" hidden>
-  <h1 id="name"></h1>
-  <dl>
-    <div><dt>Boyut</dt><dd id="size"></dd></div>
-    <div><dt>Kaynak</dt><dd id="host"></dd></div>
-    <div><dt>Kayıt yeri</dt><dd id="directory"></dd></div>
-  </dl>
+  <div class="file"><img src="icons/icon-48.png" alt=""><div class="info"><strong id="name"></strong><span id="meta"></span></div></div>
+  <div class="where"><span>Kayıt yeri</span><span id="directory"></span></div>
   <p id="risk" class="notice warn" hidden></p>
-  <p id="duplicate" class="notice" hidden>Bu bağlantı Hypernab listesinde zaten var. İstersen yine de indirebilirsin.</p>
+  <p id="duplicate" class="notice" hidden>Bu bağlantı Hypernab listesinde zaten var.</p>
   <p id="message" class="notice error" role="alert" hidden></p>
+  <label class="check" id="remember"><input type="checkbox" id="remember-type"> <span id="remember-type-text">Bu dosya türünü bir daha sorma</span></label>
   <div class="actions">
+    <span id="queue-note"></span>
+    <button id="browser" hidden>Tarayıcı ile indir</button>
+    <button id="cancel">İptal</button>
+    <button id="later">Sonra</button>
     <button id="now" class="primary" autofocus>İndir</button>
-    <button id="later">Sonra ekle</button>
-    <button id="browser">Tarayıcı ile indir</button>
-    <button id="cancel" class="quiet">İptal</button>
   </div>
-  <label class="check"><input type="checkbox" id="remember-type"> <span id="remember-type-text">Bu dosya türünü bir daha sormadan Hypernab ile indir</span></label>
-  <label class="check"><input type="checkbox" id="remember-host"> <span id="remember-host-text">Bu sitede bir daha sorma; tarayıcı kendisi indirsin</span></label>
-  <p class="hint">Pencereyi kapatırsan veya bir seçim yapmazsan tarayıcı indirmeye kendisi devam eder; dosya kaybolmaz.</p>
 </main>
 <p id="done" class="done" role="status" hidden></p>
 <script src="download-prompt.js"></script>

@@ -142,6 +142,18 @@ test('takeFile: a server without byte ranges still downloads on one connection a
   const [job] = queue.list(); assert.equal(job.status, 'completed', job.error); assert.equal(job.transfer.method, 'single-http'); assert.equal(job.verification.format, 'zip');
 });
 
+test('takeFile: the job reuses the takeover look at the source instead of probing it a second time', async t => {
+  const requests = [], queue = queueFixture(t, { requests });
+  await queue.takeFile({ url: 'https://files.example.org/once', fileName: 'once.zip' });
+  await settled(queue);
+  assert.equal(queue.list()[0].status, 'completed');
+  assert.equal(requests.filter(item => item.headers.Range === 'bytes=0-0').length, 1, 'probe repeated');
+  const plain = [], other = queueFixture(t, { ranges: false, requests: plain });
+  await other.takeFile({ url: 'https://files.example.org/plain', fileName: 'plain.zip' });
+  await settled(other);
+  assert.equal(other.list()[0].status, 'completed'); assert.equal(plain.length, 1, 'a source known to have no ranges is not asked again');
+});
+
 test('a login page saved as an archive fails verification and is never published or marked complete', async t => {
   const queue = queueFixture(t, { ranges: false, mime: 'application/zip', data: Buffer.from('<!DOCTYPE html><html><body>Oturum süresi doldu</body></html>') });
   await queue.takeFile({ url: 'https://files.example.org/g', fileName: 'g.zip' });

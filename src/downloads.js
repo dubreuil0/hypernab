@@ -22,7 +22,7 @@ import { selectSourcePlan, sourceHeaders, safeExtension, isManifest } from './so
 import { ConnectionBudget } from './connection-budget.js';
 import { verifyCompletedFile, mediaExpectation, isVideoFile } from './verification.js';
 import { fileNameFor, categoryFor, riskOf, verifyFileFormat, markFromInternet } from './file-download.js';
-import { readHls, readHlsResponse, hlsInfo } from './hls.js';
+import { readHls, readHlsResponse, hlsInfo, audioChoices } from './hls.js';
 import { enrichPlaylistFormats } from './playlist-probe.js';
 import { summarizeMedia } from './media.js';
 import { downloadHls } from './hls-download.js';
@@ -400,6 +400,7 @@ export class DownloadQueue {
     return { ...summarizeMedia(entry.raw, { title: input.title }), options, defaultOptionId: preferredOptionId(options, this.settings) || defaultOptionId,
       engine: 'extractor', resolved: { engine: 'extractor', mediaKind: 'HLS' }, nativeHls: true, inspectionPending: entry.pending, sessionUsed: cookies.length > 0,
       silentStream: entry.raw.silentStream === true, audioOnly: entry.raw.audioOnly === true,
+      ...(audioChoices(entry.raw).length ? { audioTracks: audioChoices(entry.raw) } : {}),
       qualityNote: entry.pending && !options.length ? 'Kalite arka planda ölçülüyor; liste otomatik güncellenecek.' : null };
   }
 
@@ -510,6 +511,13 @@ export class DownloadQueue {
     if (!Array.isArray(formats)) return null;
     const parts = String(job.formatId).split('+').map(id => formats.find(format => format.format_id === id));
     if (!parts.length || parts.length > 2 || parts.some(part => !part || !part.url)) return null;
+    // The sound the user picked (another language than the site's default): same group as the picture, same name and language.
+    const tracks = offered.raw.audioTracks, video = parts.find(part => part.vcodec !== 'none'), audio = parts.find(part => part.vcodec === 'none');
+    if (job.audioTrack && Array.isArray(tracks) && video?.audioGroup && audio) {
+      const wanted = tracks.find(track => track.id === job.audioTrack), inGroup = tracks.filter(track => track.group === video.audioGroup);
+      const chosen = wanted && (inGroup.find(track => track.url === wanted.url) || inGroup.find(track => track.name === wanted.name && track.language === wanted.language));
+      if (chosen && chosen.url !== audio.url) parts[parts.indexOf(audio)] = { ...audio, url: chosen.url };
+    }
     const { formats: _omitted, requested_formats: _requested, requested_downloads: _downloads, ...rest } = offered.raw;
     return parts.length === 1 ? { ...rest, ...parts[0], format_id: job.formatId } : { ...rest, requested_formats: parts, format_id: job.formatId };
   }
@@ -531,7 +539,7 @@ export class DownloadQueue {
     const toQueue = input.start === 'queue';
     let pageHost = null; // only a label; an unusable page address (local, odd port) must not block the download itself
     try { pageHost = input.pageUrl ? parseRemoteUrl(input.pageUrl).hostname : null; } catch { /* label stays empty */ }
-    const fingerprint = sid ? createHash('sha256').update(JSON.stringify({ url, engine, pageHost, title: safeTitle(input.title), headers: mediaHeaders(input), quality: input.quality || 'best', audioUrl: input.audioUrl || null, formatId: input.formatId || null, deepVerify: input.deepVerify === true, expectedSha256: input.expectedSha256?.toLowerCase?.() || null })).digest('hex') : null;
+    const fingerprint = sid ? createHash('sha256').update(JSON.stringify({ url, engine, pageHost, title: safeTitle(input.title), headers: mediaHeaders(input), quality: input.quality || 'best', audioUrl: input.audioUrl || null, audioTrack: input.audioTrack || null, formatId: input.formatId || null, deepVerify: input.deepVerify === true, expectedSha256: input.expectedSha256?.toLowerCase?.() || null })).digest('hex') : null;
     const receipt = this.findSubmission(sid, fingerprint);
     if (receipt?.abandoned) throw new Error('Bu gönderim kullanıcı tarafından bırakıldı; bağlantıyı yeniden incele.');
     if (receipt) { this.pump(); return receipt.id; }
@@ -555,6 +563,13 @@ export class DownloadQueue {
       if (engine !== 'extractor' || !this.capabilities().ffmpeg || (!nativeHls && !this.capabilities().ytDlp)) throw new Error('Ayrı ses akışı için desteklenen medya motoru ve FFmpeg gerekli.');
       audioUrl = parseRemoteUrl(input.audioUrl).href;
     }
+    // Another sound of the same master (dubbed / original ...): only one the server itself offered for this exact address.
+    let audioTrack = null, audioName = null;
+    if (input.audioTrack !== undefined && input.audioTrack !== null && input.audioTrack !== '') {
+      const picked = typeof input.audioTrack === 'string' && /^a\d{1,2}$/.test(input.audioTrack) ? this.offered.get(url)?.raw?.audioTracks?.find(track => track.id === input.audioTrack) : null;
+      if (!nativeHls || !picked) throw Object.assign(new Error('Seçtiğin ses bu bağlantının son incelemesinde sunulmadı. Bağlantıyı yeniden incele ve listeden seç.'), { code: 'SELECTION_EXPIRED' });
+      audioTrack = picked.id; audioName = String(picked.name || picked.language || '').slice(0, 60) || null;
+    }
     if (engine === 'extractor' && !nativeHls && !this.capabilities().ytDlp) throw new Error('Bu indirme için önce yt-dlp kurulmalı. Kurulum adımlarına bak.');
     if (nativeHls && !this.capabilities().ffmpeg) throw new Error('HLS indirmek için FFmpeg gerekli.');
     // A plain file taken over from the browser keeps its real name (with extension) and never gets video-style naming.
@@ -569,7 +584,7 @@ export class DownloadQueue {
       smartNames: fileName ? false : this.settings.smartNames,
       releaseYear: knownYear(this.offered.get(url)?.raw),
       quality: ['best', '1080', '720', '480'].includes(input.quality) ? input.quality : 'best',
-      formatId, formatLabel, formatSlot, ...(nativeHls ? { nativeHls: true } : {}), ...(audioUrl ? { audioUrl } : {}),
+      formatId, formatLabel, formatSlot, ...(nativeHls ? { nativeHls: true } : {}), ...(audioUrl ? { audioUrl } : {}), ...(audioTrack ? { audioTrack, audioName } : {}),
       estimateBytes: this.offered.get(url)?.sizes?.get(formatId) || null,
       status: toQueue ? 'held' : 'queued', received: 0, total: null, speed: 0, createdAt: new Date().toISOString(), error: null, file: null
     };
@@ -742,11 +757,17 @@ export class DownloadQueue {
   async probeFile(url, headers, signal) {
     try {
       const probe = await probeRange({ url, headers, signal, request: this.rangeRequest });
-      return { url: probe.url, total: probe.total, contentType: probe.contentType, disposition: probe.disposition || '', ranges: true };
+      return { url: probe.url, total: probe.total, contentType: probe.contentType, disposition: probe.disposition || '', ranges: true, raw: probe };
     } catch (error) {
       if (signal.aborted) throw error;
       if (error instanceof SourceExpiredError) throw Object.assign(new Error('Sunucu erişimi reddetti (giriş veya izin gerekebilir).'), { code: 'ACCESS_DENIED' });
       if (!(error instanceof RangeUnsupportedError)) throw error;
+      // The server answered the range request with the whole file (200): its headers already tell what the file is.
+      const seen = error.observed;
+      const length = Number(seen?.headers?.['content-length']);
+      if (seen?.status === 200 && Number.isSafeInteger(length) && length > 0) { // without a length the plain request below tells more
+        return { url: seen.url, total: Number.isSafeInteger(length) && length > 0 ? length : null, contentType: String(seen.headers['content-type'] || ''), disposition: String(seen.headers['content-disposition'] || ''), ranges: false };
+      }
     }
     const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, headers);
     try {
@@ -773,6 +794,12 @@ export class DownloadQueue {
     const name = fileNameFor({ hint: typeof input.fileName === 'string' ? input.fileName : '', disposition: probe.disposition, url: probe.url, contentType: probe.contentType });
     // The cookies live in memory only, for this job, exactly like the ones of a video the user picked.
     this.rememberOffered(url, [], cookies);
+    // The job that starts a moment from now would look at the same source again; hand it this fresh look instead (memory only,
+    // short-lived, consumed once) so the first byte does not wait for a second round trip.
+    // A source without byte ranges is remembered as such, so the job goes straight to its single connection.
+    this.probeSeeds ??= new Map();
+    for (const [key, seed] of this.probeSeeds) if (Date.now() - seed.at > 30000) this.probeSeeds.delete(key);
+    this.probeSeeds.set(url, { probe: probe.raw || null, at: Date.now() });
     const id = this.add({ url, engine: 'direct', fileMode: true, fileName: name, referer, userAgent: input.userAgent, pageUrl: referer, start, submissionId: input.submissionId, quality: 'best' });
     const job = this.jobs.find(item => item.id === id);
     return { id, name, total: probe.total, ranges: probe.ranges, category: categoryFor(name, probe.contentType), risk: riskOf(name), directory: job?.directory || this.currentDirectory(), queued: start === 'queue' };
@@ -782,8 +809,38 @@ export class DownloadQueue {
   findDuplicates(input = {}) {
     let url; try { url = parseRemoteUrl(input.url).href; } catch { return []; }
     const formatId = typeof input.formatId === 'string' && input.formatId ? input.formatId : null;
-    return this.jobs.filter(job => job.url === url && (job.formatId || null) === formatId && ['running', 'queued', 'held', 'paused', 'interrupted', 'completed'].includes(job.status))
+    const audioTrack = typeof input.audioTrack === 'string' && input.audioTrack ? input.audioTrack : null; // another sound is another download
+    return this.jobs.filter(job => job.url === url && (job.formatId || null) === formatId && (job.audioTrack || null) === audioTrack && ['running', 'queued', 'held', 'paused', 'interrupted', 'completed'].includes(job.status))
       .slice(-5).map(job => ({ id: job.id, title: job.title, status: job.status, formatLabel: job.formatLabel || null, file: job.file || null }));
+  }
+
+  // Which of a master's sounds is the page's player fetching right now? The newest request that belongs to one of the sounds' own
+  // lists says so: requests are compared with the addresses of each list's pieces (never by folder or name). Addresses sent by the
+  // extension are only compared and forgotten. Unknown is a valid answer; the user then chooses.
+  async activeAudio(input = {}) {
+    const url = parseRemoteUrl(input.url).href;
+    const offered = this.offered.get(url), choices = audioChoices(offered?.raw);
+    if (!choices.length) return { active: null };
+    const tracks = offered.raw.audioTracks.filter(track => choices.some(choice => choice.id === track.id));
+    const normal = value => { try { const parsed = new URL(value); return /^https?:$/.test(parsed.protocol) ? parsed.href : null; } catch { return null; } };
+    const recent = (Array.isArray(input.recent) ? input.recent : []).slice(-200).map(item => ({ url: normal(item?.url), at: Number(item?.at) || 0 })).filter(item => item.url);
+    if (!recent.length) return { active: null };
+    const headers = mediaHeaders(input), cookies = offered.cookies || [];
+    const request = (target, signal, extra = {}) => this.rangeRequest(target, signal, withCookie({ ...headers, ...extra }, cookies, target));
+    this.audioLists ??= new Map();
+    const pieces = new Map();
+    await Promise.all(tracks.map(async track => {
+      const known = this.audioLists.get(track.url);
+      if (known && Date.now() - known.at < 600000) { pieces.set(track.id, known.set); return; }
+      try {
+        const playlist = await readHls({ url: track.url, headers, signal: AbortSignal.timeout(8000), request });
+        const set = new Set([...(playlist?.map ? [playlist.map] : []), ...(playlist?.segments || []).map(segment => segment.url)]);
+        this.audioLists.set(track.url, { at: Date.now(), set }); pieces.set(track.id, set);
+        while (this.audioLists.size > 40) this.audioLists.delete(this.audioLists.keys().next().value);
+      } catch { /* this sound cannot be read right now: it takes no part */ }
+    }));
+    for (const item of [...recent].sort((a, b) => b.at - a.at)) for (const [id, set] of pieces) if (set.has(item.url)) return { active: id };
+    return { active: null };
   }
 
   submissionStatus(id) {
@@ -898,8 +955,24 @@ export class DownloadQueue {
     this.settings = next;
     fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
     fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify(next, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
+    if (input.speedLimitKiB !== undefined) this.applySpeedLimit();
     if (!Object.keys(input).length || !Object.keys(input).every(key => VISUAL_SETTINGS.includes(key))) this.pump();
     return { ...next };
+  }
+
+  // A new speed limit reaches downloads that are already running, not only the ones that start later.
+  // The program's own engines read the rate live. A yt-dlp process only learns its limit when it starts and cannot continue
+  // its partial data safely, so restarting it just to change the limit would throw the finished part away: that job says so
+  // instead, and takes the new limit the next time it starts.
+  applySpeedLimit() {
+    const kib = this.settings.speedLimitKiB;
+    const later = 'Yeni hız sınırı bu indirme yeniden başlayınca uygulanır (bu motor sınırı yalnız başlarken alır).';
+    for (const job of this.jobs) {
+      if (job.status !== 'running' || !this.active.has(job.id) || job.speedLimitKiB === kib) continue;
+      if (job.transfer?.method === 'yt-dlp') { if (!String(job.notice || '').includes(later)) job.notice = [job.notice, later].filter(Boolean).join(' '); continue; }
+      job.speedLimitKiB = kib;
+      this.limiters.get(job.id)?.setRate(kib * 1024);
+    }
   }
 
   startQueue(name = this.settings.selectedQueue) {
@@ -1035,7 +1108,10 @@ export class DownloadQueue {
     job.transfer = { method: 'auto', phase: 'probing', connections: 0 };
     this.phase(job, 'probing');
     try {
-      const probe = await this.probeSource(job.url, this.requestHeaders(job, job.url), signal);
+      let seed = job.kind === 'file' ? this.probeSeeds?.get(job.url) : null; this.probeSeeds?.delete(job.url);
+      if (seed && Date.now() - seed.at >= 30000) seed = null;
+      if (seed && !seed.probe) throw new RangeUnsupportedError('Kaynak byte-range indirmeyi desteklemiyor.'); // the takeover already asked
+      const probe = seed ? seed.probe : await this.probeSource(job.url, this.requestHeaders(job, job.url), signal);
       job.measurementKey = sourceMeasureKey([{ url: probe.url, protocol: 'https' }]);
       if (isManifest(probe.contentType, probe.url)) return this.routeManifest(job, signal);
       if (/text\/html/i.test(probe.contentType)) throw new RangeUnsupportedError('Kaynak dosya yerine HTML sayfası döndürdü.');
@@ -1230,11 +1306,13 @@ export class DownloadQueue {
     const started = performance.now();
     const result = await downloadHls({ sources, directory: this.dirOf(job), toolsDirectory: this.toolsDirectory, signal,
       request: this.rangeRequest, headersFor: url => this.requestHeaders(job, url), spawn: this.processSpawner,
-      connections: this.settings.maxConnections, throttle: this.limiters.get(job.id),
+      connections: this.settings.maxConnections, throttle: this.limiters.get(job.id), stagingName: `hls-${job.id}`, // pieces survive a pause, a restart and a retry
       onPhase: phase => this.phase(job, phase),
       onRetry: detail => recordRecovery(job, 'hls-retry', detail),
-      onProgress: (received, connections, metrics) => this.updateTransfer(job, { received, ...metrics, total: this.hlsEstimate(job, info), sizeKind: 'approx', speed: (metrics?.networkBytes ?? received) / Math.max(0.1, (performance.now() - started) / 1000), connections, phase: 'downloading', resumeSupported: false }, 'hls') });
-    await this.verifyOutput(job, result.output, null, { ...mediaExpectation(info), requireAudio: true }, signal);
+      onProgress: (received, connections, metrics) => this.updateTransfer(job, { received, ...metrics, total: this.hlsEstimate(job, info), sizeKind: 'approx', speed: (metrics?.networkBytes ?? received) / Math.max(0.1, (performance.now() - started) / 1000), connections, phase: 'downloading', resumeSupported: true }, 'hls') });
+    // A file that fails its check is never trusted again: the next attempt must fetch its pieces afresh.
+    try { await this.verifyOutput(job, result.output, null, { ...mediaExpectation(info), requireAudio: true }, signal); }
+    catch (error) { if (!signal.aborted) fs.rmSync(result.staging, { recursive: true, force: true }); throw error; }
     const filename = `${job.id}-${safeTitle(job.title)}.mp4`;
     await publishFile(result.output, path.join(this.dirOf(job), filename), signal);
     job.file = filename; job.total = fs.statSync(path.join(this.dirOf(job), filename)).size; job.received = job.total; job.sizeKind = 'exact';

@@ -6,7 +6,7 @@
   const api = globalThis.browser ?? globalThis.chrome;
   const H = globalThis.Hypernab;
   if (!api?.runtime?.onMessage || !H) return;
-  const CACHE_OK_MS = 900000, CACHE_FAIL_MS = 120000;
+  const CACHE_OK_MS = 900000, CACHE_FAIL_MS = 120000, MASTER_BYTES = 3000;
   const inflight = new Map(); // `${tabId}|${cookies}` -> Promise, so a prefetch and the click share one look-up
   let nativeChannel;
   const starts = new Map();
@@ -27,7 +27,10 @@
     // An exact player URL is stronger evidence than speculative sniffing (often telemetry). Preserve the signed URL unchanged.
     const playingFile = item => H.isFileKind(item.kind) && !item.entry?.rangeLimited && !item.entry?.playerBlob &&
       frames.some(frame => frame.mediaUrl === item.url && frame.height > 0);
-    const rank = item => playingFile(item) ? -1 : item.kind === 'HLS' || item.kind === 'DASH' ? 0
+    // A master list (the one that names all qualities and sounds) is tiny next to the lists of the pictures and sounds it points to.
+    // Such small lists are tried first and are never cut away by the candidate limit; what they really are is decided by looking inside.
+    const smallManifest = item => (item.kind === 'HLS' || item.kind === 'DASH') && item.entry?.size > 0 && item.entry.size <= MASTER_BYTES && !item.entry.partial;
+    const rank = item => playingFile(item) ? -1 : smallManifest(item) ? -0.5 : item.kind === 'HLS' || item.kind === 'DASH' ? 0
       : item.kind === 'UNKNOWN' && item.entry?.kind === 'VIDEO' && item.entry.playerBlob ? 0.5
         : H.isFileKind(item.kind) ? 1 + H.fileRank(item.entry) / 10 : item.kind === 'UNKNOWN' ? 2 : 3;
     const add = item => { if (item.url && !seen.has(item.url)) { seen.add(item.url); found.push(item); } };
@@ -45,7 +48,8 @@
     const hasPlayer = frames.some(frame => frame.playerBlob || frame.mediaUrl || frame.duration > 0);
     if (pageUrl && (hasPlayer || entries.length)) add({ url: pageUrl, kind: 'PAGE', entry: { kind: 'PAGE', frameUrl: pageUrl } });
     const list = found.map((item, index) => ({ item, index })).sort((a, b) => rank(a.item) - rank(b.item) || a.index - b.index).map(({ item }) => item);
-    const limited = list.slice(0, 4);
+    for (const item of list) if (smallManifest(item)) item.master = true;
+    const limited = list.slice(0, list.some(item => item.master) ? 7 : 4);
     // A busy player may produce dozens of untyped requests. Keep the page resolver in the bounded budget;
     // otherwise four failed sniff candidates can prevent it from ever being tried.
     const page = list.find(item => item.kind === 'PAGE');
@@ -67,14 +71,22 @@
 
   const timings = []; // last look-ups with their duration, for the diagnostic report (addresses are reduced to their shape)
   const redact = raw => { try { const url = new URL(raw); return url.origin + url.pathname.split('/').map(part => part.length > 20 ? `${part.slice(0, 5)}…(${part.length})` : part).join('/'); } catch { return '?'; } };
-  async function inspectOne(client, tab, source, withCookies) {
+  // The app looks at two things at once at most. A look-up that finds it busy waits its turn here instead of failing, so no
+  // candidate is lost just because several were started together.
+  let gateBusy = 0; const gateQueue = [];
+  async function gated(work) {
+    while (gateBusy >= 2) await new Promise(resolve => gateQueue.push(resolve));
+    gateBusy++;
+    try { return await work(); } finally { gateBusy--; gateQueue.shift()?.(); }
+  }
+  async function inspectOne(client, tab, source, withCookies, fresh = false) {
     const started = Date.now();
-    try { const value = await inspectOneRaw(client, tab, source, withCookies); timings.push({ kind: source.kind, url: redact(source.url), ms: Date.now() - started, ok: true, options: value.info?.options?.length || 0, silent: value.info?.silentStream === true, audioOnly: value.info?.audioOnly === true }); return value; }
+    try { const value = await inspectOneRaw(client, tab, source, withCookies, fresh); timings.push({ kind: source.kind, url: redact(source.url), ms: Date.now() - started, ok: true, options: value.info?.options?.length || 0, silent: value.info?.silentStream === true, audioOnly: value.info?.audioOnly === true }); return value; }
     catch (error) { timings.push({ kind: source.kind, url: redact(source.url), ms: Date.now() - started, ok: false, error: String(error.message).slice(0, 160) }); throw error; }
     finally { while (timings.length > 25) timings.shift(); }
   }
-  async function inspectOneRaw(client, tab, source, withCookies) {
-    const hit = await cacheRead(source.url, client.instanceId, withCookies, tab.cookieStoreId, source.kind);
+  async function inspectOneRaw(client, tab, source, withCookies, fresh = false) {
+    const hit = fresh ? null : await cacheRead(source.url, client.instanceId, withCookies, tab.cookieStoreId, source.kind);
     if (hit?.error && !withCookies) throw new Error(hit.error);
     if (hit?.value) return hit.value;
     const input = { url: source.url, engine: H.isFileKind(source.kind) ? 'direct' : 'extractor', referer: source.entry?.frameUrl || tab.url, pageUrl: tab.url, userAgent: globalThis.navigator?.userAgent, noBrowser: true };
@@ -82,7 +94,12 @@
     if (source.kind !== 'PAGE' && tab.title) input.title = tab.title;
     const cookies = withCookies ? await H.sessionCookies(api, [source.url, input.pageUrl], tab.cookieStoreId) : [];
     let info;
-    try { info = await client.request(source.kind === 'UNKNOWN' ? '/api/sniff' : '/api/inspect', { method: 'POST', body: JSON.stringify(cookies.length ? { ...input, cookies } : input) }); }
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try { info = await gated(() => client.request(source.kind === 'UNKNOWN' ? '/api/sniff' : '/api/inspect', { method: 'POST', body: JSON.stringify(cookies.length ? { ...input, cookies } : input) })); break; }
+        catch (error) { if (attempt >= 4 || error?.status !== 429) throw error; await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1))); } // the app was busy with something else
+      }
+    }
     catch (error) { if (!withCookies && !H.transientError(error)) await cacheWrite(source.url, { error: error.message, sourceKind: source.kind, instanceId: client.instanceId, withCookies, cookieStoreId: tab.cookieStoreId }); throw error; }
     const value = { input: { ...input, noBrowser: undefined, ...(info.resolved || {}), title: info.title }, sourceInput: input, info, withCookies, instanceId: client.instanceId };
     await cacheWrite(source.url, { value: JSON.parse(JSON.stringify(value)), sourceKind: source.kind, instanceId: client.instanceId, withCookies, cookieStoreId: tab.cookieStoreId });
@@ -93,45 +110,96 @@
   // Other qualities of the same video, found as separate playlists (sites without a master list). Cached answers are used at once;
   // missing ones are looked up in the background, once per page, and the page is told to look again when they are in.
   const altState = new Set();
-  async function resolveAlts(client, tab, withCookies, sources) {
+  async function resolveAlts(client, tab, withCookies, sources, fresh = false) {
     const found = [], started = [];
     for (const [index, source] of sources.entries()) {
-      const hit = await cacheRead(source.url, client.instanceId, withCookies, tab.cookieStoreId, source.kind);
+      const hit = fresh ? null : await cacheRead(source.url, client.instanceId, withCookies, tab.cookieStoreId, source.kind);
       if (hit?.value) { if (hit.value.info?.options?.length || hit.value.info?.audioOnly) found.push({ ...hit.value, index }); continue; }
       const key = `${tab.id}|${tab.url}|${source.url}|${withCookies}`;
-      if (hit?.error || altState.has(key)) continue;
+      if (!fresh && (hit?.error || altState.has(key))) continue;
       altState.add(key);
-      started.push(inspectOne(client, tab, source, withCookies).then(value => { if (value.info?.inspectionPending) altState.delete(key); return value; }).catch(() => null));
+      started.push(inspectOne(client, tab, source, withCookies, fresh).then(value => { if (value.info?.inspectionPending) altState.delete(key); return value; }).catch(() => null));
     }
     if (started.length) Promise.all(started).then(() => { try { Promise.resolve(api.tabs.sendMessage(tab.id, { type: 'hypernab:refresh' })).catch(() => {}); } catch { /* tab gone */ } });
     return found;
   }
 
-  async function inspectTab(tab, withCookies) {
+  // Which sound of the inspected master the page's player is fetching right now (null = cannot tell). The addresses of the player's
+  // latest big requests go to the local app only, which compares them with the pieces of each sound's list.
+  async function activeAudioOf(client, tab, held) {
+    try {
+      if (!(held?.info?.audioTracks?.length > 1) || !H.httpUrl(held.sourceInput?.url)) return null;
+      const recent = (globalThis.HypernabActivity?.recent(tab.id, 60) || []).slice(-40);
+      if (!recent.length) return null;
+      const answer = await client.request('/api/hls/active-audio', { method: 'POST', body: JSON.stringify({ url: held.sourceInput.url, referer: held.sourceInput.referer, userAgent: held.sourceInput.userAgent, recent }) });
+      return typeof answer?.active === 'string' && held.info.audioTracks.some(track => track.id === answer.active) ? answer.active : null;
+    } catch { return null; }
+  }
+  // Sound switches inside the player ask for no new list (a cached one is used), so the panel would never hear of them. New big
+  // requests of a watched tab are compared now and then; a different sound makes the panel look again.
+  const watched = new Map(), watchTimers = new Map();
+  function watchAudio(tabId, active) { if (active === undefined) watched.delete(tabId); else watched.set(tabId, active); }
+  let hooked = false;
+  function hookActivity() { // background.js defines the activity log after this file when it is loaded by importScripts: hook once it exists
+    if (hooked || !globalThis.HypernabActivity?.on) return;
+    hooked = true;
+    globalThis.HypernabActivity.on(tabId => {
+      if (!watched.has(tabId) || watchTimers.has(tabId)) return;
+      watchTimers.set(tabId, setTimeout(async () => {
+        watchTimers.delete(tabId);
+        try {
+          const held = (await api.storage.session.get(`float:${tabId}`))[`float:${tabId}`];
+          if (!watched.has(tabId) || !held) return;
+          const active = await activeAudioOf(await connection(false), { id: tabId }, held);
+          if (active && active !== watched.get(tabId)) { watched.set(tabId, active); Promise.resolve(api.tabs.sendMessage(tabId, { type: 'hypernab:refresh' })).catch(() => {}); }
+        } catch { /* the watch simply ends */ }
+      }, 4000));
+    });
+  }
+  setTimeout(hookActivity, 0);
+
+  async function inspectTab(tab, withCookies, fresh = false) {
+    hookActivity();
     const scope = `${tab.id}|${tab.url}`, version = (inspectionVersion.get(scope) || 0) + 1;
     inspectionVersion.set(scope, version);
     const stored = await api.storage.session.get([`tab:${tab.id}`, `context:${tab.id}`]);
     const { drm, list, entries } = candidates(tab, stored);
     // The picture height the page's own player is showing right now (the quality the user picked there).
-    const playing = Math.max(0, ...Object.values(stored[`context:${tab.id}`]?.frames || {}).map(frame => Number(frame.height) || 0));
+    const frames = Object.values(stored[`context:${tab.id}`]?.frames || {});
+    const playing = Math.max(0, ...frames.map(frame => Number(frame.height) || 0));
+    const playerDuration = Math.max(0, ...frames.map(frame => Number(frame.duration) || 0));
     if (drm) return { ok: false, code: 'drm', error: 'Bu oynatıcıda DRM algılandı. DRM korumalı videolar desteklenmez.' };
     if (!list.length) return { ok: false, code: 'none', error: 'Bu sayfada henüz indirilebilir bir video kaynağı yakalanmadı. Videoyu birkaç saniye oynatıp tekrar dene.' };
     let client;
     try { client = await connection(withCookies); }
     catch (error) { return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: error.message }; }
-    let firstError = null, pageError = null;
-    for (const source of list) {
+    const finish = async (source, held) => {
+      const { info } = held;
+      // Other complete files this page loaded (the MP4 next to an HLS list, flv/avi/ts...) become extra rows under the qualities.
+      const files = H.fileSources(entries, tab.url, source.kind === 'PAGE' ? null : source.url);
+      // No master list (at most one quality known): the page's other playlists are the other qualities.
+      const alts = (info.options || []).length <= 1 ? await resolveAlts(client, tab, withCookies, H.streamSources(entries, source.kind === 'PAGE' ? null : source.url, 5), fresh) : [];
+      const active = await activeAudioOf(client, tab, held);
+      const shown = active ? { ...held, info: { ...info, activeAudio: active } } : held;
+      watchAudio(tab.id, info.audioTracks?.length > 1 ? active : undefined);
+      if (inspectionVersion.get(scope) === version) await api.storage.session.set({ [`float:${tab.id}`]: { ...shown, files, alts, playing, companionAudio: (alts.find(alt => alt.info?.audioOnly)?.sourceInput?.url) || null, pageUrl: tab.url, optionIds: (info.options || []).map(option => option.id), hasOptions: Boolean(info.options?.length) } });
+      return present(shown.info, files, alts, playing);
+    };
+    // A master list (several qualities, the length of the player's video) is the best source; a sound-only list never is. Lists that
+    // are not that are kept as the way out, so an odd page still gets its answer as before.
+    const fits = info => !(playerDuration > 0) || !(info.duration > 0) || Math.abs(info.duration - playerDuration) <= playerDuration * 0.1;
+    let firstError = null, pageError = null, fallback = null;
+    for (const [index, source] of list.entries()) {
       try {
-        const held = await inspectOne(client, tab, source, withCookies);
-        const { input, info } = held;
-        // Other complete files this page loaded (the MP4 next to an HLS list, flv/avi/ts...) become extra rows under the qualities.
-        const files = H.fileSources(entries, tab.url, source.kind === 'PAGE' ? null : source.url);
-        // No master list (at most one quality known): the page's other playlists are the other qualities.
-        const alts = (info.options || []).length <= 1 ? await resolveAlts(client, tab, withCookies, H.streamSources(entries, source.kind === 'PAGE' ? null : source.url)) : [];
-        if (inspectionVersion.get(scope) === version) await api.storage.session.set({ [`float:${tab.id}`]: { ...held, files, alts, playing, companionAudio: (alts.find(alt => alt.info?.audioOnly)?.sourceInput?.url) || null, pageUrl: tab.url, optionIds: (info.options || []).map(option => option.id), hasOptions: Boolean(info.options?.length) } });
-        return present(info, files, alts, playing);
+        const held = await inspectOne(client, tab, source, withCookies, fresh);
+        const { info } = held, qualities = (info.options || []).length;
+        const master = qualities >= 2 && fits(info);
+        const settled = !info.audioOnly && (master || !list.slice(index + 1).some(item => item.master));
+        if (settled) return await finish(source, held);
+        if (!fallback || (fallback.held.info.audioOnly && !info.audioOnly)) fallback = { source, held };
       } catch (error) { firstError ||= error; if (source.kind === 'PAGE') pageError = error; }
     }
+    if (fallback) return finish(fallback.source, fallback.held);
     // A failed speculative HLS sniff is not the diagnosis of the whole video. Prefer the page's actionable reason.
     return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || 'Video bilgisi alınamadı.' };
   }
@@ -151,6 +219,8 @@
     const best = Math.max(0, ...options.map(option => option.height || 0));
     return {
           ok: true,
+          // The sounds of the master (dubbed / original ...) and the one the player is playing now, when it could be told.
+          ...(info.audioTracks?.length > 1 ? { audioTracks: info.audioTracks.map(({ id, name, language, default: isDefault }) => ({ id, name, language, default: isDefault })), audioActive: info.activeAudio || null } : {}),
           // Complete files seen on the page. rank 0-1 (MP4, webm/mkv/mov) are shown with the qualities, the rest under "other sources".
           files: files.map(file => ({ id: file.id, label: file.label, size: file.size > 0 ? H.bytes(file.size) : 'Boyut bilinmiyor', main: file.rank <= 1 })), title: info.title, duration: info.duration > 0 ? H.duration(info.duration) : null, sessionUsed: info.sessionUsed === true,
            options,
@@ -168,7 +238,7 @@
   // The submission id makes a lost reply or a double click create one job only.
   // The same source in the same quality may already be in the app. Ask once; a failed check never blocks a download.
   async function duplicatesOf(client, payload) {
-    try { return (await client.request('/api/duplicates', { method: 'POST', body: JSON.stringify({ url: payload.url, formatId: payload.formatId }) })).duplicates || []; }
+    try { return (await client.request('/api/duplicates', { method: 'POST', body: JSON.stringify({ url: payload.url, formatId: payload.formatId, ...(payload.audioTrack ? { audioTrack: payload.audioTrack } : {}) }) })).duplicates || []; }
     catch { return []; }
   }
   const duplicateAnswer = duplicates => ({ ok: false, code: 'duplicate', duplicates: duplicates.map(item => ({ title: String(item.title || '').slice(0, 120), status: item.status, formatLabel: item.formatLabel || null })), error: 'Bu video aynı kalitede zaten listede.' });
@@ -195,7 +265,7 @@
     } catch (error) { return { ok: false, error: error.message }; }
   }
 
-  async function startDownload(tab, optionId, mode, intentId, allowDuplicate = false) {
+  async function startDownload(tab, optionId, mode, intentId, allowDuplicate = false, audioTrack = null) {
     let client = await connection(true);
     let held = (await api.storage.session.get(`float:${tab.id}`))[`float:${tab.id}`];
     if (!held || (held.pageUrl && held.pageUrl !== tab.url)) {
@@ -215,14 +285,15 @@
     const key = `float-outbox:${tab.id}|${tab.url}`;
     let record = (await api.storage.local.get(key))[key];
     const recovered = Boolean(record);
-    if (!record) record = { payload: { ...held.input, quality: 'best', start: mode === 'queue' ? 'queue' : 'now', ...(held.hasOptions ? { formatId: optionId } : {}), ...(held.info?.silentStream && page.companionAudio ? { audioUrl: page.companionAudio } : {}), submissionId: intentId || globalThis.crypto.randomUUID() }, held, optionId };
+    const sound = typeof audioTrack === 'string' && held.info?.audioTracks?.some(track => track.id === audioTrack) ? audioTrack : null; // only a sound the app offered for this list
+    if (!record) record = { payload: { ...held.input, quality: 'best', start: mode === 'queue' ? 'queue' : 'now', ...(held.hasOptions ? { formatId: optionId } : {}), ...(held.info?.silentStream && page.companionAudio ? { audioUrl: page.companionAudio } : {}), ...(sound ? { audioTrack: sound } : {}), submissionId: intentId || globalThis.crypto.randomUUID() }, held, optionId };
     if (!recovered && !allowDuplicate) { const found = await duplicatesOf(client, record.payload); if (found.length) return duplicateAnswer(found); }
     if (!recovered) Object.assign(record.payload, await H.subtitlePayload(api, client, tab.id)); // read once, kept with the stored payload
     const store = () => api.storage.local.set({ [key]: record });
     const done = async () => { await api.storage.local.set({ [key]: null }); return { ok: true, queued: record.payload.start === 'queue' }; };
     const renew = async () => {
       const fresh = await H.reselect(client, record.held.sourceInput || record.held.input, record.held.info, record.optionId, api, tab.cookieStoreId);
-      record.payload = { ...fresh.input, quality: 'best', start: record.payload.start, ...(fresh.chosen ? { formatId: fresh.chosen } : {}), ...(record.payload.audioUrl ? { audioUrl: record.payload.audioUrl } : {}), submissionId: record.payload.submissionId, ...(await H.subtitlePayload(api, client, tab.id)) };
+      record.payload = { ...fresh.input, quality: 'best', start: record.payload.start, ...(fresh.chosen ? { formatId: fresh.chosen } : {}), ...(record.payload.audioUrl ? { audioUrl: record.payload.audioUrl } : {}), ...(record.payload.audioTrack ? { audioTrack: record.payload.audioTrack } : {}), submissionId: record.payload.submissionId, ...(await H.subtitlePayload(api, client, tab.id)) };
       record.optionId = fresh.chosen;
       record.held = { ...record.held, ...fresh, instanceId: client.instanceId, optionIds: (fresh.info.options || []).map(option => option.id), hasOptions: Boolean(fresh.info.options?.length) };
       await api.storage.session.set({ [`float:${tab.id}`]: record.held });
@@ -281,7 +352,9 @@
       candidates: picked,
       subtitles: { playerTracks: gathered.tracks.map(track => ({ lang: track.lang || null, label: track.label || null, default: track.default, chars: track.vtt.length })), trackAddresses: gathered.urls.filter(item => item.sure !== undefined).map(item => ({ url: redact(item.url), sure: item.sure })), network: net.map(entry => ({ url: redact(entry.url), mime: entry.mime || null, size: entry.size, sure: entry.sure, frame: entry.frameId })) },
       requests: stored[`requests:${tab.id}`] || [],
-      lookup: { ms: Date.now() - started, ok: result.ok, code: result.code || null, error: result.error || null, options: (result.options || []).map(option => option.label), files: (result.files || []).map(file => file.label), alert: result.alert || null },
+      // What the player is fetching: counts per server, first folder name and the length of the next part, with the age of the newest one.
+      activity: globalThis.HypernabActivity?.summary(tab.id) || [],
+      lookup: { ms: Date.now() - started, ok: result.ok, code: result.code || null, error: result.error || null, options: (result.options || []).map(option => option.label), files: (result.files || []).map(file => file.label), alert: result.alert || null, sounds: (result.audioTracks || []).map(track => ({ id: track.id, name: track.name, language: track.language, default: track.default })), soundNow: result.audioActive || null },
       steps: timings.slice(-25)
     };
   }
@@ -298,14 +371,15 @@
     const tab = sender.tab;
     let work;
     if (message.action === 'inspect') {
-      const withCookies = message.cookies === true, key = `${tab.id}|${withCookies}|${tab.url}`;
-      if (!inflight.has(key)) inflight.set(key, inspectTab(tab, withCookies).finally(() => inflight.delete(key)));
+      const withCookies = message.cookies === true, fresh = message.fresh === true, key = `${tab.id}|${withCookies}|${fresh}|${tab.url}`;
+      if (!inflight.has(key)) inflight.set(key, inspectTab(tab, withCookies, fresh).finally(() => inflight.delete(key)));
       work = inflight.get(key);
     } else if (message.action === 'start' && (typeof message.optionId === 'string' || message.optionId === null)) {
       const intentId = typeof message.intentId === 'string' && /^[a-f0-9-]{36}$/i.test(message.intentId) ? message.intentId : null;
       const allowDuplicate = message.allowDuplicate === true;
-      const key = `${tab.id}|${tab.url}|${intentId || `${message.optionId}|${message.mode || 'now'}`}|${allowDuplicate}`;
-      if (!starts.has(key)) starts.set(key, startDownload(tab, message.optionId, message.mode, intentId, allowDuplicate).then(answer => {
+      const audioTrack = typeof message.audioTrack === 'string' && /^a\d{1,2}$/.test(message.audioTrack) ? message.audioTrack : null;
+      const key = `${tab.id}|${tab.url}|${intentId || `${message.optionId}|${message.mode || 'now'}|${audioTrack || ''}`}|${allowDuplicate}`;
+      if (!starts.has(key)) starts.set(key, startDownload(tab, message.optionId, message.mode, intentId, allowDuplicate, audioTrack).then(answer => {
         if (answer.ok) setTimeout(() => starts.delete(key), 1000); else starts.delete(key);
         return answer;
       }, error => { starts.delete(key); throw error; }));

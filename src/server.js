@@ -125,6 +125,7 @@ const server = http.createServer(async (req, res) => {
       try { return json(res, 200, await (url.pathname === '/api/sniff' ? queue.sniff(input) : queue.inspect(input))); }
       finally { inspections--; }
     }
+    if (req.method === 'POST' && url.pathname === '/api/hls/active-audio') return json(res, 200, await queue.activeAudio(await body(req, 131072))); // recent request addresses of the page, compared only
     if (req.method === 'POST' && url.pathname === '/api/playlist') {
       const input = await body(req);
       if (inspections >= 2) return json(res, 429, { error: 'İki inceleme zaten çalışıyor; biraz bekle.' });

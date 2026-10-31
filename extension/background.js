@@ -120,8 +120,35 @@ function recordSubtitles(message, sender) {
   return writes.then(() => ({ ok: true }));
 }
 
+// What each tab's player has fetched lately: addresses of big answers, in memory only (never stored, never logged). They tell which sound
+// of a stream list is playing; they leave the browser only for the local app, and only when the user's own panel asks.
+const activity = new Map(), activityListeners = new Set();
+function recordActivity(details) {
+  if (details.tabId < 0 || ![200, 206].includes(details.statusCode) || details.url.length > 700 || !['xmlhttprequest', 'media', 'other'].includes(details.type)) return;
+  if (responseSize(details) < 8000) return; // beacons and scripts are small; pieces of a stream are not
+  const list = activity.get(details.tabId) || [];
+  list.push({ url: details.url, at: Date.now() });
+  while (list.length > 80) list.shift();
+  activity.set(details.tabId, list);
+  for (const listener of activityListeners) { try { listener(details.tabId); } catch { /* a listener must never break capture */ } }
+}
+globalThis.HypernabActivity = {
+  recent: (tabId, limit = 60) => (activity.get(tabId) || []).slice(-limit),
+  on: listener => { activityListeners.add(listener); },
+  // Shapes only, for the diagnostic report: server, first folder, length of the next part, count, age of the newest request.
+  summary: tabId => {
+    const groups = new Map(), now = Date.now();
+    for (const item of activity.get(tabId) || []) {
+      let key = '?'; try { const url = new URL(item.url), parts = url.pathname.split('/').filter(Boolean); key = `${url.hostname}/${(parts[0] || '').slice(0, 12)}/${parts[1] ? parts[1].length : 0}`; } catch { /* odd address */ }
+      const group = groups.get(key) || { key, count: 0, newestAgoMs: Infinity }; group.count++; group.newestAgoMs = Math.min(group.newestAgoMs, now - item.at); groups.set(key, group);
+    }
+    return [...groups.values()];
+  }
+};
+
 browserApi.webRequest.onHeadersReceived.addListener(details => {
   const type = details.responseHeaders?.find(header => header.name.toLowerCase() === 'content-type')?.value || '';
+  recordActivity(details);
   capture(details, type);
   captureSubtitle(details, type);
   if (diagnosticTabs.has(details.tabId)) {
@@ -140,6 +167,7 @@ browserApi.webRequest.onHeadersReceived.addListener(details => {
 browserApi.tabs.onUpdated.addListener((tabId, change) => {
   if (change.url && change.status !== 'loading') notifyTab(tabId); // in-page navigation (no reload)
   if (change.status !== 'loading') return;
+  activity.delete(tabId);
   generations.set(tabId, (generations.get(tabId) || 0) + 1);
   writes = writes.then(async () => {
     await browserApi.storage.session.remove(`tab:${tabId}`);
@@ -151,6 +179,7 @@ browserApi.tabs.onUpdated.addListener((tabId, change) => {
 });
 browserApi.tabs.onRemoved.addListener(tabId => {
   diagnosticTabs.delete(tabId);
+  activity.delete(tabId);
   generations.set(tabId, (generations.get(tabId) || 0) + 1);
   writes = writes.then(async () => {
     await browserApi.storage.session.remove(`tab:${tabId}`);

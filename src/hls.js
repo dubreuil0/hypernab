@@ -101,5 +101,21 @@ export function hlsInfo(playlist, url, title = 'video') {
     formats.push({ ...variant, format_id: `hls_v${index}`, ext: 'mp4', protocol: 'm3u8_native', acodec: audioId ? 'none' : variant.acodec || undefined, hlsAudioId: audioId });
   }
   if (!formats.length) formats.push({ format_id: 'hls_media', url, protocol: 'm3u8_native', ext: 'mp4', vcodec: 'unknown', hlsPlaylist: playlist });
-  return { title, url, ext: 'mp4', extractor: 'Hypernab HLS', nativeHls: true, hlsSubtitles: playlist.subtitles || [], duration: playlist.duration, is_live: playlist.live, formats };
+  // Every sound the master offers (dubbed, original ...), not only the one the site marks as default.
+  const audioTracks = [], seen = new Set();
+  for (const audio of playlist.audios || []) {
+    if (!audio.url || seen.has(audio.url) || audioTracks.length >= 16) continue;
+    seen.add(audio.url);
+    audioTracks.push({ id: `a${audioTracks.length}`, group: audio.group, url: audio.url, name: audio.name || null, language: audio.language || null, default: audio.default === true });
+  }
+  return { title, url, ext: 'mp4', extractor: 'Hypernab HLS', nativeHls: true, hlsSubtitles: playlist.subtitles || [], duration: playlist.duration, is_live: playlist.live, formats, audioTracks };
+}
+
+// The sounds the user can pick between: those of the group the first picture uses (what the player lets one switch between).
+// Only offered when there really is a choice; addresses stay inside the program.
+export function audioChoices(raw) {
+  const tracks = Array.isArray(raw?.audioTracks) ? raw.audioTracks : [];
+  const group = raw?.formats?.find(format => format.audioGroup)?.audioGroup ?? tracks[0]?.group;
+  const mine = tracks.filter(track => track.group === group);
+  return mine.length > 1 ? mine.map(({ id, name, language, default: isDefault }) => ({ id, name, language, default: isDefault })) : [];
 }

@@ -53,6 +53,8 @@ async function run(name, downloadDirectory, open) {
     // Browsers allow one automatic download per page; a real user clicks on a page each time, so every download gets a fresh tab.
     let tab = null;
     const trigger = async () => {
+      // A new tab opens in the window that was focused last, which may be the prompt popup: go back to the main window first.
+      await ev(`${API}.windows.getAll({ windowTypes: ['normal'] }).then(all => ${API}.windows.update(all[0].id, { focused: true })).then(() => true)`).catch(() => {});
       const old = tab; tab = await browser.create('about:blank');
       if (old) await browser.closeTab(old).catch(() => {});
       await browser.eval(tab, `setTimeout(() => { location.href = ${JSON.stringify(ASSET)}; }, 0), true`);
@@ -72,18 +74,30 @@ async function run(name, downloadDirectory, open) {
     await trigger();
     await browserUntil(async () => (await pending()).length === 1, 40000);
     const list1 = await downloadsList();
-    check(name, 'tarayıcı indirmesi duraklatıldı ve onay penceresi açıldı', list1.length === 1 && (list1[0].paused === true || list1[0].state === 'interrupted') && await promptWindow(), JSON.stringify(list1.map(d => ({ paused: d.paused, state: d.state }))));
+    // Firefox holds the response itself: the browser has no download at all. Chrome/Edge cannot, so theirs is paused (and hidden).
+    const held = name === 'firefox';
+    check(name, held ? 'Firefox: dosya tarayıcıya hiç düşmedi (indirme listesi boş), onay penceresi açık' : 'tarayıcı indirmesi duraklatıldı ve onay penceresi açıldı', held ? list1.length === 0 && await promptWindow() : list1.length === 1 && (list1[0].paused === true || list1[0].state === 'interrupted') && await promptWindow(), JSON.stringify(list1.map(d => ({ paused: d.paused, state: d.state }))));
     check(name, 'karar verilene kadar uygulamada iş yok, dosya yok', (await ownJobs()).length === 0 && inDirectory().length === 0);
     // The prompt page itself, against the real background.
     const promptUrl = browser.extensionUrl ? `${browser.extensionUrl}download-prompt.html` : `chrome-extension://${chromiumId}/download-prompt.html`;
     view = await browser.create(promptUrl);
     await browserUntil(() => browser.eval(view, `!document.getElementById('card').hidden`), 20000);
-    const ui = await browser.eval(view, `({ name: document.getElementById('name').textContent, host: document.getElementById('host').textContent, size: document.getElementById('size').textContent, dir: document.getElementById('directory').textContent, now: document.getElementById('now').textContent, buttons: ['now','later','browser','cancel'].every(id => !document.getElementById(id).disabled) })`);
-    check(name, 'onay penceresi ad, kaynak, boyut ve kayıt yerini gösterir', ui.name === NAME && ui.host.endsWith('github.com') && ui.size.length > 0 && ui.dir.includes('app-downloads') && ui.buttons, JSON.stringify(ui));
+    const ui = await browser.eval(view, `({ name: document.getElementById('name').textContent, meta: document.getElementById('meta').textContent, dir: document.getElementById('directory').textContent, now: document.getElementById('now').textContent, buttons: ['now','later','cancel'].every(id => !document.getElementById(id).disabled), height: window.innerHeight })`);
+    check(name, 'onay penceresi ad, kaynak, boyut ve kayıt yerini gösterir', ui.name === NAME && ui.meta.includes('github.com') && ui.meta.length > 12 && ui.dir.includes('app-downloads') && ui.buttons, JSON.stringify(ui));
     await browser.screenshot(view, path.join(dir, `prompt-${name}.png`));
     // 1b. İndir
+    const clicked = Date.now();
     await browser.eval(view, `document.getElementById('now').click(), true`);
-    await browserUntil(async () => (await ownJobs()).some(job => ['completed', 'failed'].includes(job.status)), 60000);
+    // Time from the click until the first byte of the file is in (or the job is registered at all).
+    let registered = null, firstByte = null;
+    await browserUntil(async () => {
+      const own = await ownJobs(), first = own[0];
+      if (first && registered === null) registered = Date.now() - clicked;
+      if (first && firstByte === null && (first.downloaded > 0 || first.progress > 0 || ['completed', 'failed'].includes(first.status))) firstByte = Date.now() - clicked;
+      return own.some(job => ['completed', 'failed'].includes(job.status));
+    }, 60000, 100);
+    console.log(`SÜRE [${name}] tıklamadan işin görünmesine ${registered} ms, ilk bayta ${firstByte} ms`);
+    console.log(`TARAYICI SEKMESİ [${name}] ${await browser.eval(tab, 'location.href + " | " + document.title + " | " + document.body?.innerText?.slice(0, 80)')}`);
     const job = (await ownJobs())[0], taken = job?.file && path.join(dir, 'app-downloads', job.file);
     check(name, 'İndir: Hypernab dosyayı gerçek adıyla indirip doğruladı', job?.status === 'completed' && new RegExp(`^${NAME.replace(/[.]/g, '\\.')}$|^${NAME.replace(/\.zip$/, '')} \\(\\d+\\)\\.zip$`).test(job.file || '') && job.verification?.status === 'passed' && job.verification?.format === 'zip' && job.kind === 'file', `(${job?.status} ${job?.file} ${job?.error || ''})`);
     check(name, 'indirilen dosya "internetten indirildi" işaretli ve boş değil', Boolean(taken) && fs.existsSync(taken) && fs.statSync(taken).size > 0 && /ZoneId=3/.test(fs.readFileSync(`${taken}:Zone.Identifier`, 'utf8')), taken ? `(${fs.statSync(taken).size} bayt)` : '');
@@ -106,9 +120,10 @@ async function run(name, downloadDirectory, open) {
 
     // 4. Pencere kapatılırsa tarayıcı devam eder
     await trigger(); await browserUntil(async () => (await pending()).length === 1, 40000);
+    await browserUntil(promptWindow, 20000); // the window opens a moment after the record is written
     await ev(`${API}.storage.session.get('takeover:window').then(v => ${API}.windows.remove(v['takeover:window'])).then(() => true)`).catch(() => {});
     await browserFinished();
-    check(name, 'Pencere kapatılınca indirme tarayıcıda kaldığı yerden bitti', inDirectory().includes(NAME));
+    check(name, 'Pencere kapatılınca indirme tarayıcıda kaldığı yerden bitti (bekleyen istek iptal olsa da yeniden istenir)', inDirectory().includes(NAME), JSON.stringify({ files: inDirectory(), browser: await downloadsList(), pending: (await pending()).length }));
     clearDirectory(); await ev(`${API}.downloads.erase({}).then(() => true)`);
 
     // 5. Sonra ekle (aynı bağlantı listede olduğu için "yine de" ile)

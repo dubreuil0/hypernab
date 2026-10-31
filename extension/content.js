@@ -53,10 +53,11 @@
     const premiumCss = '.bar{border-radius:999px!important;background:#171c1f!important;border:1px solid #354039!important;box-shadow:0 2px 8px #0004!important;opacity:.8;transition:opacity .12s ease!important}.bar:hover,.bar.drag{opacity:1!important}.bar button{display:flex!important;align-items:center;gap:6px;color:#edf2ee!important;background:transparent!important;padding:4px 10px 4px 4px!important;font:600 11px system-ui,sans-serif!important}.bar .x{padding:4px 9px!important;color:#93a19f!important;font-weight:400!important}.bar .dot{width:20px;height:20px;border-radius:50%;background:#b6f36b;color:#142010;display:grid;place-items:center;flex:none}.bar .dot svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.panel{border-radius:14px!important;background:#14181a!important;border:1px solid #2b3439!important;box-shadow:0 8px 20px #0006!important;animation:rise .14s ease-out}@keyframes rise{from{opacity:0;transform:translateY(4px)}}.ptitle{font-size:12.5px!important;font-weight:600;color:#edf2ee}.pmeta{color:#93a19f!important}.pactions .go{border-radius:10px!important;background:#b6f36b!important;color:#142010!important}.pactions .sub{border-radius:10px!important}.quality,.opt{border-radius:10px!important}.opt.preferred{border-color:#b6f36b66!important}.toast{border-radius:999px!important;box-shadow:none!important;background:#b6f36b!important;color:#142010!important}@media(prefers-reduced-motion:reduce){.panel{animation:none}.bar{transition:none!important}}';
     const compactCss = '.panel{width:min(280px,calc(100vw - 16px));background:#171c1f;border-color:#354039;border-radius:12px;padding:12px;gap:10px;max-height:calc(100vh - 16px);overflow:auto}.bar{border-radius:7px!important;background:#b6f36b!important;box-shadow:0 2px 8px #0003!important}.bar button{font:600 11px system-ui,sans-serif!important;padding:5px 8px!important}.bar .x{padding:5px!important}.ptitle{font-size:12px;white-space:nowrap;text-overflow:ellipsis;max-height:none;color:#edf2ee}.pmeta{color:#93a19f;font-size:11px;line-height:1.5}.quality{width:100%;box-sizing:border-box;background:#101618;color:#edf2ee;border:1px solid #3b4840;border-radius:8px;padding:9px;font:12px system-ui,sans-serif}.quality:focus-visible,.go:focus-visible,.sub:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.pactions{display:flex;gap:8px;align-items:center}.pactions .go{flex:1;padding:8px;border-radius:8px;font-size:12px;background:#b6f36b}.pactions .sub{padding:8px;border:1px solid #354039;border-radius:8px;color:#d0dacd;font-size:11px}.detail{font:11px system-ui,sans-serif;color:#93a19f}.detail summary{cursor:pointer}.detail p{margin:6px 0 0;line-height:1.6}.skel{height:34px;background:#26312a;animation:none}.panel.busy{pointer-events:auto}.panel.busy button,.panel.busy select{pointer-events:none;opacity:.5}';
     const listCss = '.opts{max-height:min(300px,55vh);gap:5px}.opt{grid-template-columns:minmax(0,1fr) 26px 26px;gap:6px;padding:7px 8px;background:#20272b;border-color:#2b3439;border-radius:8px;min-height:44px}.opt:hover{background:#2a3430;border-color:#638447}.opt.preferred{border-color:#638447;background:#222e23}.option-copy{min-width:0}.oname{display:block;font-size:11px;font-weight:600}.opt small{display:block;font-size:10px;color:#93a19f;margin-top:3px;padding:0}.ib{padding:0;width:26px;height:26px;background:transparent;color:#b6f36b;border-color:#3b4b3b}.ib.now{background:#b6f36b;border-color:#b6f36b;color:#142010}.ib svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ib:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.opts>.sub{padding:7px;font-size:10px}.panel.busy .opt{pointer-events:none;opacity:.55}';
+    const headCss = '.phead{display:flex;gap:8px;align-items:flex-start}.phead .ptitle{flex:1;min-width:0}.rfr{all:unset;cursor:pointer;flex:none;width:24px;height:24px;display:grid;place-items:center;border-radius:6px;border:1px solid #3b4b3b;color:#b6f36b;font:600 13px system-ui,sans-serif}.rfr:hover{background:#1f2a1f}.rfr:focus-visible{outline:2px solid #b6f36b;outline-offset:2px}.rfr svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}.soundrow{display:flex;flex-direction:column;gap:4px}';
     try {
-      if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in root) { const sheet = new CSSStyleSheet(); sheet.replaceSync(css + compactCss + listCss + dupeCss + premiumCss); root.adoptedStyleSheets = [sheet]; }
+      if (typeof CSSStyleSheet === 'function' && 'adoptedStyleSheets' in root) { const sheet = new CSSStyleSheet(); sheet.replaceSync(css + compactCss + listCss + dupeCss + premiumCss + headCss); root.adoptedStyleSheets = [sheet]; }
       else throw new Error('no constructed stylesheets');
-    } catch { const style = document.createElement('style'); style.textContent = css + compactCss + listCss + dupeCss + premiumCss; root.append(style); }
+    } catch { const style = document.createElement('style'); style.textContent = css + compactCss + listCss + dupeCss + premiumCss + headCss; root.append(style); }
     document.body.append(host);
     // Default spot: just OUTSIDE the video, above its top-right corner. If the video touches the top of the window,
     // use the space to its right, and only as a last resort the inside corner. The user can drag it anywhere on the page:
@@ -171,18 +172,22 @@
       const options = result.options || [], main = options.filter(option => option.recommended !== false), more = options.filter(option => option.recommended === false);
       const list = el('div', 'opts'), note = el('div', 'err'); note.hidden = true;
       let expanded = false, go = null;
+      // Several sounds (dubbed / original ...): the one the player is playing is selected when that could be told; otherwise the site's
+      // default, and the user can pick. What is chosen here is exactly what is downloaded.
+      const sounds = result.audioTracks || [];
+      let chosenAudio = sounds.length ? (sounds.find(track => track.id === result.audioActive) || sounds.find(track => track.default) || sounds[0]).id : null;
       async function begin(optionId, mode, allowDuplicate = false) {
         if (pendingStart?.working) return;
         const page = String(win.location?.href || '');
         // The outbox and receipt check in float.js use this SAME id after an ambiguous reply, even if the panel redraws.
-        if (!pendingStart || !pendingStart.ambiguous || pendingStart.page !== page) pendingStart = { page, optionId, mode, intentId: globalThis.crypto?.randomUUID?.() || null };
+        if (!pendingStart || !pendingStart.ambiguous || pendingStart.page !== page) pendingStart = { page, optionId, mode, audioTrack: chosenAudio, intentId: globalThis.crypto?.randomUUID?.() || null };
         const intent = pendingStart; intent.working = true;
         note.hidden = true; panel.classList.add('busy'); panel.setAttribute?.('aria-busy', 'true');
         const previous = go?.textContent; if (go) go.textContent = 'Hazırlanıyor…';
         note.className = 'pmeta'; note.textContent = 'Hazırlanıyor…'; note.hidden = false;
         let answer;
         for (let attempt = 0; attempt < 3; attempt++) {
-          answer = await message({ action: 'start', optionId: intent.optionId, mode: intent.mode, intentId: intent.intentId, ...(allowDuplicate ? { allowDuplicate: true } : {}) });
+          answer = await message({ action: 'start', optionId: intent.optionId, mode: intent.mode, intentId: intent.intentId, ...(intent.audioTrack ? { audioTrack: intent.audioTrack } : {}), ...(allowDuplicate ? { allowDuplicate: true } : {}) });
           if (answer.code !== 'REPLY_LOST') break;
         }
         intent.working = false; intent.ambiguous = answer.code === 'REPLY_LOST';
@@ -241,9 +246,31 @@
         }
       };
       const meta = [result.duration, !options.length ? result.fileNote : null].filter(Boolean).join(' · ');
-      const children = [el('div', 'ptitle', result.title || 'Video'), ...(meta ? [el('div', 'pmeta', meta)] : []), ...(result.alert ? [el('div', 'err', result.alert)] : [])];
+      // Refresh sits next to the title: the page may have changed what it plays (language, source) without any request the extension could notice.
+      const head = el('div', 'phead'), again = el('button', 'rfr');
+      again.title = 'Yenile: sayfada şu an oynatılanı sıfırdan yeniden tara'; again.setAttribute('aria-label', 'Yenile');
+      try {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+        const path = document.createElementNS(svg.namespaceURI, 'path'); path.setAttribute('d', 'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7'); svg.append(path); again.append(svg);
+      } catch { again.textContent = '↻'; }
+      again.addEventListener('click', event => { event.stopPropagation?.(); reloadFresh(); });
+      head.append(el('div', 'ptitle', result.title || 'Video'), again);
+      const children = [head, ...(meta ? [el('div', 'pmeta', meta)] : []), ...(result.alert ? [el('div', 'err', result.alert)] : [])];
       const hasRows = options.length > 0 || files.length > 0;
       if (hasRows) draw();
+      if (sounds.length) {
+        const row = el('div', 'soundrow'), select = el('select', 'quality'), hint = el('div', 'pmeta');
+        select.setAttribute('aria-label', 'Ses');
+        for (const track of sounds) {
+          const option = el('option', '', [track.name || track.language || 'Ses', track.language && track.name && !String(track.name).toLowerCase().includes(String(track.language).toLowerCase()) ? `(${track.language})` : '', track.id === result.audioActive ? '· çalıyor' : track.default ? '· sitenin varsayılanı' : ''].filter(Boolean).join(' '));
+          option.value = track.id; select.append(option);
+        }
+        select.value = chosenAudio;
+        select.addEventListener('change', () => { chosenAudio = select.value; });
+        hint.textContent = result.audioActive ? 'Oynatıcıda çalan ses seçili.' : 'Oynatıcıda hangi ses seçili anlaşılamadı. Gerekirse sesi seç; oynatıcıda başka ses seçtiysen birkaç saniye oynatıp Yenile’ye bas.';
+        row.append(el('div', 'pmeta', 'Ses'), select, hint);
+        children.push(row);
+      }
       const detail = el('details', 'detail'), facts = el('p', ''), actions = el('div', 'pactions');
       detail.append(el('summary', '', 'Ayrıntılar'), facts);
       const defaultOption = options.find(option => option.id === result.defaultOptionId) || options[0];
@@ -256,6 +283,14 @@
       if (hasRows) children.push(list);
       children.push(detail);
       panel.replaceChildren(...children, note);
+    }
+    // Looks at the page from scratch (no cached answers) while the panel stays open.
+    function reloadFresh() {
+      if (removed || pendingStart?.working) return;
+      const mine = ++loadSerial;
+      showLoading(); place();
+      lookupPage = String(win.location?.href || ''); lookup = message({ action: 'inspect', cookies: false, fresh: true });
+      load().then(result => { if (mine === loadSerial && !panel.hidden) { showResult(result); place(); } });
     }
     start.addEventListener('click', () => { if (!moved) openPanel(); });
     // The page changed under the panel (new video, new quality, new source captured): look again, without cookies and without
