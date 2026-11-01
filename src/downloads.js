@@ -30,6 +30,7 @@ import { recoverRead, RemoteResponseError, recordRecovery } from './recovery.js'
 import { hlsTotalEstimate, sourceSize } from './hls-size.js';
 import { listPlaylist, episodeName, MAX_PLAYLIST } from './playlist.js';
 import { resolveLanguage, validSubtitleLanguage, validAudioLanguage } from './language.js';
+import { decodeText } from './text-decode.js';
 import { pickLead, classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
 
 export function assertCompleteResponse(response) {
@@ -661,15 +662,14 @@ export class DownloadQueue {
     return [...upload.tracks.entries()].sort(([a], [b]) => a - b).filter(([, entry]) => entry.parts.size === entry.count)
       .map(([, entry]) => ({ lang: entry.lang, label: entry.label, default: entry.default, text: [...entry.parts.entries()].sort(([a], [b]) => a - b).map(([, part]) => part).join('') }));
   }
-  async fetchSubtitleText(raw, signal, headers, cookies) {
+  async fetchSubtitleText(raw, signal, headers, cookies, hint) {
     const { response, url } = await this.rangeRequest(raw, signal, withCookie({ ...headers }, cookies, raw));
     if (response.statusCode !== 200) { response.destroy(); return null; }
     const chunks = []; let bytes = 0;
     try { for await (const chunk of response) { bytes += chunk.length; if (bytes > MAX_SUBTITLE_BYTES) { response.destroy(); return null; } chunks.push(chunk); } } catch { return null; }
     const buffer = Buffer.concat(chunks);
-    let text; // Turkish subtitle files are often Windows-1254, not UTF-8
-    try { text = new TextDecoder('utf-8', { fatal: true }).decode(buffer); } catch { try { text = new TextDecoder('windows-1254').decode(buffer); } catch { text = buffer.toString('latin1'); } }
-    return { text, url: String(url?.href || url || raw) };
+    const decoded = decodeText(buffer, { hint }); // UTF-8 or UTF-16, else the legacy code page that reads as real language (see text-decode.js)
+    return { text: decoded.text, suspect: decoded.suspect, url: String(url?.href || url || raw) };
   }
   // A playlist of small WebVTT pieces (HLS subtitle track) becomes one WebVTT text.
   async readSubtitlePlaylist(text, base, signal, headers, cookies) {
@@ -684,12 +684,16 @@ export class DownloadQueue {
     return pieces.length ? `WEBVTT\n\n${pieces.join('\n\n')}` : null;
   }
   async readSubtitleSource(item, signal, headers, cookies) {
+    const hint = languageInfo(item.lang || (item.url && languageFromAddress(item.url)), item.label).iso1;
     if (item.kind === 'file') {
       const buffer = fs.readFileSync(item.file);
-      return buffer.length <= MAX_SUBTITLE_BYTES ? buffer.toString('utf8') : null;
+      if (buffer.length > MAX_SUBTITLE_BYTES) return null;
+      const decoded = decodeText(buffer, { hint }); item.encodingSuspect = decoded.suspect;
+      return decoded.text;
     }
-    const fetched = await this.fetchSubtitleText(item.url, signal, headers, cookies);
+    const fetched = await this.fetchSubtitleText(item.url, signal, headers, cookies, hint);
     if (!fetched) return null;
+    item.encodingSuspect = fetched.suspect;
     return /^﻿?#EXTM3U/.test(fetched.text) ? this.readSubtitlePlaylist(fetched.text, fetched.url, signal, headers, cookies) : fetched.text;
   }
   // Runs on the finished video of ANY download path. It must never fail the download.
@@ -705,12 +709,13 @@ export class DownloadQueue {
       const combined = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
       const headers = job.headers || {}, cookies = this.jobCookies(job);
       const candidates = pending.slice(0, 40);
-      const found = [], seen = new Set();
+      const found = [], seen = new Set(); let encodingSuspect = false;
       for (const item of candidates) {
         if (combined.aborted || found.length >= MAX_SUBTITLE_TRACKS) break;
         const raw = await this.readSubtitleSource(item, combined, headers, cookies).catch(() => null);
         const parsed = raw && parseSubtitle(raw);
         if (!parsed) continue;
+        if (item.encodingSuspect) encodingSuspect = true; // the letters of this one may be wrong: the row says so
         let lang = languageInfo(item.lang || (item.url && languageFromAddress(item.url)), item.label);
         if (lang.iso3 === 'und') { const guessed = guessLanguage(parsed.cues); if (guessed) lang = languageInfo(guessed, item.label); } // "1.vtt" / "2.vtt": the words tell the language
         const key = signature(parsed.cues, lang.iso3);
@@ -735,7 +740,7 @@ export class DownloadQueue {
       // 'both': the file carries every track, and the leading (default) one is also written next to it: players such as Windows Media Player
       // and Films & TV ignore tracks inside an mp4 but load a same-named .srt on their own (VLC does too).
       const files = embedded ? (mode === 'both' && lead >= 0 ? writeSidecars(video, found.slice(0, 1)) : []) : writeSidecars(video, found);
-      job.subtitleResult = { mode: embedded ? (files.length ? 'embedded+sidecar' : 'embedded') : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note };
+      job.subtitleResult = { mode: embedded ? (files.length ? 'embedded+sidecar' : 'embedded') : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note, ...(encodingSuspect ? { encodingNote: true } : {}) };
       job.subtitlePending = undefined;
     } catch (error) {
       if (!signal.aborted) job.subtitleResult = { mode: 'none', note: 'Altyazı eklenirken sorun oluştu; video indirildi.' };

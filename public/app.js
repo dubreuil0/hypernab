@@ -215,6 +215,7 @@ function render(force = false) {
         if (s.mode === 'embedded' || s.mode === 'embedded+sidecar') line.append(DS.badge(document, T('job.sub.embedded')));
         if (s.mode === 'sidecar' || s.mode === 'embedded+sidecar') { const side = DS.badge(document, T('job.sub.sidecar')); side.title = (s.files || []).join(', '); line.append(side); }
         if (s.note) line.append(el('span', '', s.note));
+        if (s.encodingNote) line.append(el('span', '', T('job.sub.encoding')));
       }
       // The result of a download is worth seeing in the row itself, not only in the details.
       (s.mode === 'none' ? card : details).append(line);

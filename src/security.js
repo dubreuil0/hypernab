@@ -1,6 +1,7 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { timingSafeEqual } from 'node:crypto';
+import { clipName, HIDDEN_CHARACTERS } from './file-layout.js';
 
 export function validToken(actual, expected) {
   if (typeof actual !== 'string' || typeof expected !== 'string') return false;
@@ -44,5 +45,6 @@ export async function resolveRemote(raw) {
 }
 
 export function safeTitle(raw) {
-  return String(raw || 'video').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 100) || 'video';
+  const text = String(raw || 'video'), clean = typeof text.toWellFormed === 'function' ? text.toWellFormed() : text;
+  return clipName(clean.replace(HIDDEN_CHARACTERS, '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '')).replace(/[. ]+$/g, '') || 'video';
 }

@@ -16,6 +16,18 @@ test('clean names preserve Turkish, contain paths and Windows device names', () 
   assert.equal(cleanName('a'.repeat(1000)).length, 100);
 });
 
+test('names of any alphabet: kept, never cut inside a character, no hidden direction tricks, no device names in disguise', () => {
+  for (const text of ['Фильм «Зима» 2026', 'فيلم عن الشتاء', 'می‌خواهم', '冬天的故事', '冬の物語', '겨울 이야기', 'Χειμώνας', 'חורף', 'हिन्दी फ़िल्म', 'ไทย']) assert.equal(cleanName(text), text.normalize('NFC'), `${text} stays as it is`);
+  assert.equal(cleanName('invoice‮fdp.exe'), 'invoicefdp.exe', 'the right-to-left override that would show ".exe" as "pdf" is dropped');
+  assert.equal(cleanName('a‏b⁦c⁩d﻿e'), 'abcde');
+  for (const name of ['COM¹', 'con .txt', 'AUX  ']) assert.ok(cleanName(name).startsWith('_'), name);
+  const emoji = cleanName('🎬'.repeat(80)); // each is two UTF-16 units: 100 units hold 50 whole ones
+  assert.equal(emoji.length, 100); assert.equal([...emoji].length, 50); assert.ok(!/[\uD800-\uDFFF]/.test(emoji.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')), 'no half character');
+  assert.equal(cleanName('a\uD83Db'), 'a�b', 'a broken half character cannot reach the file system');
+  assert.equal(cleanName('冬'.repeat(500)).length, 100);
+  assert.equal(finishedName({ smartNames: true, title: '🎬'.repeat(60), releaseYear: 2026 }, '').length <= 100, true);
+});
+
 test('only known release year and verified height; avoid duplicate tags/extensions', () => {
   assert.equal(knownYear({ release_year: 2026 }), 2026);
   assert.equal(knownYear({ upload_date: '20261001' }), null);

@@ -19,5 +19,7 @@ test('token uzunluğu ve içeriği karşılaştırılır', () => {
 test('dosya adları yol karakterleri ve kontrol kodlarından arındırılır', () => {
   assert.equal(safeTitle('../bad:file.mp4'), '.._bad_file.mp4');
   assert.equal(safeTitle(''), 'video');
+  assert.equal(safeTitle('Фильм‮:x'), 'Фильм_x', 'other alphabets stay, direction overrides go');
+  assert.equal([...safeTitle('🎬'.repeat(80))].length, 50, 'never cut inside a character');
   assert.ok(safeTitle('a'.repeat(200)).length <= 100);
 });
