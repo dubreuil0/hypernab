@@ -1,6 +1,6 @@
 {
   "name": "hypernab",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "private": true,
   "author": "Hypernab",
   "description": "Yerel video indirme yöneticisi ve Firefox/Chrome/Edge yakalama eklentisi",
