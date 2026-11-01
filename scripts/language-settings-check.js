@@ -20,7 +20,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const port = await freePort(), origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, ['src/server.js'], { cwd: root, windowsHide: true, stdio: 'ignore',
-  env: { ...process.env, HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
+  env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
 for (let n = 0; n < 50; n++) { try { if ((await fetch(origin + '/ds.js')).ok) break; } catch { /* starting */ } await sleep(200); }
 
 async function run(name, launch) {
@@ -59,7 +59,7 @@ async function run(name, launch) {
     await ev(`document.querySelectorAll('#language-settings .setting')[2].querySelectorAll('.hd-opt')[1].click()`); await sleep(500);
     check(name, 'choosing mkv saves it', (await setting('subtitleContainer')) === 'mkv');
     const prefs = await ev(`fetch('/api/bootstrap').then(r => r.json()).then(b => fetch('/api/prefs', { headers: { Authorization: 'Bearer ' + b.token } })).then(r => r.json())`);
-    check(name, 'the extension\'s narrow /api/prefs route shows only the language choices and the look', JSON.stringify(Object.keys(prefs).sort()) === '["accent","audioLanguage","subtitleLanguage","theme"]' && prefs.subtitleLanguage === 'de' && prefs.audioLanguage === 'original', JSON.stringify(prefs));
+    check(name, 'the extension\'s narrow /api/prefs route shows only the language choices and the look', JSON.stringify(Object.keys(prefs).sort()) === '["accent","audioLanguage","interfaceLanguage","subtitleLanguage","theme"]' && prefs.subtitleLanguage === 'de' && prefs.audioLanguage === 'original', JSON.stringify(prefs));
     // settings page survives a reload with the stored values
     await browser.navigate(tab, origin + '/'); await sleep(1200);
     await ev(`document.getElementById('open-settings').click()`); await sleep(800);

@@ -29,7 +29,7 @@ import { downloadHls } from './hls-download.js';
 import { recoverRead, RemoteResponseError, recordRecovery } from './recovery.js';
 import { hlsTotalEstimate, sourceSize } from './hls-size.js';
 import { listPlaylist, episodeName, MAX_PLAYLIST } from './playlist.js';
-import { resolveLanguage, validSubtitleLanguage, validAudioLanguage } from './language.js';
+import { resolveLanguage, interfaceLanguage, validInterfaceLanguage, validSubtitleLanguage, validAudioLanguage } from './language.js';
 import { decodeText } from './text-decode.js';
 import { pickLead, classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
 
@@ -65,6 +65,7 @@ const SETTING_DEFAULTS = {
   subtitleMode: 'both',     // subtitles found for a video: 'both' (into the file + the leading track as .srt next to it), 'embed' only, 'sidecar' .srt only, or 'off'
   subtitleLanguage: 'auto', // default subtitle when the page names none: 'auto' (system language), 'off', or a language code such as 'de'
   audioLanguage: 'player',  // sound: 'player' (what the page's player plays), 'original', or a language code
+  interfaceLanguage: 'auto', // the language of the app: 'auto' (Windows, when the app has it) or a code
   subtitleContainer: 'keep', // video with subtitles: 'keep' its format (mp4) or 'mkv' (lossless copy; VLC then opens the default subtitle by itself)
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
@@ -88,6 +89,7 @@ const validLayout = value => value && typeof value === 'object' && !Array.isArra
   && typeof value.focus === 'boolean';
 const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout'];
 const SETTING_CHECKS = {
+  interfaceLanguage: value => validInterfaceLanguage(value) || 'Invalid interface language.',
   subtitleLanguage: value => validSubtitleLanguage(value) || 'Altyazı dili geçersiz.',
   audioLanguage: value => validAudioLanguage(value) || 'Ses dili geçersiz.',
   subtitleContainer: value => ['keep', 'mkv'].includes(value) || 'Altyazılı video biçimi geçersiz.',
@@ -191,7 +193,7 @@ export class DownloadQueue {
     // Queue ("add to queue") state. The list order is persisted with the jobs; "queue running" is deliberately NOT: after a restart
     // nothing starts by itself until the user presses "Start queue".
     this.settingsFile = `${stateFile}.settings.json`;
-    this.locale = locale; // the system language for the default subtitle; tests pass their own
+    this.locale = locale ?? process.env.HYPERNAB_LOCALE ?? ''; // the language of Windows, which 'auto' interface language follows; tests pass their own
     this.settings = { queueLimit: 'all', queueNames: ['Genel'], selectedQueue: 'Genel', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
     try {
       const saved = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
@@ -697,7 +699,8 @@ export class DownloadQueue {
     return /^﻿?#EXTM3U/.test(fetched.text) ? this.readSubtitlePlaylist(fetched.text, fetched.url, signal, headers, cookies) : fetched.text;
   }
   // Runs on the finished video of ANY download path. It must never fail the download.
-  subtitleLanguage() { return resolveLanguage(this.settings.subtitleLanguage, this.locale); }
+  interfaceLanguage() { return interfaceLanguage(this.settings.interfaceLanguage, this.locale); }
+  subtitleLanguage() { return resolveLanguage(this.settings.subtitleLanguage, this.interfaceLanguage()); }
   async attachSubtitles(job, signal) {
     const directory = this.subtitleDirectory(job.id);
     try {

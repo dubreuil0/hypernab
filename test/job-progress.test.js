@@ -8,7 +8,9 @@ import { PassThrough, Readable } from 'node:stream';
 import { setTimeout as wait } from 'node:timers/promises';
 import { ProgressMeter, NativeProgress, jobPhase, sourceMeasureKey, estimateBeforeDownload } from '../src/job-progress.js';
 import { DownloadQueue } from '../src/downloads.js';
+import '../public/strings.js';
 import { progressView, durationText } from '../public/progress-view.js';
+globalThis.HypernabText.setLanguage('tr'); // these tests read the Turkish texts
 
 function measurement() {
   let now = 0;

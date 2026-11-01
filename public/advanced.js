@@ -9,16 +9,16 @@ export function setupAdvanced(api, refreshStatus) {
   }
   const post = (route, body) => api(route, { method: 'POST', body: JSON.stringify(body) });
   const show = (text, error = false) => { $('settings-saved').textContent = text; $('settings-saved').className = error ? 'saved error' : 'saved'; };
-  const run = fn => async () => { try { await fn(); await refreshStatus(); show('Kaydedildi.'); } catch (error) { show(error.message, true); } };
+  const run = fn => async () => { try { await fn(); await refreshStatus(); show(T.t('app.saved')); } catch (error) { show(error.message, true); } };
   const save = async body => { await post('/api/settings', body); if (desktop) await desktop.action('settings-changed'); };
   $('open-settings').onclick = () => { $('view-downloads').hidden = true; $('view-history').hidden = true; $('open-history').setAttribute('aria-pressed', 'false'); $('view-settings').hidden = false; $('tabs').hidden = true; $('open-settings').setAttribute('aria-pressed', 'true'); };
   $('close-settings').onclick = () => { $('view-downloads').hidden = false; $('view-settings').hidden = true; $('tabs').hidden = false; $('open-settings').setAttribute('aria-pressed', 'false'); };
   for (let n = 1; n <= 16; n++) $('set-maxConnections').add(new Option(String(n), String(n)));
-  const keys = ['appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized'];
+  const keys = ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized'];
   for (const key of keys) {
     const node = $(`set-${key}`);
     node.onchange = run(async () => {
-      await save({ [key]: node.type === 'checkbox' ? node.checked : ['appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'folderLayout'].includes(key) || node.value === 'best' ? node.value : Number(node.value) });
+      await save({ [key]: node.type === 'checkbox' ? node.checked : ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'folderLayout'].includes(key) || node.value === 'best' ? node.value : Number(node.value) });
       if (key === 'deepVerifyDefault') $('deep-verify').checked = node.checked;
     });
   }
@@ -47,7 +47,7 @@ export function setupAdvanced(api, refreshStatus) {
   $('save-speed').onclick = run(() => save({ speedLimitKiB: Math.round(Number($('speed-limit-mb').value) * 1024) }));
   $('save-schedule').onclick = run(() => {
     const at = new Date($('schedule-at').value).getTime();
-    if (!Number.isFinite(at) || at <= Date.now()) throw new Error('Gelecekteki bir tarih ve saat seç.');
+    if (!Number.isFinite(at) || at <= Date.now()) throw new Error(T.t('app.err.futureTime'));
     return post('/api/automation', { schedule: { at, queue: $('named-queue').value } });
   });
   $('cancel-schedule').onclick = run(() => post('/api/automation', { schedule: null }));
@@ -68,13 +68,14 @@ export function setupAdvanced(api, refreshStatus) {
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);
     globalThis.HypernabAppearance?.apply(settings);
+    globalThis.HypernabText?.switchTo?.(settings.interfaceLanguageResolved); // the app's language changed (here or by the engine's own default): reload once
     globalThis.HypernabLayoutSync?.(settings.listLayout);
     for (const key of keys) { const node = $(`set-${key}`); if (document.activeElement === node) continue; if (node.type === 'checkbox') node.checked = settings[key]; else node.value = String(settings[key]); }
     for (const [key, select] of Object.entries(languageSelects)) if (settings[key] && select.getValue() !== settings[key]) select.setValue(settings[key]);
     if (!loaded) { $('deep-verify').checked = settings.deepVerifyDefault; loaded = true; }
     const parts = [];
-    if (info.schedule) parts.push(`${info.schedule.queue}: ${new Date(info.schedule.at).toLocaleString('tr-TR')} tarihinde başlayacak.`);
-    if (info.power) parts.push(info.power.deadline ? `${Math.max(0, Math.ceil((info.power.deadline - Date.now()) / 1000))} saniye sonra ${info.power.action === 'shutdown' ? 'bilgisayar kapanacak' : 'uykuya geçilecek'}!` : 'Mevcut indirmeler bitince güç işlemi uygulanacak.');
+    if (info.schedule) parts.push(T.t('app.schedule.status', { queue: info.schedule.queue, date: new Date(info.schedule.at).toLocaleString(T.language()) }));
+    if (info.power) parts.push(info.power.deadline ? T.t(`app.power.countdown.${info.power.action === 'shutdown' ? 'shutdown' : 'sleep'}`, { s: Math.max(0, Math.ceil((info.power.deadline - Date.now()) / 1000)) }) : T.t('app.power.armed'));
     if (info.error) parts.push(info.error);
     $('automation-status').textContent = parts.join(' '); $('automation-bar').hidden = !parts.length; $('cancel-power').hidden = !info.power;
   }

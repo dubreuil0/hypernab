@@ -5,11 +5,18 @@ const CODE = /^[a-z]{2,3}$/;
 export const validSubtitleLanguage = value => value === 'auto' || value === 'off' || (typeof value === 'string' && CODE.test(value));
 export const validAudioLanguage = value => value === 'player' || value === 'original' || (typeof value === 'string' && CODE.test(value));
 
-// "Automatic" means the language of the interface. Until the interface language is a setting of its own (multi-language work) the
-// interface is Turkish; the language of Windows says little about what the user reads (a Turkish user may run an English Windows).
-export const INTERFACE_LANGUAGE = 'tr';
+// "Automatic" means the language of the interface, not of Windows: a Turkish user may run an English Windows and reads the app in the
+// language the app shows.
+export const INTERFACE_LANGUAGES = ['en', 'tr']; // the languages the app itself is translated into
+export const validInterfaceLanguage = value => value === 'auto' || INTERFACE_LANGUAGES.includes(value);
+/** The language of the app: the setting, or (automatic) the language of Windows when the app has it, else English. */
+export function interfaceLanguage(setting, systemLocale) {
+  if (INTERFACE_LANGUAGES.includes(setting)) return setting;
+  const system = systemLanguage(systemLocale);
+  return INTERFACE_LANGUAGES.includes(system) ? system : 'en';
+}
 /** A lower-case language code ('tr', 'de'...) from a locale name such as 'de-DE', or null when it cannot be told. */
-export function systemLanguage(locale = INTERFACE_LANGUAGE) {
+export function systemLanguage(locale = '') {
   const base = String(locale || '').toLowerCase().replace(/_/g, '-').split('-')[0];
   return CODE.test(base) ? base : null;
 }

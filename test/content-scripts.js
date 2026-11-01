@@ -7,7 +7,7 @@ import { panelCssScript } from '../scripts/build-extensions.js';
 const read = relative => fs.readFileSync(new URL(relative, import.meta.url), 'utf8');
 export function runContentScripts(context) {
   if (context.globalThis === null || context.globalThis === undefined) context.globalThis = context; // the scripts reach for globalThis
-  vm.runInContext(read('../public/strings.js'), context);
+  vm.runInContext(read('../public/strings.js'), context); vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
   vm.runInContext(read('../public/ds.js'), context);
   vm.runInContext(panelCssScript(), context);
   return vm.runInContext(read('../extension/content.js'), context);

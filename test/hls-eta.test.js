@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { hlsTotalEstimate } from '../src/hls-size.js';
 import { ProgressMeter } from '../src/job-progress.js';
 import { DownloadQueue } from '../src/downloads.js';
+import '../public/strings.js';
 import { progressView } from '../public/progress-view.js';
+globalThis.HypernabText.setLanguage('tr'); // these tests read the Turkish texts
 
 test('HLS ana liste boyutu sesi zaten içerir, tekrar ses boyutu eklenmez', () => {
   const info = { nativeHls: true, duration: 80, requested_formats: [{ vcodec: 'h264', tbr: 1000 }, { vcodec: 'none', abr: 128 }] };

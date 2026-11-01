@@ -1,16 +1,18 @@
 // Pure helpers for the download list: search, visual sort and column layout. None of them touch real queue order.
+import { T, LOCALE } from './t.js';
 export const COLUMNS = [
-  { id: 'name', label: 'Ad', min: 110, auto: 360, hideable: false },
-  { id: 'size', label: 'Boyut / ilerleme', min: 90, auto: 160, hideable: true },
-  { id: 'speed', label: 'Hız', min: 64, auto: 90, hideable: true },
-  { id: 'eta', label: 'Kalan', min: 64, auto: 100, hideable: true },
-  { id: 'state', label: 'Durum', min: 80, auto: 130, hideable: true }
+  { id: 'name', label: T('app.col.name'), min: 110, auto: 360, hideable: false },
+  { id: 'size', label: T('app.col.progress'), min: 90, auto: 160, hideable: true },
+  { id: 'speed', label: T('app.col.speed'), min: 64, auto: 90, hideable: true },
+  { id: 'eta', label: T('app.col.remaining'), min: 64, auto: 100, hideable: true },
+  { id: 'state', label: T('app.col.status'), min: 80, auto: 130, hideable: true }
 ];
 export const FIXED = { handle: 24, select: 24, actions: 152 }, GAP = 6, PAD = 16;
 export const DEFAULT_LAYOUT = Object.freeze({ widths: {}, hidden: [], focus: false });
-export const sortLabels = { queue: 'Kuyruk sırası', name: 'Ad', size: 'Boyut', status: 'Durum', date: 'Eklenme' };
+export const sortLabels = { queue: T('app.sort.queue'), name: T('app.col.name'), size: T('app.col.size'), status: T('app.col.status'), date: T('app.col.added') };
 
-const fold = text => String(text ?? '').toLocaleLowerCase('tr-TR');
+// one fold for every language: the Turkish dotted/dotless i and the plain i all match each other
+const fold = text => String(text ?? '').replace(/[İIı]/g, 'i').toLowerCase();
 export function matchesSearch(job, query) {
   const words = fold(query).split(/\s+/).filter(Boolean);
   if (!words.length) return true;
@@ -34,7 +36,7 @@ export function sortJobs(jobs, key, direction = 'asc') {
   if (!value) return jobs;
   return jobs.map((job, index) => ({ job, index, v: value(job) })).sort((a, b) => {
     if (a.v === null || b.v === null) return a.v === b.v ? a.index - b.index : a.v === null ? 1 : -1;
-    const order = typeof a.v === 'string' ? a.v.localeCompare(b.v, 'tr') : a.v - b.v;
+    const order = typeof a.v === 'string' ? a.v.localeCompare(b.v, LOCALE()) : a.v - b.v;
     return order * sign || a.index - b.index;
   }).map(item => item.job);
 }

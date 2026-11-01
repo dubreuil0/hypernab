@@ -22,7 +22,7 @@ function setup({ stored = {}, takeover = { enabled: true } } = {}) {
   };
   const context = vm.createContext({ browser: api, Promise, JSON, Object, Number, String, Boolean, Array, setTimeout, clearTimeout, globalThis: null, HypernabNativeChannel: class { async request() { calls.sent.push({ native: 'show' }); return {}; } close() {} } });
   context.globalThis = context;
-  vm.runInContext(strings, context); vm.runInContext(read('control.js'), context);
+  vm.runInContext(strings, context); vm.runInContext("HypernabText.setLanguage('tr')", context); vm.runInContext(read('control.js'), context);
   return { calls, local, handlers, context, control: () => context.HypernabControl };
 }
 

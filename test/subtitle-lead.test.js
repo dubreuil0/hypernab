@@ -48,7 +48,7 @@ test('files named only "1.vtt" / "2.vtt": the full Turkish track leads and is th
 });
 
 // Same two files, different system languages: the default follows the user, and without a match nothing is flagged or written.
-for (const [locale, setting, expectFlag, expectFiles] of [['en-US', 'auto', 'eng', ['k-Film.en.srt']], ['de-DE', 'auto', null, []], ['de-DE', 'tr', 'tur', ['k-Film.tr.srt']], ['tr-TR', 'off', null, []]]) {
+for (const [locale, setting, expectFlag, expectFiles] of [['en-US', 'auto', 'eng', ['k-Film.en.srt']], ['de-DE', 'auto', 'eng', ['k-Film.en.srt']], ['de-DE', 'tr', 'tur', ['k-Film.tr.srt']], ['tr-TR', 'off', null, []]]) {
   test(`default subtitle for system language ${locale}, setting "${setting}": ${expectFlag || 'none flagged'}`, { skip: !haveTools }, async t => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-pref-'));
     const queue = new DownloadQueue({ locale, directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: tools, rangeRequest: async () => { throw new Error('no network'); } });

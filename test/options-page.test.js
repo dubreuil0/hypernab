@@ -38,6 +38,7 @@ function setup({ stored = {}, nativeHandler, fetchHandler, takeover = { enabled:
     fetch: async (url, options) => { calls.fetch.push({ url, options }); const custom = await fetchHandler?.(url, options); if (custom instanceof Error) throw custom; return custom || json({ extensionProtocol: 1 }); }, globalThis: null });
   context.globalThis = context;
   for (const file of ['../public/strings.js', '../public/ds.js', '../extension/core.js']) vm.runInContext(read(file), context);
+  vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
   vm.runInContext(read('../extension/options.js'), context);
   return { nodes, calls, local, context, text: id => nodes.get(id)?.textContent, input: slot => nodes.get(slot).children[0].children[0] };
 }

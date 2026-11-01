@@ -1,6 +1,7 @@
 const mediaFile = file => /\.(?:mp4|mkv|webm|mov|avi|m4v|mpeg|mpg|ts|m2ts|flv|wmv|mp3|m4a|aac|ogg|oga|opus|wav|flac|wma)$/i.test(file || '');
 export const canPlayFile = job => job.status === 'completed' && mediaFile(job.file);
 
+import { T, TN } from './t.js';
 export function setupHistory({ api, el, icon, fmt }) {
   const $ = id => document.getElementById(id);
   let cursor = null, pages = [], page = 0, generation = 0;
@@ -20,7 +21,7 @@ export function setupHistory({ api, el, icon, fmt }) {
     cursor = null;
     $('history-prev').disabled = $('history-next').disabled = true;
     $('history-rows').replaceChildren();
-    $('history-rows').setAttribute('aria-busy', 'true'); say('Geçmiş okunuyor…');
+    $('history-rows').setAttribute('aria-busy', 'true'); say(T('app.history.loading'));
     try {
       const query = new URLSearchParams({ search: $('history-search').value.trim() });
       if (pages[page]) query.set('cursor', pages[page]);
@@ -41,13 +42,13 @@ export function setupHistory({ api, el, icon, fmt }) {
           if (mediaFile(entry.file)) {
             const play = button('Oynat', 'play', () => globalThis.hypernabDesktop.action('history-play', entry.id)); play.dataset.historyPlay = entry.id; actions.append(play);
           }
-          const folder = button('Dosya konumunu aç', 'folder', () => globalThis.hypernabDesktop.action('history-location', entry.id)); folder.dataset.historyLocation = entry.id; actions.append(folder);
+          const folder = button(T('app.openLocation'), 'folder', () => globalThis.hypernabDesktop.action('history-location', entry.id)); folder.dataset.historyLocation = entry.id; actions.append(folder);
           row.append(actions);
         }
         return row;
       });
-      $('history-rows').replaceChildren(...(rows.length ? rows : [el('p', 'hint', $('history-search').value.trim() ? 'Aramayla eşleşen geçmiş kaydı yok.' : 'Henüz tamamlanmış indirme yok. Önceden listeden kaldırılmış kayıtlar geriye dönük bulunamaz.')]));
-      say(`Sayfa ${page + 1} · ${rows.length} kayıt${cursor ? ' · daha fazlası var' : ''}`);
+      $('history-rows').replaceChildren(...(rows.length ? rows : [el('p', 'hint', $('history-search').value.trim() ? T('app.history.noMatch') : T('app.history.empty'))]));
+      say(`${TN('app.history.page', rows.length, { page: page + 1 })}${cursor ? ` · ${T('app.history.more')}` : ''}`);
     } catch (error) { if (request === generation) { cursor = null; say(error.message, true); } }
     finally {
       if (request === generation) {

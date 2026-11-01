@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr" data-scheme="dark" data-accent="green" data-text-size="normal">
+<html lang="en" data-scheme="dark" data-accent="green" data-text-size="normal">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab Hızlı Panel</title><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/tray.css"></head>
 <body>
   <svg class="sprite" aria-hidden="true">
@@ -10,12 +10,12 @@
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 6.7M4 5v6h6"/></symbol>
   </svg>
   <main class="tray-body">
-    <header class="tray-head"><img src="/icon.svg" alt=""><strong>Hypernab</strong><button class="btn icon-only ghost" id="tray-open" title="Ana pencereyi aç" aria-label="Ana pencereyi aç"><svg class="ic"><use href="#i-open"/></svg></button><button class="btn icon-only ghost" id="tray-close" title="Paneli kapat (Esc)" aria-label="Paneli kapat"><svg class="ic"><use href="#i-x"/></svg></button></header>
-    <section class="tray-summary" aria-label="Aktarım özeti"><span class="hint">Toplam hız</span><strong id="tray-speed">—</strong><p class="hint" id="tray-counts">Bağlanıyor…</p></section>
-    <div class="tray-actions"><button class="btn" id="tray-pause" disabled><svg class="ic"><use href="#i-pause"/></svg><span>Tümünü duraklat</span></button><button class="btn" id="tray-resume" disabled><svg class="ic"><use href="#i-play"/></svg><span>Tümünü sürdür</span></button></div>
-    <section id="tray-rows" aria-label="İndirmeler"></section>
-    <footer><p id="tray-extra" class="hint"></p><p class="hint">Sürdür, “Sonra ekle” kuyruğunu başlatmaz.</p><div class="tray-status-row"><p id="tray-status" class="hint" role="status" aria-live="polite"></p><button class="btn icon-only ghost" id="tray-refresh" title="Durumu yenile" aria-label="Durumu yenile"><svg class="ic"><use href="#i-refresh"/></svg></button></div></footer>
+    <header class="tray-head"><img src="/icon.svg" alt=""><strong>Hypernab</strong><button class="btn icon-only ghost" id="tray-open" title="Open the main window" aria-label="Open the main window" data-i18n-title="app.tray.openMain" data-i18n-aria="app.tray.openMain"><svg class="ic"><use href="#i-open"/></svg></button><button class="btn icon-only ghost" id="tray-close" title="Close the panel (Esc)" aria-label="Close the panel" data-i18n-title="app.tray.closeTitle" data-i18n-aria="app.tray.close"><svg class="ic"><use href="#i-x"/></svg></button></header>
+    <section class="tray-summary" aria-label="Transfer summary" data-i18n-aria="app.tray.summary"><span class="hint" data-i18n="app.totalSpeed">Total speed</span><strong id="tray-speed">—</strong><p class="hint" id="tray-counts" data-i18n="app.tray.connecting">Connecting…</p></section>
+    <div class="tray-actions"><button class="btn" id="tray-pause" disabled><svg class="ic"><use href="#i-pause"/></svg><span data-i18n="app.pauseAll">Pause all</span></button><button class="btn" id="tray-resume" disabled><svg class="ic"><use href="#i-play"/></svg><span data-i18n="app.resumeAll">Resume all</span></button></div>
+    <section id="tray-rows" aria-label="Downloads" data-i18n-aria="app.downloads"></section>
+    <footer><p id="tray-extra" class="hint"></p><p class="hint" data-i18n="app.tray.resumeNote">Resume does not start the “Add for later” queue.</p><div class="tray-status-row"><p id="tray-status" class="hint" role="status" aria-live="polite"></p><button class="btn icon-only ghost" id="tray-refresh" title="Refresh the state" aria-label="Refresh the state" data-i18n-title="app.tray.refresh" data-i18n-aria="app.tray.refresh"><svg class="ic"><use href="#i-refresh"/></svg></button></div></footer>
   </main>
-  <script src="/tray.js"></script>
+  <script src="/strings.js"></script><script src="/ui-language.js"></script><script src="/tray.js"></script>
 </body>
 </html>
