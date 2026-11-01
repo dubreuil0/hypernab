@@ -3,6 +3,7 @@
 // Cookies are read only when the user has acted (pressed the on-page button) and only for the chosen video's own address;
 // they travel with the inspection request and are never stored. A first automatic look-up runs WITHOUT cookies.
 (() => {
+  const T = (key, vars) => globalThis.HypernabText?.t(key, vars) ?? key; // texts: public/strings.js, in the language of the app
   const api = globalThis.browser ?? globalThis.chrome;
   const H = globalThis.Hypernab;
   if (!api?.runtime?.onMessage || !H) return;
@@ -65,7 +66,7 @@
       await client.ready(userAction); nativeChannel = client.native;
       return client;
     }
-    if (!stored.token) throw new Error(stored.transport === 'native' ? 'Native Messaging bağlantısı için eklenti simgesindeki pencereyi aç.' : 'Önce eklenti simgesine tıklayıp Hypernab anahtarıyla bağlan.');
+    if (!stored.token) throw new Error(stored.transport === 'native' ? T('x.open-the-window-of-the-extension') : T('x.first-click-the-extension-icon-and'));
     const client = new H.Client({ token: stored.token }); await client.ready(false); return client;
   }
 
@@ -168,8 +169,8 @@
     const frames = Object.values(stored[`context:${tab.id}`]?.frames || {});
     const playing = Math.max(0, ...frames.map(frame => Number(frame.height) || 0));
     const playerDuration = Math.max(0, ...frames.map(frame => Number(frame.duration) || 0));
-    if (drm) return { ok: false, code: 'drm', error: 'Bu oynatıcıda DRM algılandı. DRM korumalı videolar desteklenmez.' };
-    if (!list.length) return { ok: false, code: 'none', error: 'Bu sayfada henüz indirilebilir bir video kaynağı yakalanmadı. Videoyu birkaç saniye oynatıp tekrar dene.' };
+    if (drm) return { ok: false, code: 'drm', error: T('x.drm-was-detected-in-this-player') };
+    if (!list.length) return { ok: false, code: 'none', error: T('x.no-downloadable-video-source-has-been') };
     let client;
     try { client = await connection(withCookies); }
     catch (error) { return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: error.message }; }
@@ -203,11 +204,11 @@
     }
     if (fallback) return finish(fallback.source, fallback.held);
     // A failed speculative HLS sniff is not the diagnosis of the whole video. Prefer the page's actionable reason.
-    return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || 'Video bilgisi alınamadı.' };
+    return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || T('x.the-video-information-could-not-be') };
   }
   // The user's sound preference and the app's look (theme, accent) from the app; the app being unreachable never blocks the panel.
   async function prefsOf(client) {
-    try { const prefs = await client.request('/api/prefs'); return { audioLanguage: typeof prefs?.audioLanguage === 'string' ? prefs.audioLanguage : 'player', theme: prefs?.theme, accent: prefs?.accent }; } catch { return { audioLanguage: 'player' }; }
+    try { const prefs = await client.request('/api/prefs'); if (typeof prefs?.interfaceLanguage === 'string') { try { await api.storage.local.set({ uiLanguage: prefs.interfaceLanguage }); } catch { /* the language is cosmetic */ } } return { audioLanguage: typeof prefs?.audioLanguage === 'string' ? prefs.audioLanguage : 'player', theme: prefs?.theme, accent: prefs?.accent }; } catch { return { audioLanguage: 'player' }; }
   }
   // Own qualities first; qualities of the page's other playlists join them (same label = same quality, shown once), best picture first.
   function mergedOptions(info, alts) {
@@ -229,15 +230,15 @@
           ...(info.audioTracks?.length > 1 ? { audioTracks: info.audioTracks.map(({ id, name, language, default: isDefault }) => ({ id, name, language, default: isDefault })), audioActive: info.activeAudio || null, ...(info.audioPick ? { audioPick: info.audioPick } : {}) } : {}),
           ...(info.look?.theme && info.look?.accent ? { look: info.look } : {}),
           // Complete files seen on the page. rank 0-1 (MP4, webm/mkv/mov) are shown with the qualities, the rest under "other sources".
-          files: files.map(file => ({ id: file.id, label: file.label, size: file.size > 0 ? H.bytes(file.size) : 'Boyut bilinmiyor', main: file.rank <= 1 })), title: info.title, duration: info.duration > 0 ? H.duration(info.duration) : null, sessionUsed: info.sessionUsed === true,
+          files: files.map(file => ({ id: file.id, label: file.label, size: file.size > 0 ? H.bytes(file.size) : T('app.size.unknown'), main: file.rank <= 1 })), title: info.title, duration: info.duration > 0 ? H.duration(info.duration) : null, sessionUsed: info.sessionUsed === true,
            options,
           defaultOptionId: options.length > (info.options || []).length ? options[0].id : info.defaultOptionId || null,
           // A picture without sound whose sound is a separate playlist: say what will happen, or that the sound is still missing.
-          alert: info.silentStream && !(alts || []).some(alt => alt.info?.audioOnly) ? 'Bu akışta ses yok. Sayfa ses akışını henüz yüklemedi; videoyu oynatıp biraz sonra paneli yenile.'
-            : playing > 0 && best > 0 && best + 60 < playing ? `Oynatıcı şu an ${playing}p oynatıyor ama bu kalite henüz yakalanmadı. Birkaç saniye bekleyip paneli yeniden aç.` : null,
-          fileNote: info.options?.length ? null : [info.extension ? info.extension.toUpperCase() : null, info.filesize > 0 ? `${info.estimatedSize ? '~' : ''}${H.bytes(info.filesize)}` : 'Boyut bilinmiyor'].filter(Boolean).join(' · '),
+          alert: info.silentStream && !(alts || []).some(alt => alt.info?.audioOnly) ? T('x.this-stream-has-no-sound-the')
+            : playing > 0 && best > 0 && best + 60 < playing ? T('x.the-player-is-playing-playing-p', { playing }) : null,
+          fileNote: info.options?.length ? null : [info.extension ? info.extension.toUpperCase() : null, info.filesize > 0 ? `${info.estimatedSize ? '~' : ''}${H.bytes(info.filesize)}` : T('app.size.unknown')].filter(Boolean).join(' · '),
           qualityNote: info.qualityNote || null,
-          warning: [info.warning, info.silentStream && (alts || []).some(alt => alt.info?.audioOnly) ? 'Ses ayrı akıştan eklenir.' : null].filter(Boolean).join(' ') || null
+          warning: [info.warning, info.silentStream && (alts || []).some(alt => alt.info?.audioOnly) ? T('x.the-sound-is-added-from-a') : null].filter(Boolean).join(' ') || null
         };
   }
 
@@ -248,10 +249,10 @@
     try { return (await client.request('/api/duplicates', { method: 'POST', body: JSON.stringify({ url: payload.url, formatId: payload.formatId, ...(payload.audioTrack ? { audioTrack: payload.audioTrack } : {}) }) })).duplicates || []; }
     catch { return []; }
   }
-  const duplicateAnswer = duplicates => ({ ok: false, code: 'duplicate', duplicates: duplicates.map(item => ({ title: String(item.title || '').slice(0, 120), status: item.status, formatLabel: item.formatLabel || null })), error: 'Bu video aynı kalitede zaten listede.' });
+  const duplicateAnswer = duplicates => ({ ok: false, code: 'duplicate', duplicates: duplicates.map(item => ({ title: String(item.title || '').slice(0, 120), status: item.status, formatLabel: item.formatLabel || null })), error: T('x.this-video-is-already-in-the') });
   async function startFile(tab, held, optionId, mode, intentId, allowDuplicate = false) {
     const file = (held.files || []).find(item => item.id === optionId);
-    if (!file) return { ok: false, error: 'Liste güncellendi. Güncel listeden bir kaynak seç.', refresh: present(held.info, held.files, held.alts, held.playing) };
+    if (!file) return { ok: false, error: T('x.the-list-was-updated-choose-a'), refresh: present(held.info, held.files, held.alts, held.playing) };
     const payload = { url: file.url, engine: 'direct', referer: file.referer || tab.url, pageUrl: tab.url, userAgent: globalThis.navigator?.userAgent, quality: 'best', start: mode === 'queue' ? 'queue' : 'now', submissionId: intentId || globalThis.crypto.randomUUID() };
     if (tab.title) payload.title = tab.title;
     try {
@@ -261,7 +262,7 @@
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const result = await client.request('/api/jobs', { method: 'POST', body: JSON.stringify(payload) });
-          if (typeof result.id !== 'string') throw new Error('Gönderim yanıtı doğrulanamadı.');
+          if (typeof result.id !== 'string') throw new Error(T('x.the-answer-to-the-submission-could'));
           return { ok: true, queued: payload.start === 'queue' };
         } catch (error) {
           if (attempt || !['APP_OFFLINE', 'APP_TIMEOUT', 'NATIVE_DISCONNECTED', 'NATIVE_TIMEOUT'].includes(error.code)) throw error;
@@ -277,18 +278,18 @@
     let held = (await api.storage.session.get(`float:${tab.id}`))[`float:${tab.id}`];
     if (!held || (held.pageUrl && held.pageUrl !== tab.url)) {
       const refreshed = await inspectTab(tab, true);
-      return { ok: false, error: 'Video bilgisi yenilendi. Kaliteyi seçip indirmeyi başlat.', refresh: refreshed };
+      return { ok: false, error: T('x.the-video-information-was-refreshed-choose'), refresh: refreshed };
     }
     if (typeof optionId === 'string' && optionId.startsWith('file:')) return startFile(tab, held, optionId, mode, intentId, allowDuplicate);
     const page = held; // the list the user saw, whichever playlist the chosen quality belongs to
     if (typeof optionId === 'string' && optionId.startsWith('alt:')) {
       const [, index, inner] = /^alt:(\d+):(.+)$/.exec(optionId) || [];
       const alt = (held.alts || []).find(item => item.index === Number(index));
-      if (!alt) return { ok: false, error: 'Liste güncellendi. Güncel listeden bir kalite seç.', refresh: present(held.info, held.files, held.alts, held.playing) };
+      if (!alt) return { ok: false, error: T('x.the-list-was-updated-choose-a-2'), refresh: present(held.info, held.files, held.alts, held.playing) };
       held = { ...alt, files: page.files, alts: page.alts, pageUrl: page.pageUrl, instanceId: client.instanceId, optionIds: (alt.info.options || []).map(option => option.id), hasOptions: Boolean(alt.info.options?.length) };
       optionId = inner;
     }
-    if (held.hasOptions && !held.optionIds.includes(optionId)) return { ok: false, error: 'Liste güncellendi. Güncel listeden bir kalite seç.', refresh: present(page.info, page.files, page.alts, page.playing) };
+    if (held.hasOptions && !held.optionIds.includes(optionId)) return { ok: false, error: T('x.the-list-was-updated-choose-a-2'), refresh: present(page.info, page.files, page.alts, page.playing) };
     const key = `float-outbox:${tab.id}|${tab.url}`;
     let record = (await api.storage.local.get(key))[key];
     const recovered = Boolean(record);
@@ -310,14 +311,14 @@
       if (intentId || recovered || record.held.instanceId !== client.instanceId) {
         const receipt = await client.request(`/api/submissions/${record.payload.submissionId}`);
         if (receipt.known) return done();
-        if (receipt.abandoned) throw new Error('Bu gönderim bırakılmış; yeniden indirme başlatılmadı.');
+        if (receipt.abandoned) throw new Error(T('x.this-submission-was-dropped-the-download'));
         if (record.held.instanceId !== client.instanceId) await renew();
       }
       await store(); // persist before any POST: a lost answer always reuses this id
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const result = await client.request('/api/jobs', { method: 'POST', body: JSON.stringify(record.payload) });
-          if (typeof result.id !== 'string') throw new Error('Gönderim yanıtı doğrulanamadı.');
+          if (typeof result.id !== 'string') throw new Error(T('x.the-answer-to-the-submission-could'));
           return done();
         } catch (error) {
           if (attempt) throw error;
@@ -368,13 +369,13 @@
 
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (message?.type === 'hypernab:diagnose') {
-      if (sender.id !== api.runtime?.id || sender.tab || !Number.isInteger(message.tabId)) { respond({ ok: false, error: 'Geçersiz istek.' }); return false; }
+      if (sender.id !== api.runtime?.id || sender.tab || !Number.isInteger(message.tabId)) { respond({ ok: false, error: T('x.invalid-request') }); return false; }
       api.tabs.get(message.tabId).then(tab => diagnose(tab)).then(data => respond({ ok: true, data }), error => respond({ ok: false, error: error.message }));
       return true;
     }
     if (message?.type !== 'hypernab:float') return false;
     // Only our own content script, from a real tab. Nothing starts without the user pressing the panel's download button.
-    if (sender.id !== api.runtime?.id || !sender.tab || !H.httpUrl(sender.url)) { respond({ ok: false, error: 'Geçersiz istek.' }); return false; }
+    if (sender.id !== api.runtime?.id || !sender.tab || !H.httpUrl(sender.url)) { respond({ ok: false, error: T('x.invalid-request') }); return false; }
     const tab = sender.tab;
     if (globalThis.HypernabControl?.on === false) { respond({ ok: false, code: 'disabled', error: '' }); return false; } // capture is switched off
     let work;
@@ -393,7 +394,7 @@
       }, error => { starts.delete(key); throw error; }));
       work = starts.get(key);
     }
-    else { respond({ ok: false, error: 'Geçersiz istek.' }); return false; }
+    else { respond({ ok: false, error: T('x.invalid-request') }); return false; }
     work.then(respond, error => respond({ ok: false, error: error.message }));
     return true;
   });

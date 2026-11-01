@@ -59,7 +59,7 @@ async function run(name, launch) {
     check(name, 'the on-page button appears while capture is on (the default)', await until(async () => (await overlays()) === 1));
     await store({ captureEnabled: false });
     check(name, 'switching capture off (the toolbar click\'s stored value) removes the button at once', await until(async () => (await overlays()) === 0, 8000));
-    check(name, 'the toolbar tooltip says capture is off', await until(async () => /kapalı/.test(await browser.eval(options, `${api}.action.getTitle({}).then(t => t || '')`)), 6000));
+    check(name, 'the toolbar tooltip says capture is off', await until(async () => /kapalı|off/i.test(await browser.eval(options, `${api}.action.getTitle({}).then(t => t || '')`)), 6000));
     const iconError = await browser.eval(options, `${api}.action.setIcon({ path: { 16: 'icons/icon-off-16.png', 32: 'icons/icon-off-32.png' } }).then(() => '', e => String(e && e.message || e))`);
     check(name, 'the grey slashed icon files ship in the package and the browser accepts them', iconError === '', iconError);
     await browser.navigate(tab, page); await sleep(6000);

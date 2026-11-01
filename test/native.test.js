@@ -62,7 +62,8 @@ test('Native kanal istekleri kimlikle eşleştirir; bağlantı kopması bekleyen
   let message, disconnect; const posted = [];
   const port = { postMessage(value) { posted.push(value); }, onMessage: { addListener(fn) { message = fn; } }, onDisconnect: { addListener(fn) { disconnect = fn; } }, disconnect() {} };
   const context = vm.createContext({ crypto: webcrypto, setTimeout, clearTimeout });
-  vm.runInContext(fs.readFileSync(new URL('../extension/native.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context); vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
+vm.runInContext(fs.readFileSync(new URL('../extension/native.js', import.meta.url), 'utf8'), context);
   const channel = new context.HypernabNativeChannel({ connectNative() { return port; } });
   const promise = channel.request({ action: 'request', route: '/api/status', method: 'GET' });
   message({ version: 1, id: posted[0].id, ok: true, data: { works: true } }); assert.deepEqual(await promise, { works: true });

@@ -36,6 +36,7 @@ export function buildExtensions(outDir = path.join(root, 'build', 'extensions'),
     for (const asset of assets) fs.copyFileSync(path.join(root, 'extension', asset), path.join(dir, asset));
     // The design system is written once (public/) and shared by the app, the page panel and the extension windows.
     for (const asset of sharedAssets) fs.copyFileSync(path.join(root, 'public', asset), path.join(dir, asset));
+  fs.cpSync(path.join(root, 'extension', '_locales'), path.join(dir, '_locales'), { recursive: true }); // the name and description in each language
     fs.cpSync(path.join(root, 'extension', 'icons'), path.join(dir, 'icons'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'panel-css.js'), panelCssScript());
     if (nativeHost) fs.writeFileSync(path.join(dir, 'native-config.js'), `globalThis.HypernabNativeHost = ${JSON.stringify(nativeHost)};\n`);

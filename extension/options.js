@@ -4,6 +4,7 @@
   const api = globalThis.browser ?? globalThis.chrome;
   const $ = id => document.getElementById(id);
   const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars);
+  globalThis.HypernabText.follow?.(api, () => location.reload()); // the page is drawn again in the app's language
   { const theme = document.createElement('style'); theme.textContent = DS.tokens('auto', 'green', ':root'); document.head.append(theme); }
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = T(node.dataset.t);
   $('token').placeholder = T('opt.conn.token');

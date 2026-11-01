@@ -3,6 +3,7 @@
 // cancelled ONLY after Hypernab has confirmed it accepted the file. Anything else (app closed, error, closed window,
 // no answer) resumes the browser's own download. Cookies are read only when the user presses a button for that file.
 (() => {
+  const T = (key, vars) => globalThis.HypernabText?.t(key, vars) ?? key; // texts: public/strings.js, in the language of the app
   const api = globalThis.browser ?? globalThis.chrome;
   const H = globalThis.Hypernab, F = globalThis.HypernabFloat;
   if (!api?.downloads?.onCreated || !api.windows?.create || !H || !F) return;
@@ -255,7 +256,7 @@
 
   const busy = new Set();
   async function decide({ id, choice, rememberType, rememberHost, allowDuplicate }) {
-    if (busy.has(id)) return { ok: false, error: 'İşlem sürüyor.' };
+    if (busy.has(id)) return { ok: false, error: T('x.an-action-is-already-in-progress') };
     busy.add(id);
     try {
       const record = (await readPending()).find(item => item.id === id);
@@ -267,7 +268,7 @@
         return { ok: true };
       }
       if (choice === 'cancel') { await finish(); await dropRecord(record); return { ok: true }; }
-      if (choice !== 'now' && choice !== 'later') return { ok: false, error: 'Geçersiz seçim.' };
+      if (choice !== 'now' && choice !== 'later') return { ok: false, error: T('x.invalid-choice') };
       if (record.via !== 'request') {
         let current = null;
         try { current = (await api.downloads.search({ id }))[0] || null; } catch { /* ask the app anyway */ }
@@ -281,7 +282,7 @@
         return { ok: true, name: result?.name || record.name, queued: choice === 'later', browserCopy: result?.browserCopy === true };
       } catch (error) {
         // Nothing was cancelled: the browser's download is still paused and can continue.
-        return { ok: false, code: error.code || null, error: String(error.message || 'Hypernab dosyayı alamadı.').slice(0, 300), duplicate: error.code === 'duplicate' };
+        return { ok: false, code: error.code || null, error: String(error.message || T('x.hypernab-could-not-take-the-file')).slice(0, 300), duplicate: error.code === 'duplicate' };
       }
     } finally { busy.delete(id); }
   }

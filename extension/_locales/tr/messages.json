@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "Hypernab — Video Yakalayıcı"
+  },
+  "extDescription": {
+    "message": "Oynatılan DRM’siz video dosyalarını ve HLS/DASH isteklerini yerel indirme yöneticisine gönderir."
+  }
+}

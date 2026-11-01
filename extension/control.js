@@ -24,6 +24,7 @@
     await paint();
   };
   control.ready = load();
+  globalThis.HypernabText?.follow?.(api, () => { paint(); menus(); }); // the menu and the tooltip change language with the app
   control.set = async on => { control.on = Boolean(on); await api.storage.local.set({ captureEnabled: control.on }); await paint(); await menus(); };
   api.storage.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;

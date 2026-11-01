@@ -29,6 +29,7 @@ function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
   const context = vm.createContext({ browser, URL, AbortSignal, JSON, Promise, Date, Math, crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' }, navigator: { userAgent: 'UA' }, setTimeout, clearTimeout, fetch: fetcher, globalThis: null });
   context.globalThis = context;
   if (native) { local.transport = 'native'; context.HypernabNativeChannel = native; }
+  vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context); vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
   vm.runInContext(read('core.js'), context); vm.runInContext(read('float.js'), context);
   const send = message => new Promise(resolve => {
     const keep = listener(message, { id: 'ext', tab: { id: 7, url: 'https://example.org/watch?v=1', title: 'Video başlığı' }, url: 'https://example.org/watch?v=1' }, resolve);

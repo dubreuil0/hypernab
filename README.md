@@ -1,88 +1,90 @@
 # Hypernab
 
-Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
+[Türkçe](README.tr.md)
 
-**Sürüm:** uygulama 0.13.1 · eklenti 0.8.1 · Windows 10/11 (x64)
+A local download manager for Windows, with a media-capture extension for Firefox, Chrome, Edge, Brave and Opera. Your downloads stay on your computer; there is no account, cloud or tracking.
 
-## Özellikler
+**Version:** app 0.13.1 · extension 0.8.1 · Windows 10/11 (x64)
 
-- **Hızlı indirme:** parçalı ve uyarlanabilir bağlantı sayısıyla indirme, kaldığı yerden devam, hız sınırı (çalışan indirmeye de anında uygulanır).
-- **Genel dosya indirme:** tarayıcının dosya indirmelerini (zip, pdf, iso, program, belge...) Hypernab alabilir. İndirme başlayınca küçük bir pencere sorar: **İndir**, **Sonra** veya **İptal**; "bir daha sorma" kutusuyla bu tür dosyaları sormadan alabilirsin. Dosya gerçek adıyla iner, parçalı hızlandırılır, boyutu ve dosya yapısı (zip, pdf, program, resim...) doğrulanır, Windows'un "internetten indirildi" işareti eklenir.
-- **Tarayıcıdan yakalama:** eklenti, oynattığın videoyu algılar ve sayfada "Hypernab ile indir" düğmesi gösterir. Kalite listesinden seçersin; seçmediğin kaliteye sessizce düşülmez. Sitede birden fazla ses varsa (ör. dublaj ve orijinal) panelde **Ses** seçilir; oynatıcıda çalan ses otomatik seçili gelir. Sayfa değiştiğinde **Yenile** düğmesi videoyu baştan tarar.
-- **Kuyruk:** adlandırılmış kuyruklar, zamanlama, sürükleyerek sıralama, genel eşzamanlılık sınırı, "Sonra ekle".
-- **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir. HLS indirmelerinde duraklatma, yeniden başlatma ve yeniden deneme bitmiş parçaları korur; yalnızca eksikler indirilir.
-- **Akışlar:** HLS ve ayrı görüntü/ses akışları FFmpeg ile birleştirilir; sonuç ffprobe ile doğrulanır.
-- **Alt yazı:** oynatıcıdan veya akıştan yakalanan alt yazı videoya gömülür ve varsayılan (Türkçe) alt yazı ayrıca aynı adla `.srt` olarak yanına yazılır; böylece VLC, Media Player ve Films & TV kendiliğinden gösterir. Adı olmayan alt yazı dosyalarının dili içindeki kelimelerden anlaşılır. Ayarlar'dan yalnız gömme, yalnız yan dosya ya da kapalı seçilebilir.
-- **Dil tercihleri:** Ayarlar'dan varsayılan altyazı dili (varsayılan: arayüz dili) ve ses dili seçilir. Sayfa kendi altyazısını söylediyse o kazanır; seçtiğin dilde parça yoksa hiçbiri işaretlenmez. Ses, altyazı diline bağlı değildir: oynatıcıda çalan ses, yoksa ayardaki ses tercihi, yoksa sitenin varsayılanı seçilir ve panelde yazılır.
-- **Altyazılı video biçimi:** mp4 içindeki gömülü altyazıyı VLC kendiliğinden açmaz (yan `.srt` dosyasını açar). İstersen Ayarlar'dan "mkv olarak kaydet" seçilir: video kayıpsız mkv'ye kopyalanır ve VLC varsayılan altyazıyı kendisi açar. Varsayılan: mp4 kalır.
-- **Oynatma listeleri:** listeyi görüp istediğin bölümleri kuyruğa ekleme.
-- **Akıllı adlandırma ve klasörleme:** güvenli Windows dosya adları, isteğe bağlı klasör düzeni; mevcut dosyalar üzerine yazılmaz.
-- **Geçmiş:** kuyruğu temizlesen de silinmeyen, aranabilir geçmiş. Kuyruğu temizlemek dosyaları silmez.
-- **Tepsi hızlı paneli:** toplam hız ve ilk işler; tekli ve toplu duraklat/sürdür.
-- **Arayüz:** koyu, açık ve sistem teması; dört vurgu rengi; küçük/normal/büyük yazı; kompakt veya normal liste. Düşük donanımda akıcı kalması için bulanıklık, büyük gölge ve sürekli animasyon kullanılmaz.
+## Features
 
-## Kurulum
+- **Fast downloads:** segmented download with an adaptive number of connections, resume from where it stopped, and a speed limit (applied to a running download at once).
+- **General file downloads:** Hypernab can take over the browser's file downloads (zip, pdf, iso, programs, documents...). When a download starts, a small window asks: **Download**, **Later** or **Cancel**; with “don't ask again” such files are taken without asking. The file is saved under its real name, accelerated in segments, its size and structure (zip, pdf, program, image...) are verified, and Windows' “downloaded from the internet” mark is added.
+- **Capture from the browser:** the extension detects the video you play and shows a “Download with Hypernab” button on the page. You choose from the quality list; it never silently falls back to a quality you did not choose. When a site has several sounds (e.g. dubbed and original) you pick the **Sound** in the panel; the sound playing in the player is preselected. When the page changes, **Refresh** scans the video again.
+- **Queue:** named queues, scheduling, drag-and-drop ordering, a global concurrency limit, “Add for later”.
+- **Automatic recovery:** limited, cancellable retries after temporary server errors, drops and missing data; only the damaged part is downloaded again. For HLS downloads, pausing, restarting and retrying keep the finished segments; only the missing ones are downloaded.
+- **Streams:** HLS and separate picture/sound streams are merged with FFmpeg; the result is verified with ffprobe.
+- **Subtitles:** a subtitle captured from the player or the stream is embedded in the video, and the default subtitle is also written next to it as a `.srt` with the same name, so VLC, Media Player and Films & TV show it by themselves. A subtitle file without a name is recognised by its words in 30 languages, and files in old code pages (Windows-125x, GBK, Shift_JIS, EUC-KR, Big5, UTF-16...) are read correctly. In Settings you can choose embed only, side file only or off.
+- **Language:** the app and the extension come in English and Turkish. By default they follow the language of Windows (English when the app has no text in it); you can choose in Settings. The default subtitle language and the sound language are separate settings. A subtitle the page says it showed wins; if there is no track in the chosen language, none is marked. The sound does not follow the subtitle language: the sound playing in the player, otherwise your sound preference, otherwise the site's default is selected, and the panel says which.
+- **Video format with subtitles:** VLC does not switch on a subtitle embedded in an mp4 by itself (it does load the side `.srt`). If you like, choose “Save as mkv” in Settings: the video is copied without loss into an mkv and VLC opens the default subtitle by itself. The default keeps the mp4.
+- **Playlists:** see the list and add the episodes you want to the queue.
+- **Smart naming and folders:** safe Windows file names in any alphabet, an optional folder layout; existing files are never overwritten.
+- **History:** a searchable history that is kept even if you clear the queue. Clearing the queue does not delete files.
+- **Tray quick panel:** total speed and the first jobs; pause/resume one or all.
+- **Interface:** dark, light and system theme; four accent colours; small/normal/large text; compact or normal list. To stay smooth on weak hardware, no blur, big shadows or endless animation is used.
 
-1. [Sürümler](../../releases) sayfasından `Hypernab-Setup-<sürüm>.exe` dosyasını indir ve çalıştır.
-2. Kurulum henüz **kod imzalı değildir**; Windows "bilinmeyen yayıncı" uyarısı gösterebilir.
-3. Kurulum Node.js, yt-dlp ve FFmpeg'i kendi içinde getirir; ayrıca bir şey kurman gerekmez.
+## Install
 
-### Dosya indirmelerini yakalama
+1. Download `Hypernab-Setup-<version>.exe` from the [Releases](../../releases) page and run it.
+2. The installer is **not yet code-signed**; Windows may show an “unknown publisher” warning.
+3. The installer brings Node.js, yt-dlp and FFmpeg with it; you do not need to install anything else.
 
-Dosya indirmesi başlarken küçük bir pencere sorar. **Firefox**'ta dosya tarayıcıya hiç düşmez: yanıt, sen karar verene kadar bekletilir; Hypernab alırsa tarayıcıda indirme kaydı oluşmaz. **Chrome, Edge ve Brave** bekletmeye izin vermez; orada indirme kısa süre duraklatılır, indirme balonu gizlenir ve Hypernab dosyayı alınca kayıt hemen silinir. **Dosya hiçbir durumda kaybolmaz:** tarayıcı ancak Hypernab dosyayı kabul ettikten sonra bırakılır. Uygulama kapalıysa, hata olursa, pencereyi kapatırsan veya üç dakika yanıt vermezsen tarayıcı indirmeyi kendisi sürdürür. Çerezler yalnızca sen bir düğmeye bastığında, yalnızca o dosyanın adresi için kullanılır; hiçbir yere kaydedilmez.
+### Capturing file downloads
 
-- Eklentinin **ayarlar sayfasındaki** (araç çubuğu simgesine sağ tıkla → *Ayarlar ve teşhis*) **Dosya indirmeleri** bölümünden kapatabilir, en küçük dosya boyutunu seçebilir ve hatırlanan seçimleri sıfırlayabilirsin (varsayılan: 1 MB üstü ve boyutu bilinmeyenler).
-- "Bu türü bir daha sorma" dersen o tür dosyalar sormadan Hypernab ile iner; bir sorun olursa yine tarayıcıya geri verilir.
-- Program ve komut dosyaları (`exe`, `msi`, `ps1` ...) için pencerede uyarı gösterilir. Gizli pencerede (incognito) yakalama yapılmaz.
-- Eklenti `downloads` iznini ister (Firefox'ta ayrıca yanıtı bekletmek için `webRequestBlocking`, Chromium'da indirme balonunu gizlemek için `downloads.ui`); güncellerken tarayıcı onay isteyebilir.
+A small window asks when a file download starts. In **Firefox** the file never reaches the browser: the response is held until you decide; if Hypernab takes it, no download record appears in the browser. **Chrome, Edge and Brave** do not allow holding; there the download is paused for a moment, the download bubble is hidden and the record is removed as soon as Hypernab has the file. **The file is never lost:** the browser is only let go after Hypernab has accepted the file. If the app is closed, something fails, you close the window or you do not answer for three minutes, the browser carries on with the download itself. Cookies are used only when you press a button, only for the address of that file, and are never saved.
 
-### Eklenti
+- In the extension's **settings page** (right-click the toolbar icon → *Settings and diagnostics*), in the **File downloads** section, you can turn this off, choose the smallest file size and reset the remembered choices (default: files over 1 MB and files of unknown size).
+- If you choose “don't ask again for this type”, files of that type are taken by Hypernab without asking; if anything goes wrong they are given back to the browser.
+- A quiet “Program file” tag is shown for programs from a normal (https) address; a warning is shown for scripts and macros (`ps1`, `docm`...) and for programs fetched over an unencrypted (http) address. Nothing is captured in private windows.
+- The extension asks for the `downloads` permission (in Firefox also `webRequestBlocking` to hold the response, in Chromium `downloads.ui` to hide the download bubble); the browser may ask for approval when updating.
 
-Eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions` altında Firefox ve Chromium paketlerini üretir.
+### Extension
 
-- **Chrome, Edge, Brave, Opera** (aynı klasör): tarayıcının eklentiler sayfası (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`) → Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`.
-- **Firefox:** `about:debugging#/runtime/this-firefox` → *Geçici eklenti yükle* → `build/extensions/firefox/manifest.json`. Geçici yükleme Firefox kapanınca kaybolur; kalıcı kurulum için imzalı paket gerekir.
+The extension is built from source: `npm run build:extensions` produces the Firefox and Chromium packages under `build/extensions`.
 
-Uygulamanın **Ayarlar > Tarayıcı eklentisi** bölümü bu adımları kopyalanabilir adreslerle gösterir.
+- **Chrome, Edge, Brave, Opera** (same folder): the browser's extensions page (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`) → Developer mode → *Load unpacked* → `build/extensions/chromium`.
+- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `build/extensions/firefox/manifest.json`. A temporary add-on disappears when Firefox closes; a permanent install needs a signed package.
 
-**Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simgede "KAPALI" yazar; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Dosya indirmelerini yakala*, *Ayarlar ve teşhis*. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
+The app's **Settings > Browser extension** section shows these steps with copyable addresses.
 
-## Güncelleme
+**Use:** there is no pop-up. **Clicking** the Hypernab icon in the toolbar **turns capture on or off** (when off, the icon turns grey with a red slash; no button or panel appears on pages and nothing is captured). **Right-clicking** opens a menu: *Open Hypernab*, *Inspect this page*, *Capture videos*, *Capture file downloads*, *Settings and diagnostics*. The **Download** button that appears on the page when a video plays is the main place to download.
 
-Uygulama açıldıktan kısa süre sonra yeni sürüm olup olmadığına bir kez bakar. Tepsi menüsündeki **Güncellemeleri denetle** ile elle de denetleyebilirsin.
+## Updates
 
-- Yeni sürüm **sen onaylamadan indirilmez**.
-- Kurulum **aktif indirme yokken** önerilir; kapatmadan önce motor güvenle durdurulur, kuyruk ve ayarlar korunur.
-- Paket sürüm sayfasından alınır ve SHA-512 özetiyle doğrulanır.
+Shortly after it starts, the app checks once for a new version. You can also check by hand with **Check for updates** in the tray menu.
 
-## Gizlilik ve güvenlik
+- A new version is **never downloaded without your approval**.
+- Installing is offered **when no download is active**; the engine is stopped safely before closing, and the queue and settings are kept.
+- The package comes from the release page and is verified with its SHA-512 digest.
 
-- Yerel motor yalnızca `127.0.0.1` üzerinde çalışır; her istek eşleştirme anahtarı ve kaynak denetimi gerektirir.
-- Tarayıcı çerezleri yalnızca sen sayfadaki düğmeye bastığında, yalnızca seçtiğin videonun adresi için kullanılır; diske, günlüğe veya rapora yazılmaz.
-- DRM korumalı içerik ve erişim kısıtlamaları **aşılmaz**. Yalnızca indirme iznin olan içerikler için kullan.
-- Geçmiş yerel bir veritabanında tutulur; dosya adı ve durum gibi bilgileri tutar; kaynak adresi, istek başlığı ve çerez içermez.
+## Privacy and security
 
-## Sınırlar
+- The local engine only runs on `127.0.0.1`; every request needs the pairing key and a source check.
+- Browser cookies are used only when you press the button on the page, only for the address of the video you chose; they are not written to disk, to a log or to a report.
+- DRM-protected content and access restrictions are **not bypassed**. Use it only for content you are allowed to download.
+- The history is kept in a local database; it keeps information such as the file name and the state, and contains no source address, request header or cookie.
 
-- Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklentinin ayarlar sayfasındaki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir.
-- Yalnızca sayfada özel bir katman olarak çizilen altyazılar yakalanamaz.
-- Windows kod imzası ve kalıcı (imzalı) Firefox paketi henüz yoktur.
+## Limits
 
-## Geliştirme
+- It is not guaranteed to work on every site; sites change. If there is a problem, the **Copy the diagnostic report** button on the extension's settings page makes a report without cookie or query information.
+- Subtitles that are only drawn as a special layer on the page cannot be captured.
+- A Windows code signature and a permanent (signed) Firefox package do not exist yet.
 
-Gereksinim: Node.js 22.13 veya üstü.
+## Development
+
+Requirement: Node.js 22.13 or newer.
 
 ```
 npm install
-npm test                  # birim testleri
-npm run check             # sözdizimi denetimi
-npm run build:extensions  # eklenti paketleri
-npm run dist              # Windows kurulum paketi (dist/)
-node scripts/desktop-smoke.js   # paketlenmiş uygulamada uçtan uca kontrol
+npm test                  # unit tests
+npm run check             # syntax check
+npm run build:extensions  # extension packages
+npm run dist              # Windows installer (dist/)
+node scripts/desktop-smoke.js   # end-to-end check of the packaged app
 ```
 
-Yayından önce `node scripts/privacy-check.js --repo --package --history` çalıştırılır; kişisel bilgi veya özel terim bulursa yayın durur.
+Texts live in `public/strings.js` (English and Turkish side by side); new text is never written into the code. Before a release, `node scripts/privacy-check.js --repo --package --history` is run; if it finds personal information or a private term, the release stops.
 
-## Lisans ve üçüncü taraf bileşenler
+## License and third-party components
 
-Tüm hakları saklıdır. Kurulum paketi Electron, Node.js, yt-dlp ve FFmpeg'i değiştirmeden içerir; lisansları için [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) dosyasına bak.
+All rights reserved. The installer contains Electron, Node.js, yt-dlp and FFmpeg unchanged; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for their licences.

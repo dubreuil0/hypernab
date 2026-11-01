@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const context = vm.createContext({ URL });
+vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context); vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
 vm.runInContext(fs.readFileSync(new URL('../extension/core.js', import.meta.url), 'utf8'), context);
 const H = context.Hypernab;
 const MB = 1048576;

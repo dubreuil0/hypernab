@@ -3,6 +3,7 @@
   const api = globalThis.browser ?? globalThis.chrome;
   const $ = id => document.getElementById(id);
   const T = (key, vars) => globalThis.HypernabText.t(key, vars);
+  globalThis.HypernabText.follow?.(globalThis.browser ?? globalThis.chrome, () => location.reload()); // the window is drawn again in the app's language
   // Colours follow the system's light/dark (the app's accent is not known here: green). Texts come from the translation keys.
   { const theme = document.createElement('style'); theme.textContent = globalThis.HypernabDS.tokens('auto', 'green', ':root'); document.head.append(theme); }
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = T(node.dataset.t);

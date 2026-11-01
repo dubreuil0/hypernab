@@ -1,5 +1,6 @@
 // Shared by Firefox event pages, Chromium service workers and both popup builds.
 (() => {
+  const T = (key, vars) => globalThis.HypernabText?.t(key, vars) ?? key; // texts: public/strings.js, in the language of the app
   const API = 'http://127.0.0.1:17846';
   const httpUrl = value => {
     try { const url = new URL(value); return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url : null; } catch { return null; }
@@ -59,7 +60,7 @@
     rows.sort((a, b) => a.rank - b.rank || (b.entry.size || 0) - (a.entry.size || 0));
     return rows.slice(0, limit).map(({ entry, rank, ext }, index) => {
       const n = (counts.get(ext) || 0) + 1; counts.set(ext, n);
-      const noun = entry.kind === 'AUDIO' ? 'ses dosyası' : 'dosyası';
+      const noun = entry.kind === 'AUDIO' ? T('x.audio-file') : T('x.file');
       return { id: `file:${index}`, url: entry.url, kind: entry.kind, rank, ext, size: entry.size || null, referer: entry.frameUrl || tabUrl, label: `${ext.toUpperCase()} ${noun}${n > 1 ? ` (${n})` : ''}` };
     });
   }
@@ -104,21 +105,19 @@
   }
   const bytes = n => Number.isFinite(n) && n >= 0 ? n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} KB` : n < 1073741824 ? `${(n / 1048576).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} MB` : `${(n / 1073741824).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} GB` : 'Boyut bilinmiyor';
   function duration(seconds) {
-    if (!Number.isFinite(seconds) || seconds < 0) return 'hesaplanamıyor';
+    if (!Number.isFinite(seconds) || seconds < 0) return T('x.cannot-be-calculated');
     seconds = Math.ceil(seconds);
     return seconds < 60 ? `${seconds} sn` : seconds < 3600 ? `${Math.floor(seconds / 60)} dk ${seconds % 60} sn` : `${Math.floor(seconds / 3600)} sa ${Math.floor(seconds % 3600 / 60)} dk`;
   }
-  const size = option => option.filesize > 0 ? `${option.sizeKind === 'exact' ? '' : 'Yaklaşık '}${bytes(option.filesize)}` : 'Boyut bilinmiyor';
-  const phases = { queued: 'Başlatılıyor', held: 'Sırada', resolving: 'Kaynak hazırlanıyor', probing: 'Kaynak kontrol ediliyor', downloading: 'İndiriliyor', running: 'Çalışıyor',
-    'checking-resume': 'Önceki parçalar karşılaştırılıyor', 'waiting-connection': 'Bağlantı bekleniyor', pausing: 'Duraklatılıyor', paused: 'Duraklatıldı',
-    'waiting-resume': 'Devam için bekliyor', merging: 'Ses ve görüntü birleştiriliyor', processing: 'Son işlem yapılıyor', verifying: 'Dosya doğrulanıyor',
-    'deep-verifying': 'Derin hata taraması', publishing: 'Dosya kaydediliyor', disconnected: 'Son kayıt; bağlantı bekleniyor', completed: 'Tamamlandı', failed: 'Başarısız', cancelled: 'İptal edildi', interrupted: 'Kesintiye uğradı' };
+  const size = option => option.filesize > 0 ? (option.sizeKind === 'exact' ? bytes(option.filesize) : T('app.sizeApprox', { size: bytes(option.filesize) })) : T('app.size.unknown');
+  const PHASES = ["queued","held","resolving","probing","downloading","running","checking-resume","waiting-connection","pausing","paused","waiting-resume","merging","processing","verifying","deep-verifying","publishing","disconnected","completed","failed","cancelled","interrupted"];
+  const phases = new Proxy({}, { get: (_, phase) => (PHASES.includes(phase) ? T(`x.phase.${phase}`) : undefined) }); // read when used, in the language of the moment
   function jobView(job) {
     const p = job.progress || { phase: job.status, received: job.received, total: job.total, speed: 0, etaSeconds: null };
-    const facts = [`${bytes(p.received || 0)} / ${p.total > 0 ? `${p.sizeKind === 'approx' ? 'Yaklaşık ' : ''}${bytes(p.total)}` : 'Boyut bilinmiyor'}`];
+    const facts = [`${bytes(p.received || 0)} / ${p.total > 0 ? (p.sizeKind === 'approx' ? T('app.sizeApprox', { size: bytes(p.total) }) : bytes(p.total)) : T('app.size.unknown')}`];
     if (job.status === 'running' && p.phase === 'downloading') {
       facts.push(`${bytes(p.speed || 0)}/sn`);
-      facts.push(p.etaSeconds !== null && Number.isFinite(p.etaSeconds) ? `Yaklaşık ${duration(p.etaSeconds)} kaldı` : 'Kalan süre hesaplanamıyor');
+      facts.push(p.etaSeconds !== null && Number.isFinite(p.etaSeconds) ? T('app.eta.about', { time: duration(p.etaSeconds) }) : T('x.the-remaining-time-cannot-be-calculated'));
     }
     return { stage: phases[p.phase] || phases[job.status] || 'Durum bilinmiyor', facts: facts.join(' · ') };
   }
@@ -139,22 +138,22 @@
           throw error;
         }
       }
-      if (!info?.extensionProtocol) throw new Error('Eklenti için güncel Hypernab uygulamasını kullan. İndirmeler tamamlanınca uygulamayı güncelle.');
+      if (!info?.extensionProtocol) throw new Error(T('x.use-the-current-hypernab-app-with'));
       this.instanceId = info.instanceId || null;
       return info;
     }
     async request(route, options = {}) {
-      if (!/^\/api\/(?:status|prefs|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|hls\/active-audio|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error('Geçersiz uygulama komutu.');
+      if (!/^\/api\/(?:status|prefs|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|hls\/active-audio|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error(T('x.invalid-app-command'));
       if (this.native) return this.native.request({ action: 'request', route, method: options.method || 'GET', ...(options.body ? { body: JSON.parse(options.body) } : {}) });
-      if (!this.token) throw new Error('Önce yerel uygulamanın anahtarıyla eşleştir.');
+      if (!this.token) throw new Error(T('x.first-pair-with-the-key-of'));
       let response;
       try {
         response = await this.fetcher(`${this.origin}${route}`, { ...options, headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(route === '/api/inspect' ? 65000 : 10000) });
-      } catch (error) { throw Object.assign(new Error(error.name === 'TimeoutError' ? 'Bağlantı zaman aşımına uğradı. Gönderimin sonucu kontrol ediliyor.' : 'Hypernab ile bağlantı kurulamadı. Uygulamanın kurulu olduğunu ve tarayıcı bağlantısını kontrol et.'), { code: error.name === 'TimeoutError' ? 'APP_TIMEOUT' : 'APP_OFFLINE' }); }
+      } catch (error) { throw Object.assign(new Error(error.name === 'TimeoutError' ? T('x.the-connection-timed-out-the-result') : T('x.could-not-connect-to-hypernab-check')), { code: error.name === 'TimeoutError' ? 'APP_TIMEOUT' : 'APP_OFFLINE' }); }
       let data;
-      try { data = await response.json(); } catch { throw new Error('Yerel uygulama geçerli bir yanıt vermedi.'); }
+      try { data = await response.json(); } catch { throw new Error(T('x.the-local-app-did-not-give')); }
       if (!response.ok) {
-        const error = new Error(response.status === 401 ? 'Eşleştirme anahtarı geçersiz. Uygulamadan yeniden kopyalayıp bağlan.' : data.error || 'İstek başarısız.');
+        const error = new Error(response.status === 401 ? T('x.the-pairing-key-is-invalid-copy') : data.error || T('x.request-failed'));
         error.status = response.status; error.code = data.code || (response.status === 401 ? 'APP_AUTH' : 'APP_ERROR'); throw error;
       }
       return data;
@@ -168,7 +167,7 @@
     const old = oldInfo?.options?.find(option => option.id === chosen);
     const match = old && info.options?.find(option => optionIdentity(option) === optionIdentity(old));
     if ((old && !match) || (!old && info.options?.length)) {
-      throw Object.assign(new Error('Seçtiğin kalite artık sunulmuyor. Güncel listeden bir kalite seç; başka kalite otomatik indirilmedi.'), { code: 'QUALITY_CHANGED', info, input: { ...source, noBrowser: undefined, ...(info.resolved || {}), title: info.title } });
+      throw Object.assign(new Error(T('x.the-quality-you-chose-is-no')), { code: 'QUALITY_CHANGED', info, input: { ...source, noBrowser: undefined, ...(info.resolved || {}), title: info.title } });
     }
     return { info, input: { ...source, noBrowser: undefined, ...(info.resolved || {}), title: info.title }, chosen: match?.id || null };
   }

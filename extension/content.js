@@ -2,6 +2,7 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars); // shared design system and texts (strings.js, ds.js)
+  globalThis.HypernabText.follow?.(api); // the panel speaks the app's language
   const videos = new WeakSet();
   let last = '', drm = false, queued = false;
   // Capture switched off on the toolbar icon: no button, no panel. Read once, then followed through storage changes.
