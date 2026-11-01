@@ -10,12 +10,12 @@ const strings = fs.readFileSync(new URL('../public/strings.js', import.meta.url)
 const flush = async () => { for (let i = 0; i < 60; i++) await Promise.resolve(); };
 
 function setup({ stored = {}, takeover = { enabled: true } } = {}) {
-  const calls = { badge: [], title: [], items: [], sent: [], optionsOpened: 0, tabMessages: [] };
+  const calls = { icon: [], badge: [], title: [], items: [], sent: [], optionsOpened: 0, tabMessages: [] };
   const local = { ...stored }, handlers = {};
   const api = {
     storage: { local: { async get(key) { return key in local ? { [key]: local[key] } : {}; }, async set(values) { const changes = {}; for (const [k, v] of Object.entries(values)) { changes[k] = { oldValue: local[k], newValue: v }; local[k] = v; } for (const fn of handlers.changed || []) fn(changes, 'local'); } },
       onChanged: { addListener(fn) { (handlers.changed ||= []).push(fn); } } },
-    action: { async setTitle(v) { calls.title.push(v.title); }, async setBadgeText(v) { calls.badge.push(v); }, async setBadgeBackgroundColor() {}, onClicked: { addListener(fn) { handlers.click = fn; } } },
+    action: { async setTitle(v) { calls.title.push(v.title); }, async setIcon(v) { calls.icon.push(v.path); }, async setBadgeText(v) { calls.badge.push(v); }, async setBadgeBackgroundColor() {}, onClicked: { addListener(fn) { handlers.click = fn; } } },
     tabs: { async query() { return [{ id: 7 }]; }, async sendMessage(id, message) { calls.tabMessages.push([id, message.type]); } },
     contextMenus: { removeAll(done) { calls.items = []; done(); }, create(item, done) { calls.items.push(item); done?.(); }, onClicked: { addListener(fn) { handlers.menu = fn; } } },
     runtime: { async sendMessage(message) { calls.sent.push(message); return message.type === 'hypernab:takeover:settings' ? { ok: true, settings: takeover } : { ok: true }; }, async openOptionsPage() { calls.optionsOpened++; }, onInstalled: { addListener(fn) { handlers.installed = fn; } }, onStartup: { addListener() {} } },
@@ -29,13 +29,15 @@ function setup({ stored = {}, takeover = { enabled: true } } = {}) {
 test('capture is on by default; a click on the icon switches it, remembers it and marks the icon', async () => {
   const app = setup(); await flush();
   assert.equal(app.control().on, true);
-  assert.equal(app.calls.badge.at(-1).text, '', 'on: no mark');
+  const icon = () => JSON.parse(JSON.stringify(app.calls.icon.at(-1)));
+  assert.deepEqual(icon(), { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' }, 'on: the normal icon');
   app.handlers.click(); await flush();
   assert.equal(app.control().on, false); assert.equal(app.local.captureEnabled, false, 'saved, so it survives a restart');
-  assert.equal(app.calls.badge.some(v => v.text === 'KAPALI'), true, 'off: the icon says so');
+  assert.deepEqual(icon(), { 16: 'icons/icon-off-16.png', 32: 'icons/icon-off-32.png' }, 'off: grey icon with a red slash, seen at a glance');
   assert.match(app.calls.title.at(-1), /kapalı/);
   app.handlers.click(); await flush();
-  assert.equal(app.control().on, true); assert.equal(app.calls.badge.at(-1).text, '');
+  assert.equal(app.control().on, true); assert.deepEqual(icon(), { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' });
+  for (const size of [16, 32]) assert.ok(fs.existsSync(new URL(`../extension/icons/icon-off-${size}.png`, import.meta.url)), 'the off icons ship with the extension');
 });
 
 test('a saved "off" is respected after a restart', async () => {

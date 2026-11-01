@@ -1,4 +1,4 @@
-// Capture on/off, the toolbar icon (a click switches capture, no popup) and its right-click menu. Loaded before background.js; the rest
+// Capture on/off, the toolbar icon (a click switches capture, no popup; off = grey icon with a red slash) and its right-click menu. Loaded before background.js; the rest
 // of the extension only asks HypernabControl.on. The state lives in storage.local ("captureEnabled", on unless saved as false), so it
 // survives restarts, and content scripts follow it through storage.onChanged without any message.
 (() => {
@@ -11,9 +11,10 @@
   const paint = async () => {
     try {
       await api.action.setTitle({ title: T(control.on ? 'ctl.title.on' : 'ctl.title.off') });
-      await api.action.setBadgeText({ text: control.on ? '' : T('ctl.badge.off') });
-      await api.action.setBadgeBackgroundColor({ color: control.on ? '#658e32' : '#6b7280' });
-      if (!control.on) { // a number of captured items left on a tab would hide the "off" mark
+      // Off is seen at a glance: the icon turns grey and faded with a red slash across it (icons/icon-off-*.png). On: the normal icon.
+      await api.action.setIcon({ path: control.on ? { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' } : { 16: 'icons/icon-off-16.png', 32: 'icons/icon-off-32.png' } });
+      await api.action.setBadgeText({ text: '' });
+      if (!control.on) { // a count of captured items left on a tab belongs to the time capture was on
         for (const tab of await api.tabs.query({})) { try { await api.action.setBadgeText({ tabId: tab.id, text: '' }); } catch { /* tab went away */ } }
       }
     } catch { /* icon state is cosmetic; capture does not depend on it */ }
