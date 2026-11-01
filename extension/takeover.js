@@ -32,7 +32,7 @@
   const nameFromUrl = raw => { try { const part = new URL(raw).pathname.split('/').filter(Boolean).pop() || ''; try { return decodeURIComponent(part); } catch { return part; } } catch { return ''; } };
 
   function eligible(item, s) {
-    if (!s.enabled || !item || item.state === 'complete' || item.incognito || item.byExtensionId) return false;
+    if (!s.enabled || globalThis.HypernabControl?.on === false || !item || item.state === 'complete' || item.incognito || item.byExtensionId) return false;
     const url = H.httpUrl(item.url);
     if (!url || /^(?:127\.0\.0\.1|localhost|\[::1\])$/.test(url.hostname)) return false; // pages of the app itself and local test servers
     if (/^(?:text\/html|application\/xhtml)/i.test(item.mime || '')) return false;

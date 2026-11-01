@@ -376,6 +376,7 @@
     // Only our own content script, from a real tab. Nothing starts without the user pressing the panel's download button.
     if (sender.id !== api.runtime?.id || !sender.tab || !H.httpUrl(sender.url)) { respond({ ok: false, error: 'Geçersiz istek.' }); return false; }
     const tab = sender.tab;
+    if (globalThis.HypernabControl?.on === false) { respond({ ok: false, code: 'disabled', error: '' }); return false; } // capture is switched off
     let work;
     if (message.action === 'inspect') {
       const withCookies = message.cookies === true, fresh = message.fresh === true, key = `${tab.id}|${withCookies}|${fresh}|${tab.url}`;

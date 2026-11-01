@@ -1,5 +1,5 @@
 // Only media URLs/metadata are kept in session storage. The background never reads cookies; the popup does, per user action.
-if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'float.js', 'takeover.js'); // float.js: on-page download panel backend; takeover.js: browser file downloads
+if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'float.js', 'takeover.js'); // float.js: on-page download panel backend; takeover.js: browser file downloads
 const browserApi = globalThis.browser ?? globalThis.chrome;
 let writes = Promise.resolve();
 const generations = new Map();
@@ -28,6 +28,7 @@ function notifyTab(tabId) {
 }
 
 function capture(details, contentType = '') {
+  if (globalThis.HypernabControl?.on === false) return; // capture is switched off: nothing is recorded
   if (details.tabId < 0 || !/^https?:/i.test(details.url)) return;
   if (details.statusCode && (details.statusCode < 200 || details.statusCode >= 300)) return;
   let kind = mediaKind(details.url, contentType, responseSize(details));
@@ -83,6 +84,7 @@ function capture(details, contentType = '') {
 // scripts) are only kept as addresses: the app reads them and keeps just what really is a subtitle.
 const SUBTITLE_TYPE = /^(?:text\/(?:vtt|srt|x-srt|x-ssa|x-ass)|application\/(?:x-subrip|x-subtitle|ttml\+xml|x-ttml\+xml|vtt))(?:;|$)/i;
 function captureSubtitle(details, contentType = '') {
+  if (globalThis.HypernabControl?.on === false) return;
   if (details.tabId < 0 || !/^https?:/i.test(details.url) || details.url.length > 1200) return;
   if (details.statusCode && (details.statusCode < 200 || details.statusCode >= 300)) return;
   let path = ''; try { path = new URL(details.url).pathname; } catch { return; }
@@ -124,6 +126,7 @@ function recordSubtitles(message, sender) {
 // of a stream list is playing; they leave the browser only for the local app, and only when the user's own panel asks.
 const activity = new Map(), activityListeners = new Set();
 function recordActivity(details) {
+  if (globalThis.HypernabControl?.on === false) return;
   if (details.tabId < 0 || ![200, 206].includes(details.statusCode) || details.url.length > 700 || !['xmlhttprequest', 'media', 'other'].includes(details.type)) return;
   if (responseSize(details) < 8000) return; // beacons and scripts are small; pieces of a stream are not
   const list = activity.get(details.tabId) || [];
@@ -221,10 +224,10 @@ browserApi.runtime?.onMessage?.addListener((message, sender, respond) => {
     if (message.enabled === true) diagnosticTabs.add(message.tabId); else diagnosticTabs.delete(message.tabId);
     respond({ ok: true }); return false;
   }
-  if (message?.type === 'hypernab:open-panel') {
-    // Only our own content script, from a real tab. The panel still needs the user's explicit Start.
+  if (message?.type === 'hypernab:open-options') {
+    // Only our own content script, from a real tab: the panel's way to the settings page (there is no popup any more).
     if (sender.id !== browserApi.runtime?.id || !sender.tab || !Hypernab.httpUrl(sender.url)) { respond({ ok: false }); return false; }
-    Promise.resolve().then(() => browserApi.action.openPopup()).then(() => respond({ ok: true, opened: true }), () => respond({ ok: true, opened: false }));
+    Promise.resolve().then(() => browserApi.runtime.openOptionsPage()).then(() => respond({ ok: true }), () => respond({ ok: false }));
     return true;
   }
   if (message?.type === 'hypernab:subtitles') { recordSubtitles(message, sender).then(respond, () => respond({ ok: false })); return true; }

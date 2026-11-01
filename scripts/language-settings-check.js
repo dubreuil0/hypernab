@@ -65,6 +65,9 @@ async function run(name, launch) {
     await ev(`document.getElementById('open-settings').click()`); await sleep(800);
     const again = await ev(`[...document.querySelectorAll('#language-settings .hd-select-btn')].map(b => b.textContent.trim())`);
     check(name, 'stored choices show after a reload', /Almanca/.test(again[0]) && /orijinal/i.test(again[1]), JSON.stringify(again));
+    const ext = await ev(`(() => ({ cards: document.querySelectorAll('#extension-help .ext-card').length, chips: [...document.querySelectorAll('#extension-help .ext-chip code')].map(c => c.textContent), copies: document.querySelectorAll('#extension-help .ext-chip button').length, text: document.getElementById('s-browser').textContent, keyTitle: document.querySelector('#s-browser [data-t=\"ext.key.title\"]')?.textContent }))()`);
+    check(name, 'extension help covers Chrome, Edge, Brave, Opera and Firefox with copyable addresses', ext.cards === 2 && ['chrome://extensions', 'edge://extensions', 'brave://extensions', 'opera://extensions', 'about:debugging#/runtime/this-firefox'].every(a => ext.chips.includes(a)) && ext.copies >= 7, JSON.stringify(ext.chips));
+    check(name, 'extension help has no leftover key names and no Firefox-only wording', !/ext\.(chromium|firefox|key)|Firefox’a yükleme/.test(ext.text) && /Opera/.test(ext.text) && ext.keyTitle === 'Yedek bağlantı anahtarı', ext.keyTitle);
     // every drop-down of the app is the design system's list; the native ones are hidden and still carry the values
     const natives = await ev(`[...document.querySelectorAll('select')].filter(s => s.offsetParent !== null).length`);
     check(name, 'no native drop-down is visible anywhere in the app window', natives === 0, String(natives));
@@ -81,6 +84,8 @@ async function run(name, launch) {
     await ev(`document.querySelector('#set-theme').parentElement.nextElementSibling.querySelector('.hd-select-btn').click()`); await sleep(150);
     await ev(`[...document.querySelectorAll('.hd-select.hd-native[data-open="true"] .hd-opt')].find(o => /A\u00e7\u0131k/.test(o.textContent)).click()`); await sleep(700);
     check(name, 'choosing "Açık" in the theme list saves it and changes the look at once', (await setting('theme')) === 'light' && (await ev(`document.documentElement.dataset.scheme === 'light'`)), await ev(`document.documentElement.dataset.scheme`));
+    await ev(`document.getElementById('s-browser').scrollIntoView()`); await sleep(300);
+    await browser.screenshot(tab, path.join(shots, `${name}-extension-help.png`));
     await browser.screenshot(tab, path.join(shots, `${name}-language-settings.png`));
   } catch (error) { check(name, 'run', false, error.message); }
   finally { await browser?.close(); }

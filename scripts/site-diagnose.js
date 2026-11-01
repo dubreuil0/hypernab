@@ -33,7 +33,7 @@ const server = spawn(process.execPath, [path.join(import.meta.dirname, '../src/s
 await browserUntil(async () => fs.existsSync(path.join(dir, 'data', 'pairing-token')) && await fetch(origin).then(() => true, () => false), 30000);
 const browser = await (name === 'chrome' ? chromiumBrowser(tools.chrome, path.join(dir, 'profile'), [builds.chromium]) : firefoxBrowser('C:/Program Files/Mozilla Firefox/firefox.exe', tools.geckodriver, path.join(dir, 'profile'), zipFolder(builds.firefox, path.join(dir, 'hypernab.xpi'))));
 try {
-  const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}popup.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
+  const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}options.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
   await wait(800);
   const api = 'typeof browser !== "undefined" ? browser : chrome';
   await browser.eval(setup, `(${api}).storage.local.set({ transport: 'native' }).then(() => true)`);

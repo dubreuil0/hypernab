@@ -1,0 +1,25 @@
+/* The extension's settings page. Theme variables from the design system (set by options.js, following the system's light/dark); flat colours,
+   no blur, shadow or animation. */
+:root{color-scheme:light dark;font:14px 'Segoe UI',system-ui,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg,Canvas);color:var(--text,CanvasText)}
+main{max-width:660px;margin:0 auto;padding:24px 18px 40px;display:grid;gap:16px}
+header{display:flex;align-items:center;gap:12px}
+header img{width:36px;height:36px}
+h1{margin:0;font-size:1.4em}
+h2{margin:0 0 10px;font-size:1.05em}
+section{padding:16px;border-radius:.9em;background:var(--panel,Canvas);border:1px solid var(--border,GrayText)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0}
+.row>div{min-width:0}
+.row .hd-select{width:12em}
+.hint{margin:3px 0 0;color:var(--muted,GrayText);font-size:.88em;line-height:1.5}
+.state{margin:0 0 10px;font-size:.95em}
+.state[data-tone="error"]{color:var(--danger)}
+.state[data-tone="ok"]{color:var(--accent)}
+.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.buttons .hd-input{flex:1;min-width:14em}
+details{margin-top:12px}
+summary{cursor:pointer;color:var(--muted,GrayText)}
+textarea{width:100%;margin-top:10px;border-radius:.6em;border:1px solid var(--border-strong,GrayText);background:var(--field,Field);color:var(--text,FieldText);font:12px ui-monospace,Consolas,monospace;padding:8px}
+footer{color:var(--muted,GrayText);font-size:.85em;text-align:center}
+[hidden]{display:none!important}

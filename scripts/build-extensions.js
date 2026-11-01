@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const assets = ['background.js', 'native-config.js', 'native.js', 'core.js', 'float.js', 'takeover.js', 'download-prompt.html', 'download-prompt.js', 'download-prompt.css', 'content.js', 'popup.js', 'popup.html', 'popup.css', 'preview.css'];
+const assets = ['background.js', 'native-config.js', 'native.js', 'core.js', 'float.js', 'takeover.js', 'download-prompt.html', 'download-prompt.js', 'download-prompt.css', 'content.js', 'control.js', 'options.html', 'options.js', 'options.css'];
 const sharedAssets = ['ds.css', 'ds.js', 'strings.js'];
 // The page panel lives in a closed shadow root and cannot load a stylesheet file: its CSS (design system + panel) travels as a script.
 export function panelCssScript() {

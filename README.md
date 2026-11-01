@@ -31,7 +31,7 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave için me
 
 Dosya indirmesi başlarken küçük bir pencere sorar. **Firefox**'ta dosya tarayıcıya hiç düşmez: yanıt, sen karar verene kadar bekletilir; Hypernab alırsa tarayıcıda indirme kaydı oluşmaz. **Chrome, Edge ve Brave** bekletmeye izin vermez; orada indirme kısa süre duraklatılır, indirme balonu gizlenir ve Hypernab dosyayı alınca kayıt hemen silinir. **Dosya hiçbir durumda kaybolmaz:** tarayıcı ancak Hypernab dosyayı kabul ettikten sonra bırakılır. Uygulama kapalıysa, hata olursa, pencereyi kapatırsan veya üç dakika yanıt vermezsen tarayıcı indirmeyi kendisi sürdürür. Çerezler yalnızca sen bir düğmeye bastığında, yalnızca o dosyanın adresi için kullanılır; hiçbir yere kaydedilmez.
 
-- Eklenti penceresindeki **Dosya indirmelerini yakala** bölümünden kapatabilir, en küçük dosya boyutunu seçebilir ve hatırlanan seçimleri sıfırlayabilirsin (varsayılan: 1 MB üstü ve boyutu bilinmeyenler).
+- Eklentinin **ayarlar sayfasındaki** (araç çubuğu simgesine sağ tıkla → *Ayarlar ve teşhis*) **Dosya indirmeleri** bölümünden kapatabilir, en küçük dosya boyutunu seçebilir ve hatırlanan seçimleri sıfırlayabilirsin (varsayılan: 1 MB üstü ve boyutu bilinmeyenler).
 - "Bu türü bir daha sorma" dersen o tür dosyalar sormadan Hypernab ile iner; bir sorun olursa yine tarayıcıya geri verilir.
 - Program ve komut dosyaları (`exe`, `msi`, `ps1` ...) için pencerede uyarı gösterilir. Gizli pencerede (incognito) yakalama yapılmaz.
 - Eklenti `downloads` iznini ister (Firefox'ta ayrıca yanıtı bekletmek için `webRequestBlocking`, Chromium'da indirme balonunu gizlemek için `downloads.ui`); güncellerken tarayıcı onay isteyebilir.
@@ -40,8 +40,12 @@ Dosya indirmesi başlarken küçük bir pencere sorar. **Firefox**'ta dosya tara
 
 Eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions` altında Firefox ve Chromium paketlerini üretir.
 
+- **Chrome, Edge, Brave, Opera** (aynı klasör): tarayıcının eklentiler sayfası (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`) → Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`.
 - **Firefox:** `about:debugging#/runtime/this-firefox` → *Geçici eklenti yükle* → `build/extensions/firefox/manifest.json`. Geçici yükleme Firefox kapanınca kaybolur; kalıcı kurulum için imzalı paket gerekir.
-- **Chrome, Edge, Brave:** `chrome://extensions` (veya `edge://extensions`) → Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`.
+
+Uygulamanın **Ayarlar > Tarayıcı eklentisi** bölümü bu adımları kopyalanabilir adreslerle gösterir.
+
+**Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simgede "KAPALI" yazar; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Dosya indirmelerini yakala*, *Ayarlar ve teşhis*. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
 
 ## Güncelleme
 
@@ -60,7 +64,7 @@ Uygulama açıldıktan kısa süre sonra yeni sürüm olup olmadığına bir kez
 
 ## Sınırlar
 
-- Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklenti penceresindeki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir.
+- Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklentinin ayarlar sayfasındaki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir.
 - Yalnızca sayfada özel bir katman olarak çizilen altyazılar yakalanamaz.
 - Windows kod imzası ve kalıcı (imzalı) Firefox paketi henüz yoktur.
 

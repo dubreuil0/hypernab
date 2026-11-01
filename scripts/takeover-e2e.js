@@ -39,7 +39,7 @@ async function run(name, downloadDirectory, open) {
   fs.mkdirSync(downloadDirectory, { recursive: true });
   const browser = await open();
   try {
-    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}popup.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
+    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}options.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
     await wait(800);
     const ev = expression => browser.eval(setup, expression);
     await ev(`${API}.storage.local.set({ transport: 'native', takeover: { enabled: true, minBytes: 0, autoTypes: [], excludedHosts: [] } }).then(() => true)`);
@@ -48,7 +48,7 @@ async function run(name, downloadDirectory, open) {
     // Messages to the background come from the prompt page (an extension page), exactly like the real window does; a Chrome
     // service worker cannot message itself.
     let view = null; // the prompt page: it closes itself when no download is waiting, as it should
-    const hub = await browser.create(browser.extensionUrl ? `${browser.extensionUrl}popup.html` : `chrome-extension://${chromiumId}/popup.html`);
+    const hub = await browser.create(browser.extensionUrl ? `${browser.extensionUrl}options.html` : `chrome-extension://${chromiumId}/options.html`);
     const message = payload => browser.eval(hub, `${API}.runtime.sendMessage(${JSON.stringify(payload)})`);
     // Browsers allow one automatic download per page; a real user clicks on a page each time, so every download gets a fresh tab.
     let tab = null;

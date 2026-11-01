@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><title>Hypernab</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="options.css"><script src="strings.js"></script><script src="ds.js"></script></head>
+<body>
+<main>
+  <header><img src="icons/icon-48.png" alt=""><h1 data-t="opt.title"></h1></header>
+
+  <section id="capture-section">
+    <h2 data-t="opt.capture.title"></h2>
+    <div class="row"><div><strong data-t="opt.capture.label"></strong><p class="hint" data-t="opt.capture.hint"></p></div><span id="capture-slot"></span></div>
+  </section>
+
+  <section id="connection-section">
+    <h2 data-t="opt.conn.title"></h2>
+    <p id="conn-state" class="state" role="status"></p>
+    <div class="buttons"><button id="open-app" class="hd-btn primary" data-t="opt.conn.open"></button><button id="connect-native" class="hd-btn" data-t="opt.conn.connect"></button></div>
+    <details id="backup"><summary data-t="opt.conn.backup"></summary>
+      <p class="hint" data-t="opt.conn.backup.hint"></p>
+      <div class="buttons"><input id="token" class="hd-input" type="password" autocomplete="off"><button id="save-token" class="hd-btn" data-t="opt.conn.save"></button></div>
+    </details>
+  </section>
+
+  <section id="files-section">
+    <h2 data-t="opt.files.title"></h2>
+    <div class="row"><div><strong data-t="opt.files.enable"></strong><p class="hint" data-t="opt.files.hint"></p></div><span id="files-slot"></span></div>
+    <div class="row"><div><strong data-t="opt.files.min"></strong></div><span id="min-slot"></span></div>
+    <p id="remembered" class="hint"></p>
+    <div class="buttons"><button id="reset-remembered" class="hd-btn" data-t="opt.files.reset"></button></div>
+  </section>
+
+  <section id="diag-section">
+    <h2 data-t="opt.diag.title"></h2>
+    <p class="hint" data-t="opt.diag.hint"></p>
+    <div class="row"><div><strong data-t="opt.diag.tab"></strong></div><span id="tab-slot"></span></div>
+    <div class="buttons"><button id="diag-watch" class="hd-btn" data-t="opt.diag.watch"></button><button id="diag-report" class="hd-btn" data-t="opt.diag.report"></button></div>
+    <p id="diag-state" class="state" role="status"></p>
+    <textarea id="diag-text" rows="8" readonly hidden></textarea>
+  </section>
+
+  <footer data-t="opt.footer"></footer>
+</main>
+<script src="native-config.js"></script><script src="native.js"></script><script src="core.js"></script><script src="options.js"></script>
+</body></html>

@@ -47,6 +47,7 @@ const assets = new Map([
   ['/ds.js', ['ds.js', 'text/javascript; charset=utf-8']],
   ['/strings.js', ['strings.js', 'text/javascript; charset=utf-8']],
   ['/select-upgrade.js', ['select-upgrade.js', 'text/javascript; charset=utf-8']],
+  ['/extension-help.js', ['extension-help.js', 'text/javascript; charset=utf-8']],
   ['/list-tools.js', ['list-tools.js', 'text/javascript; charset=utf-8']],
   ['/compact.css', ['compact.css', 'text/css; charset=utf-8']],
   ['/appearance.js', ['appearance.js', 'text/javascript; charset=utf-8']],

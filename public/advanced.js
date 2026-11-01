@@ -1,4 +1,5 @@
 import { upgradeSelects } from './select-upgrade.js';
+import { setupExtensionHelp } from './extension-help.js';
 export function setupAdvanced(api, refreshStatus) {
   const $ = id => document.getElementById(id), desktop = globalThis.hypernabDesktop;
   let loaded = false;
@@ -55,12 +56,14 @@ export function setupAdvanced(api, refreshStatus) {
   $('dir-change').onclick = run(async () => { const directory = desktop ? await desktop.action('pick-folder') : $('dir-input').value.trim(); if (directory) await save({ downloadDirectory: directory }); });
   $('dir-reset').onclick = run(() => save({ downloadDirectory: null }));
   if (desktop) {
-    for (const id of ['s-desktop', 'nav-desktop', 'desktop-settings', 'open-downloads', 'open-extensions']) $(id).hidden = false;
+    for (const id of ['s-desktop', 'nav-desktop', 'desktop-settings', 'open-downloads']) $(id).hidden = false;
     $('dir-edit').hidden = true;
-    desktop.settings().then(info => { $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
+    desktop.settings().then(info => { setupExtensionHelp(info.extensions); $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
     $('desktop-startup').onchange = run(() => desktop.action('startup', $('desktop-startup').checked));
-    for (const [id, action] of [['open-downloads', 'downloads'], ['open-extensions', 'extensions'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
+    for (const [id, action] of [['open-downloads', 'downloads'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }
+  for (const node of document.querySelectorAll('[data-t]')) node.textContent = globalThis.HypernabText.t(node.dataset.t);
+  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
   upgradeSelects(); // every drop-down of the app window becomes the design system's list
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);

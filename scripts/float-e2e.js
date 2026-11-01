@@ -62,7 +62,7 @@ async function run(name, open) {
     const ownJobs = async () => (await call('/api/jobs')).filter(job => !previousIds.has(job.id));
     // Configure the real extension worker; Chrome also has built-in extension
     // workers, so match our background script rather than the first worker.
-    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}popup.html`) : await browserUntil(async () => {
+    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}options.html`) : await browserUntil(async () => {
       const worker = (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`);
       return worker?.targetId;
     });

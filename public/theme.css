@@ -22,6 +22,11 @@ html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic
 .hd-select.hd-native { display:inline-block;min-width:8em; }
 .hd-select.hd-native.wide { display:block;width:100%; }
 .hd-select.hd-native .hd-select-btn { min-height:2.1em; }
+.ext-card .steps { display:grid;gap:.6em; }
+.ext-extra { display:flex;flex-wrap:wrap;align-items:center;gap:.4em .6em;margin-top:.35em; }
+.ext-chip { display:inline-flex;align-items:center;gap:.5em;max-width:100%; }
+.ext-chip code { overflow-wrap:anywhere; }
+.ext-label { color:var(--muted);font-size:.9em; }
 .job-subs { display:flex;flex-wrap:wrap;align-items:center;gap:.4em .5em; }
 .job-subs .hd-ic { color:var(--muted); }
 @media (prefers-reduced-motion:reduce) { * { animation:none!important;transition:none!important; } }

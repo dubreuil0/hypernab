@@ -4,6 +4,9 @@
   const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars); // shared design system and texts (strings.js, ds.js)
   const videos = new WeakSet();
   let last = '', drm = false, queued = false;
+  // Capture switched off on the toolbar icon: no button, no panel. Read once, then followed through storage changes.
+  let captureOff = false;
+  const removers = new Set(); // every overlay of this window can be taken down at once
   const closers = new Set(); // every open overlay of this window can close its panel
   const refreshers = new Set(); // ...and look the page up again when it changes
   // In Firefox a content script's globalThis is a sandbox, NOT the page window: comparing against it is always "different".
@@ -70,6 +73,7 @@
     // A click inside an embedded player frame never reaches this window; the frame tells us (hypernab:outside) and we close here too.
     const closer = () => { if (!panel.hidden) closePanel(); };
     closers.add(closer);
+    removers.add(() => remove('disabled'));
     const remove = why => {
       if (removed) return; removed = true; closers.delete(closer); refreshers.delete(refresher); clearInterval(timer); stopDrag(); closePanel(); host.remove(); if (why) onClose(why);
     };
@@ -168,7 +172,7 @@
     }
     function showError(text, retry = true) {
       const children = [el('div', 'err', text)];
-      const open = el('button', 'sub hd-btn quiet', T('panel.openExtension')); open.addEventListener('click', () => { closePanel(); try { api.runtime.sendMessage({ type: 'hypernab:open-panel' }); } catch { /* extension reloaded */ } }); children.push(open);
+      const open = el('button', 'sub hd-btn quiet', T('panel.openSettings')); open.addEventListener('click', () => { closePanel(); try { api.runtime.sendMessage({ type: 'hypernab:open-options' }); } catch { /* extension reloaded */ } }); children.push(open);
       panel.replaceChildren(...children);
     }
     function showResult(result) {
@@ -305,14 +309,14 @@
     refreshers.add(refresher);
     prefetch();
     timer = setInterval(place, 400); place();
-    return { remove: () => remove(null) };
+    return { remove: () => remove(null), open: () => { if (panel.hidden) openPanel(); } };
   }
 
   // Video in this very frame (e.g. the top-level page): draw right here.
   let localOverlay = null, dismissedLocal = false;
   function showLocal(video) {
     try {
-      if (dismissedLocal || localOverlay || !document.body) return;
+      if (captureOff || dismissedLocal || localOverlay || !document.body) return;
       localOverlay = drawOverlay(() => video.isConnected ? video.getBoundingClientRect() : null, why => { localOverlay = null; if (why === 'closed') dismissedLocal = true; });
     } catch { /* Overlay is optional; capture keeps working without it. */ }
   }
@@ -364,7 +368,7 @@
     let entry = remote.get(frame);
     if (!entry) { entry = { dismissed: false, overlay: null, rect: null, at: 0 }; remote.set(frame, entry); }
     entry.rect = rect; entry.at = Date.now();
-    if (entry.dismissed || entry.overlay || !document.body) return;
+    if (captureOff || entry.dismissed || entry.overlay || !document.body) return;
     try {
       entry.overlay = drawOverlay(() => frame.isConnected && Date.now() - entry.at < 1500 ? entry.rect : null, why => { entry.overlay = null; if (why === 'closed') entry.dismissed = true; });
     } catch { /* Overlay is optional. */ }
@@ -450,8 +454,28 @@
   api.runtime?.onMessage?.addListener?.(message => {
     if (message?.type === 'hypernab:refresh') for (const refresh of refreshers) refresh();
     if (message?.type === 'hypernab:collect-subtitles' && Number.isFinite(message.serial)) void collectSubtitles(message.serial);
+    if (message?.type === 'hypernab:show-panel') showPanelFromMenu();
     return false;
   });
+  // The toolbar menu's "Inspect this page": the top window opens the panel of the video it knows, or anchors one at the top right.
+  function showPanelFromMenu() {
+    if (isChild || captureOff || !document.body) return;
+    let overlay = localOverlay || [...remote.values()].map(entry => entry.overlay).find(Boolean);
+    if (!overlay) {
+      const video = allVideos().find(isPlaying) ?? allVideos()[0];
+      const getRect = video ? () => (video.isConnected ? video.getBoundingClientRect() : null) : () => { const w = win.innerWidth || 1200; return { left: w - 340, top: 90, width: 320, height: 180, right: w - 20, bottom: 270 }; };
+      try { localOverlay = overlay = drawOverlay(getRect, why => { localOverlay = null; if (why === 'closed') dismissedLocal = true; }); } catch { return; }
+    }
+    overlay?.open?.();
+  }
+  try {
+    Promise.resolve(api.storage?.local?.get?.('captureEnabled')).then(stored => { captureOff = stored?.captureEnabled === false; if (captureOff) for (const remove of [...removers]) remove(); }).catch(() => {});
+    api.storage?.onChanged?.addListener?.((changes, area) => {
+      if (area !== 'local' || !changes.captureEnabled) return;
+      captureOff = changes.captureEnabled.newValue === false;
+      if (captureOff) for (const remove of [...removers]) remove(); else scan();
+    });
+  } catch { /* storage is optional for the content script */ }
   // Single-page sites change the address without reloading.
   let seenHref = String(win.location?.href || '');
   setInterval(() => { const now = String(win.location?.href || ''); if (now !== seenHref) { seenHref = now; for (const refresh of refreshers) refresh(); } }, 1000);

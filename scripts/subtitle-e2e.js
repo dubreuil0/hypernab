@@ -72,7 +72,7 @@ async function run(name, open) {
       const result = await response.json(); if (!response.ok) throw new Error(result.error); return result;
     };
     const known = new Set();
-    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}popup.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
+    const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}options.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
     await wait(800);
     await browser.eval(setup, `browser.storage.local.set({ transport: 'native' }).then(() => true)`).catch(() => browser.eval(setup, `chrome.storage.local.set({ transport: 'native' }).then(() => true)`));
     for (const [variant, expect] of [['track', { lang: 'tur', text: 'Beni çözün' }], ['script', { lang: 'eng', text: 'Hello island' }], ['frame', { lang: 'tur', text: 'Çığ düştü' }]]) {

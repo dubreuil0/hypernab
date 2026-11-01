@@ -151,7 +151,7 @@ else {
     };
     ipcMain.handle('desktop:settings', event => {
       fromApp(event);
-      return { packaged: app.isPackaged, startup: app.getLoginItemSettings({ args: ['--startup'] }).openAtLogin, downloads, version: app.getVersion() };
+      return { packaged: app.isPackaged, startup: app.getLoginItemSettings({ args: ['--startup'] }).openAtLogin, downloads, version: app.getVersion(), extensions: path.join(root, 'build', 'extensions') };
     });
     ipcMain.handle('desktop:action', async (event, command, value) => {
       fromApp(event);
