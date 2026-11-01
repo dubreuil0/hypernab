@@ -6,16 +6,18 @@ export function setupExtensionHelp(extensionsFolder) {
   if (!root) return;
   const desktop = globalThis.hypernabDesktop;
   const h = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
+  const symbol = id => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); svg.setAttribute('class', 'ic'); use.setAttribute('href', `#${id}`); svg.append(use); return svg; };
+  const iconButton = (word, id) => { const button = h('button', 'btn sm'), label = h('span', '', word); button.type = 'button'; button.append(symbol(id), label); button.setLabel = text => { label.textContent = text; }; return button; };
   const chip = (text, label) => {
-    const wrap = h('span', 'ext-chip'), copy = h('button', 'btn sm', T('ext.copy'));
+    const wrap = h('span', 'ext-chip'), copy = iconButton(T('ext.copy'), 'i-copy');
     if (label) wrap.append(h('span', 'ext-label', label));
     copy.type = 'button';
-    copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); copy.textContent = T('ext.copied'); setTimeout(() => { copy.textContent = T('ext.copy'); }, 1600); } catch { /* the address stays readable */ } });
+    copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(text); copy.setLabel(T('ext.copied')); setTimeout(() => { copy.setLabel(T('ext.copy')); }, 1600); } catch { /* the address stays readable */ } });
     wrap.append(h('code', '', text), copy);
     return wrap;
   };
   const folder = (extensionsFolder || 'build\\extensions').replace(/[\\/]+$/, '');
-  const openButton = () => { if (!desktop) return null; const button = h('button', 'btn sm', T('ext.open')); button.type = 'button'; button.addEventListener('click', () => { desktop.action('extensions').catch(() => {}); }); return button; };
+  const openButton = () => { if (!desktop) return null; const button = iconButton(T('ext.open'), 'i-folder'); button.addEventListener('click', () => { desktop.action('extensions').catch(() => {}); }); return button; };
   const step = (text, ...extra) => { const li = h('li'); li.append(h('span', '', text)); const box = h('div', 'ext-extra'); for (const item of extra) if (item) box.append(item); if (box.children.length) li.append(box); return li; };
   const card = (title, hint, steps) => { const box = h('div', 'setting ext-card'), copy = h('div'), list = h('ol', 'steps'); copy.append(h('strong', '', title)); if (hint) copy.append(h('p', 'hint', hint)); list.append(...steps); copy.append(list); box.append(copy); return box; };
   root.replaceChildren(
