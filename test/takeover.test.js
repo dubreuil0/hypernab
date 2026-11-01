@@ -80,6 +80,21 @@ test('eligible download: paused, one window, nothing cancelled and no cookie rea
   assert.equal(view.directory, 'C:\\Downloads\\Hypernab'); assert.equal(view.duplicate, false);
 });
 
+test('the prompt opens in the middle of the browser window the user was in (a maximized browser = the middle of its monitor)', async () => {
+  const placed = async parent => {
+    const f = setup(); if (parent !== 'unsupported') f.api.windows.getLastFocused = async () => { if (parent === 'fails') throw new Error('no window'); return parent; };
+    await f.created(f.download(1));
+    const options = [...f.windows.values()][0]; return { left: options.left, top: options.top, width: options.width, height: options.height };
+  };
+  // maximized on a 1920x1080 monitor: Windows reports the frame a few pixels outside the screen
+  assert.deepEqual(await placed({ left: -8, top: -8, width: 1936, height: 1048, state: 'maximized' }), { left: 740, top: 391, width: 440, height: 250 });
+  assert.deepEqual(await placed({ left: 1920, top: 100, width: 1000, height: 800, state: 'normal' }), { left: 2200, top: 375, width: 440, height: 250 }, 'a browser on a second monitor: its middle, not the first monitor\'s');
+  for (const unknown of [{ left: -32000, top: -32000, width: 160, height: 28, state: 'minimized' }, { state: 'normal' }, 'fails', 'unsupported']) {
+    const options = await placed(unknown);
+    assert.equal(options.left, undefined); assert.equal(options.top, undefined); assert.equal(options.width, 440, 'minimized or unknown: the system chooses, the size stays');
+  }
+});
+
 test('"İndir": the file is sent with its own cookies, and the browser download is cancelled only after Hypernab accepted it', async () => {
   const f = setup({ take: async body => { assert.deepEqual(actions(f, 'cancel'), [], 'not cancelled before the app answered'); return { id: 'job-1', name: body.fileName }; } });
   await f.created(f.download(1));

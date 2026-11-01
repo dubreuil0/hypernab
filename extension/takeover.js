@@ -116,9 +116,20 @@
     if (!stored) return false;
     try { await api.windows.get(stored); return true; } catch { return false; }
   }
+  // The prompt opens in the middle of the browser window the user is looking at (a maximized browser = the middle of its monitor),
+  // not wherever the system happens to put a new window. No screen API or extra permission is needed. A minimized or unknown window
+  // leaves the choice to the system.
+  async function centeredOn({ width, height }) {
+    try {
+      const parent = await api.windows.getLastFocused();
+      const ok = parent && parent.state !== 'minimized' && [parent.left, parent.top].every(Number.isFinite) && parent.left > -10000 && parent.top > -10000 && parent.width > 0 && parent.height > 0;
+      return ok ? { left: Math.round(parent.left + (parent.width - width) / 2), top: Math.round(parent.top + (parent.height - height) / 2) } : {};
+    } catch { return {}; }
+  }
   async function ensureWindow() {
     if (await windowAlive()) { try { await api.windows.update((await api.storage.session.get(WINDOW))[WINDOW], { focused: true }); } catch { /* best effort */ } return; }
-    const created = await api.windows.create({ url: api.runtime.getURL('download-prompt.html'), type: 'popup', width: 440, height: 250, focused: true });
+    const size = { width: 440, height: 250 };
+    const created = await api.windows.create({ url: api.runtime.getURL('download-prompt.html'), type: 'popup', ...size, ...(await centeredOn(size)), focused: true });
     await api.storage.session.set({ [WINDOW]: created.id });
   }
 

@@ -24,7 +24,8 @@
     try {
       const win = await api.windows.getCurrent();
       const height = Math.ceil(document.documentElement.scrollHeight + (window.outerHeight - window.innerHeight));
-      if (Math.abs(height - win.height) > 3) await api.windows.update(win.id, { height });
+      // the window grows or shrinks around its own centre, so it stays in the middle of the screen
+      if (Math.abs(height - win.height) > 3) await api.windows.update(win.id, { height, ...(Number.isFinite(win.top) ? { top: Math.max(0, Math.round(win.top + (win.height - height) / 2)) } : {}) });
     } catch { /* the default size is fine */ }
   }
 

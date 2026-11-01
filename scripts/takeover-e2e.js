@@ -78,6 +78,11 @@ async function run(name, downloadDirectory, open) {
     const held = name === 'firefox';
     check(name, held ? 'Firefox: dosya tarayıcıya hiç düşmedi (indirme listesi boş), onay penceresi açık' : 'tarayıcı indirmesi duraklatıldı ve onay penceresi açıldı', held ? list1.length === 0 && await promptWindow() : list1.length === 1 && (list1[0].paused === true || list1[0].state === 'interrupted') && await promptWindow(), JSON.stringify(list1.map(d => ({ paused: d.paused, state: d.state }))));
     check(name, 'karar verilene kadar uygulamada iş yok, dosya yok', (await ownJobs()).length === 0 && inDirectory().length === 0);
+    // The prompt window opens in the middle of the browser window (a maximized browser: the middle of its monitor).
+    await wait(900); // the window may still be settling its height around its own centre
+    const wins = await browser.eval(hub, `${API}.windows.getAll().then(list => list.map(w => ({ type: w.type, left: w.left, top: w.top, width: w.width, height: w.height })))`);
+    const popup = wins.find(w => w.type === 'popup' && w.width < 700), parent = wins.find(w => w.type === 'normal');
+    check(name, 'onay penceresi tarayıcı penceresinin ortasında açıldı', Boolean(popup && parent) && Math.abs(popup.left + popup.width / 2 - (parent.left + parent.width / 2)) <= 60 && Math.abs(popup.top + popup.height / 2 - (parent.top + parent.height / 2)) <= 140, JSON.stringify({ popup, parent }));
     // The prompt page itself, against the real background.
     const promptUrl = browser.extensionUrl ? `${browser.extensionUrl}download-prompt.html` : `chrome-extension://${chromiumId}/download-prompt.html`;
     view = await browser.create(promptUrl);
