@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { EventEmitter } from 'node:events';
 const { TrayPanel, traySnapshot, panelBounds } = createRequire(import.meta.url)('../desktop/tray-panel.cjs');
+createRequire(import.meta.url)('../desktop/texts.cjs').setLanguage('tr'); // these tests read the Turkish texts
 const id = '11111111-1111-4111-8111-111111111111';
 
 test('tray summary is bounded, ignores stale speeds and never exposes source/session/file data', () => {

@@ -1,5 +1,6 @@
 // Browser session cookies handed over by the extension for ONE video the user chose to inspect.
 // They live in memory only: never in queue.json, logs, API responses or error messages.
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -17,18 +18,18 @@ function domainMatches(host, domain) {
 // Returns a clean copy. Throws on malformed input; silently drops cookies for unrelated hosts.
 export function sanitizeCookies(input, allowedUrls) {
   if (input === undefined || input === null) return [];
-  if (!Array.isArray(input) || input.length > MAX_COUNT) throw new Error('Oturum çerezleri geçersiz veya çok fazla.');
+  if (!Array.isArray(input) || input.length > MAX_COUNT) throw new Error(m('e.the-session-cookies-are-invalid-or'));
   const hosts = allowedUrls.filter(Boolean).map(raw => { try { return new URL(raw).hostname.toLowerCase(); } catch { return null; } }).filter(Boolean);
   const clean = []; let bytes = 0;
   for (const cookie of input) {
-    if (!cookie || typeof cookie !== 'object' || typeof cookie.name !== 'string' || typeof cookie.value !== 'string' || typeof cookie.domain !== 'string') throw new Error('Oturum çerezi biçimi geçersiz.');
-    if (!NAME.test(cookie.name) || !VALUE.test(cookie.value) || !DOMAIN.test(cookie.domain)) throw new Error('Oturum çerezi biçimi geçersiz.');
+    if (!cookie || typeof cookie !== 'object' || typeof cookie.name !== 'string' || typeof cookie.value !== 'string' || typeof cookie.domain !== 'string') throw new Error(m('e.the-session-cookie-format-is-invalid'));
+    if (!NAME.test(cookie.name) || !VALUE.test(cookie.value) || !DOMAIN.test(cookie.domain)) throw new Error(m('e.the-session-cookie-format-is-invalid'));
     if (!hosts.some(host => domainMatches(host, cookie.domain))) continue;
     const cookiePath = typeof cookie.path === 'string' && /^\/[^\x00-\x1f\x7f;]{0,512}$/.test(cookie.path) ? cookie.path : '/';
     const expires = Number.isFinite(cookie.expires) && cookie.expires > 0 ? Math.floor(cookie.expires) : null;
     if (expires !== null && expires * 1000 < Date.now()) continue;
     bytes += cookie.name.length + cookie.value.length;
-    if (bytes > MAX_BYTES) throw new Error('Oturum çerezleri çok büyük.');
+    if (bytes > MAX_BYTES) throw new Error(m('e.the-session-cookies-are-too-large'));
     clean.push({ name: cookie.name, value: cookie.value, domain: cookie.domain.toLowerCase(), hostOnly: cookie.hostOnly === true, path: cookiePath, secure: cookie.secure === true, expires });
   }
   return clean;

@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { spawnManaged } from './process.js';
@@ -39,24 +40,24 @@ export function formatSelector(quality, hasFFmpeg) {
 }
 
 // Access limited to signed-in / following / paying users. Hypernab never works around it; with the user's own session it may work.
-export const SESSION_REQUIRED = 'Bu video yalnızca oturum açmış ve izni olan kullanıcılara açık (ör. yalnızca takipçiler, üyeler veya gizli video). Sitede oturum açıp videoyu kendi tarayıcında aç ve sayfadaki Hypernab düğmesiyle indir; oturumun yalnızca bu video için ve diske yazılmadan kullanılır. Hypernab erişim kısıtlamasını aşmaz.';
+export const sessionMessage = () => m('e.this-video-is-only-open-to');
 const sessionPattern = /only available (?:to|for) (?:followers|subscribers|members|registered users|friends)|available (?:only )?to (?:followers|members)|Sign in to confirm|sign in to view|login required|log ?in (?:is )?required|requires? (?:authentication|login|an account)|use --cookies|private video|This video is private|members[- ]only|join this channel|need to log ?in|access (?:to this video )?(?:is )?restricted/i;
-export const sessionRequired = message => message === SESSION_REQUIRED || sessionPattern.test(String(message));
+export const sessionRequired = message => message === sessionMessage() || sessionPattern.test(String(message));
 export function cleanMediaError(raw) {
-  const safe = String(raw).replace(/https?:\/\/[^\s]+/g, '[bağlantı]').replace(/\x1b\[[0-9;]*m/g, '').trim();
+  const safe = String(raw).replace(/https?:\/\/[^\s]+/g, m('e.link')).replace(/\x1b\[[0-9;]*m/g, '').trim();
   const lastError = safe.split(/\r?\n/).filter(line => /^(?:ERROR:|HTTP \d)/.test(line)).at(-1);
-  const detail = (lastError || safe || 'Medya bilgisi alınamadı.').slice(-650);
-  if (/Cloudflare|anti-bot challenge/i.test(detail)) return 'Site, otomatik sayfa isteğini Cloudflare doğrulamasıyla engelledi. Tarayıcıda sayfayı normal şekilde açıp videoyu oynat; eklentide yakalanan medya kaynağını incele. Bu da her kaynak için başarı garantisi değildir; oturum gerektiren kaynaklar desteklenmeyebilir.';
-  if (/DRM[- ]?(?:protected|protection)|protected (?:by|with) DRM|DRM koruma/i.test(detail)) return 'Kaynak DRM korumalı. Hypernab DRM korumasını kaldırmaz; bu kaynak desteklenmiyor.';
-  if (sessionPattern.test(detail)) return SESSION_REQUIRED;
-  if (/Unsupported URL|No video formats found|Unsupported webpage/i.test(detail)) return 'Sayfa çözümleyici bu bağlantıda video bulamadı veya sayfa desteklenmiyor. Videoyu tarayıcıda oynatıp eklentide yakalanan MP4/HLS/DASH kaynağını incele.';
-  if (/Requested format is not available/i.test(detail)) return 'Uygun indirilebilir format bulunamadı. FFmpeg kurulumunu kontrol et; sayfa bağlantısını yeniden incele. Ayrıntı: ' + detail;
-  if (/HTTP (?:Error )?(400|401|403|410)/i.test(detail)) return 'Kaynak isteği reddedildi. Parça bağlantısı, tarayıcı oturumu veya süresi dolan bağlantı olabilir. Videoyu yeniden oynatıp sayfa bağlantısını incele. ' + detail;
+  const detail = (lastError || safe || m('e.media-information-could-not-be-obtained')).slice(-650);
+  if (/Cloudflare|anti-bot challenge/i.test(detail)) return m('e.the-site-blocked-the-automatic-page');
+  if (/DRM[- ]?(?:protected|protection)|protected (?:by|with) DRM|DRM koruma/i.test(detail)) return m('e.the-source-is-drm-protected-hypernab');
+  if (sessionPattern.test(detail)) return sessionMessage();
+  if (/Unsupported URL|No video formats found|Unsupported webpage/i.test(detail)) return m('e.the-page-parser-found-no-video');
+  if (/Requested format is not available/i.test(detail)) return m('e.no-suitable-downloadable-format-was-found') + detail;
+  if (/HTTP (?:Error )?(400|401|403|410)/i.test(detail)) return m('e.the-source-request-was-refused-it') + detail;
   return detail;
 }
 
 export function summarizeMedia(info, input = {}) {
-  if (info._type === 'playlist' || info.entries) throw new Error('Bu bağlantı bir oynatma listesi (dizi/liste). Uygulamada bağlantıyı yapıştırarak bölümleri tek seferde sıraya ekleyebilirsin.');
+  if (info._type === 'playlist' || info.entries) throw new Error(m('e.this-link-is-a-playlist-series'));
   const formats = (info.formats || []).filter(f => f.has_drm !== true && f.vcodec && f.vcodec !== 'none');
   const heights = [...new Set(formats.map(f => f.height).filter(n => Number.isFinite(n) && n > 0))].sort((a, b) => b - a);
   const selected = info.requested_formats || info.requested_downloads || [];
@@ -76,7 +77,7 @@ export function summarizeMedia(info, input = {}) {
 
 export async function extractMediaInfo({ url, quality = 'best', formatId = null, toolsDirectory, headers = {}, cookieFile = null, signal }) {
   await resolveRemote(url);
-  if (formatId !== null && !isFormatId(formatId)) throw new Error('Geçersiz format seçimi.');
+  if (formatId !== null && !isFormatId(formatId)) throw new Error(m('e.invalid-format-choice'));
   const overflow = new AbortController();
   const processSignal = signal ? AbortSignal.any([signal, overflow.signal]) : overflow.signal;
   // An explicit id is passed as one validated token; it is never a free-form yt-dlp expression.
@@ -95,11 +96,11 @@ export async function extractMediaInfo({ url, quality = 'best', formatId = null,
     child.stderr.on('data', chunk => { errors = (errors + chunk).slice(-8000); });
     child.on('error', reject);
     child.on('close', code => {
-      if (oversized) return reject(new Error('Medya bilgisi sınırı aşıldı.'));
+      if (oversized) return reject(new Error(m('e.the-media-information-limit-was-exceeded')));
       if (signal?.aborted) return reject(signal.reason);
       if (code !== 0) return reject(new Error(cleanMediaError(errors)));
       try { resolve(JSON.parse(output)); }
-      catch (error) { reject(new Error(error instanceof SyntaxError ? 'Medya motorundan geçerli bilgi alınamadı.' : error.message)); }
+      catch (error) { reject(new Error(error instanceof SyntaxError ? m('e.no-valid-information-was-received-from') : error.message)); }
     });
   });
 }
@@ -125,21 +126,21 @@ export async function verifyVideo(file, toolsDirectory, expectedDuration, signal
     child.on('error', reject);
     child.on('close', code => {
       if (combined.aborted) return reject(combined.reason);
-      if (code !== 0) return reject(new Error('İndirilen video ffprobe doğrulamasından geçemedi.'));
-      try { resolve(JSON.parse(output)); } catch { reject(new Error('Video doğrulama çıktısı okunamadı.')); }
+      if (code !== 0) return reject(new Error(m('e.the-downloaded-video-failed-the-ffprobe')));
+      try { resolve(JSON.parse(output)); } catch { reject(new Error(m('e.the-video-check-output-could-not'))); }
     });
   });
   const duration = Number(info.format?.duration);
   const video = info.streams?.find(stream => stream.codec_type === 'video');
   const audio = info.streams?.some(stream => stream.codec_type === 'audio') || false;
-  if ((requireVideo && !video) || (requireAudio && !audio) || !(duration > 0)) throw new Error('Dosyada beklenen görüntü, ses veya geçerli süre bulunamadı.');
-  if (expectedDuration > 0 && Math.abs(duration - expectedDuration) > Math.max(3, expectedDuration * 0.02)) throw new Error('İndirilen videonun süresi kaynakla eşleşmiyor.');
+  if ((requireVideo && !video) || (requireAudio && !audio) || !(duration > 0)) throw new Error(m('e.the-expected-picture-sound-or-a'));
+  if (expectedDuration > 0 && Math.abs(duration - expectedDuration) > Math.max(3, expectedDuration * 0.02)) throw new Error(m('e.the-duration-of-the-downloaded-video'));
   return { duration, width: video?.width || null, height: video?.height || null, audio };
 }
 
 export async function mergeMediaFiles(files, output, toolsDirectory, signal) {
   signal?.throwIfAborted();
-  if (files.length !== 2) throw new Error('Bir görüntü ve bir ses dosyası gerekli.');
+  if (files.length !== 2) throw new Error(m('e.a-picture-file-and-a-sound'));
   const args = ['-v', 'error', '-nostdin', '-n'];
   for (const file of files) args.push('-protocol_whitelist', 'file,pipe', '-i', file);
   args.push('-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', output);
@@ -150,7 +151,7 @@ export async function mergeMediaFiles(files, output, toolsDirectory, signal) {
     child.on('error', reject);
     child.on('close', code => {
       if (signal?.aborted) return reject(signal.reason);
-      if (code === 0) resolve(); else reject(new Error(cleanMediaError(errors || 'Ses ve görüntü birleştirilemedi.')));
+      if (code === 0) resolve(); else reject(new Error(cleanMediaError(errors || m('e.sound-and-picture-could-not-be'))));
     });
   });
 }
@@ -166,8 +167,8 @@ export async function decodeMedia(file, toolsDirectory, signal, timeoutMilliseco
     child.stderr.on('data', chunk => { errors = (errors + chunk).slice(-2000); });
     child.on('error', reject);
     child.on('close', code => {
-      if (combined.aborted) return reject(signal?.aborted ? signal.reason : new Error('Derin doğrulama 10 dakikalık süre sınırını aştı.'));
-      if (code === 0) resolve(); else reject(new Error(cleanMediaError(errors || 'Dosya baştan sona çözümlenirken hata bulundu.')));
+      if (combined.aborted) return reject(signal?.aborted ? signal.reason : new Error(m('e.deep-verification-exceeded-the-10-minute')));
+      if (code === 0) resolve(); else reject(new Error(cleanMediaError(errors || m('e.an-error-was-found-while-decoding'))));
     });
   });
 }

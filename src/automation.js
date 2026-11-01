@@ -1,12 +1,13 @@
+import { m } from './messages.js';
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
 
 export function powerAction(action) {
-  if (process.platform !== 'win32') throw new Error('Bu işlem yalnızca Windows için kullanılabilir.');
+  if (process.platform !== 'win32') throw new Error(m('e.this-action-is-only-available-on'));
   const command = action === 'shutdown' ? ['shutdown.exe', ['/s', '/t', '0']] : ['powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState([System.Windows.Forms.PowerState]::Suspend, $false, $false)']];
   return new Promise((resolve, reject) => {
     const child = spawn(command[0], command[1], { windowsHide: true, stdio: 'ignore' });
-    child.on('error', reject); child.on('close', code => code === 0 ? resolve() : reject(new Error('Windows güç işlemini reddetti.')));
+    child.on('error', reject); child.on('close', code => code === 0 ? resolve() : reject(new Error(m('e.windows-refused-the-power-action'))));
   });
 }
 
@@ -22,13 +23,13 @@ export class Automation {
     let schedule = this.schedule, power = this.power;
     if ('schedule' in input) {
       schedule = input.schedule;
-      if (schedule !== null && (!Number.isFinite(schedule?.at) || schedule.at <= this.now() || schedule.at > this.now() + 366 * 86400000 || !this.queue.settings.queueNames.includes(schedule.queue))) throw new Error('Gelecekteki bir tarih ve geçerli kuyruk seç.');
+      if (schedule !== null && (!Number.isFinite(schedule?.at) || schedule.at <= this.now() || schedule.at > this.now() + 366 * 86400000 || !this.queue.settings.queueNames.includes(schedule.queue))) throw new Error(m('e.choose-a-future-date-and-a'));
       if (schedule) schedule = { at: schedule.at, queue: schedule.queue };
     }
     if ('power' in input) {
-      if (input.power !== null && !['shutdown', 'sleep'].includes(input.power)) throw new Error('Geçersiz bitiş işlemi.');
+      if (input.power !== null && !['shutdown', 'sleep'].includes(input.power)) throw new Error(m('e.invalid-finish-action'));
       const ids = this.queue.jobs.filter(job => ['running', 'queued', 'held'].includes(job.status)).map(job => job.id);
-      if (input.power && !ids.length) throw new Error('Önce indirme ekle.');
+      if (input.power && !ids.length) throw new Error(m('e.add-a-download-first'));
       power = input.power ? { action: input.power, ids, deadline: null } : null;
     }
     fs.writeFileSync(this.file + '.tmp', JSON.stringify({ schedule })); fs.renameSync(this.file + '.tmp', this.file);
@@ -45,7 +46,7 @@ export class Automation {
       }
       if (this.power) {
         const watched = this.power.ids.map(id => this.queue.jobs.find(job => job.id === id));
-        if (watched.some(job => !job || ['failed', 'cancelled', 'interrupted', 'paused'].includes(job.status))) { this.power = null; this.error = 'Bitiş işlemi iptal edildi: tamamlanmayan veya duraklatılan indirme var.'; return; }
+        if (watched.some(job => !job || ['failed', 'cancelled', 'interrupted', 'paused'].includes(job.status))) { this.power = null; this.error = m('e.the-finish-action-was-cancelled-a'); return; }
         const ready = watched.every(job => job.status === 'completed') && !this.queue.active.size && !this.queue.jobs.some(job => ['running', 'queued', 'held', 'paused', 'interrupted'].includes(job.status));
         if (!ready) { this.power.deadline = null; return; }
         this.power.deadline ??= this.now() + 60000;

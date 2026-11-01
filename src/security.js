@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import { timingSafeEqual } from 'node:crypto';
@@ -28,11 +29,11 @@ export function parseRemoteUrl(raw) {
   const url = new URL(raw);
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
       (url.port && !['80', '443'].includes(url.port))) {
-    throw new Error('Yalnızca kimlik bilgisi içermeyen HTTP/HTTPS adresleri destekleniyor.');
+    throw new Error(m('e.only-http-https-addresses-without-credentials'));
   }
-  if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) throw new Error('Yerel adresler indirilemez.');
+  if (url.hostname === 'localhost' || url.hostname.endsWith('.localhost')) throw new Error(m('e.local-addresses-cannot-be-downloaded'));
   const host = url.hostname.replace(/^\[|\]$/g, '');
-  if (net.isIP(host) && isPrivateAddress(host)) throw new Error('Yerel/özel ağ adresleri indirilemez.');
+  if (net.isIP(host) && isPrivateAddress(host)) throw new Error(m('e.local-private-network-addresses-cannot-be'));
   url.hash = '';
   return url;
 }
@@ -40,7 +41,7 @@ export function parseRemoteUrl(raw) {
 export async function resolveRemote(raw) {
   const url = parseRemoteUrl(raw);
   const records = await dns.lookup(url.hostname.replace(/^\[|\]$/g, ''), { all: true });
-  if (!records.length || records.some(r => isPrivateAddress(r.address))) throw new Error('Yerel/özel ağ adresleri indirilemez.');
+  if (!records.length || records.some(r => isPrivateAddress(r.address))) throw new Error(m('e.local-private-network-addresses-cannot-be'));
   return { url, records };
 }
 

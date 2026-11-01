@@ -1,5 +1,6 @@
 // Subtitles for any site: recognise a subtitle by its CONTENT (never by site or address), normalise it to WebVTT/SRT,
 // then put it into the finished video (or next to it). Nothing here knows a website or a player brand.
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -105,7 +106,7 @@ export function languageInfo(code, label = '') {
   let clean = String(code || '').toLowerCase().replace(/_/g, '-').split('-')[0]; clean = ALIASES[clean] || clean;
   const entry = LANGUAGES.find(([a, b]) => clean === a || clean === b) || LANGUAGES.find(item => item[3].test(String(label || '')));
   if (entry) return { iso1: entry[0], iso3: entry[1], name: entry[2] };
-  return { iso1: /^[a-z]{2}$/.test(clean) ? clean : null, iso3: /^[a-z]{3}$/.test(clean) ? clean : 'und', name: String(label || '').replace(/[\x00-\x1f]/g, '').trim().slice(0, 60) || 'Altyazı' };
+  return { iso1: /^[a-z]{2}$/.test(clean) ? clean : null, iso3: /^[a-z]{3}$/.test(clean) ? clean : 'und', name: String(label || '').replace(/[\x00-\x1f]/g, '').trim().slice(0, 60) || m('e.subtitle') };
 }
 // Some pages name their subtitle files "1.vtt" and "2.vtt" and say nothing about the language. The text itself tells (its script and
 // its common words, see language-detect.js). Returns an ISO 639-1 code or null when it is not clear.
@@ -203,7 +204,7 @@ export async function embedSubtitles({ video, tracks, toolsDirectory, signal, pr
     // What must never happen is a shorter file (lost picture or sound). An mp4 keeps the stricter two-sided check.
     const tolerance = Math.max(1.5, (before.duration || 0) * 0.01);
     const durationOk = !before.duration || !after.duration || (finished !== video ? after.duration >= before.duration - tolerance : Math.abs(after.duration - before.duration) <= tolerance);
-    if (after.subtitle !== tracks.length || after.video !== before.video || after.audio !== before.audio || !durationOk) throw new Error('Altyazılı dosya doğrulanamadı.');
+    if (after.subtitle !== tracks.length || after.video !== before.video || after.audio !== before.audio || !durationOk) throw new Error(m('e.the-file-with-subtitles-could-not'));
     fs.renameSync(output, finished);
     if (finished !== video) fs.rmSync(video, { force: true }); // the mkv replaces the mp4, never both
     return finished;

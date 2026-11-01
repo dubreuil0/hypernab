@@ -1,5 +1,6 @@
 // A series / playlist address: list its videos once (flat, nothing is downloaded), then add the chosen ones to the waiting queue.
 // Works through yt-dlp for any site it can read a list from; Hypernab does not guess episode pages on its own.
+import { m } from './messages.js';
 import path from 'node:path';
 import { spawnManaged } from './process.js';
 import { baseExtractorArgs, mediaHeaders, cleanMediaError } from './media.js';
@@ -23,7 +24,7 @@ export async function listPlaylist({ url, toolsDirectory, headers = {}, signal }
 }
 
 export function normalizePlaylist(info) {
-  if (!info || !Array.isArray(info.entries)) throw new Error('Bu bağlantı bir liste değil; tek video olarak indirilebilir.');
+  if (!info || !Array.isArray(info.entries)) throw new Error(m('e.this-link-is-not-a-list'));
   const entries = [];
   for (const entry of info.entries) {
     if (!entry || entries.length >= MAX_PLAYLIST) continue;

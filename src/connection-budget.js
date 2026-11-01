@@ -1,8 +1,9 @@
+import { m } from './messages.js';
 // Counts active media requests (not idle keep-alive sockets). One instance is
 // shared by all jobs and both tracks of a split-stream job.
 export class ConnectionBudget {
   constructor({ total = 12, perHost = 8 } = {}) {
-    if (![total, perHost].every(n => Number.isInteger(n) && n > 0 && n <= 32)) throw new Error('Geçersiz bağlantı bütçesi.');
+    if (![total, perHost].every(n => Number.isInteger(n) && n > 0 && n <= 32)) throw new Error(m('e.invalid-connection-budget'));
     this.limit = total; this.perHost = Math.min(perHost, total);
     this.active = 0; this.hosts = new Map(); this.waiting = []; this.cooldowns = new Map(); this.timer = null;
   }
@@ -10,7 +11,7 @@ export class ConnectionBudget {
   acquire(hosts, signal, cost = 1) {
     signal?.throwIfAborted();
     hosts = [...new Set((Array.isArray(hosts) ? hosts : [hosts]).map(host => String(host).toLowerCase()))];
-    if (!hosts.length || !Number.isInteger(cost) || cost < 1 || cost > this.perHost) throw new Error('Geçersiz bağlantı rezervasyonu.');
+    if (!hosts.length || !Number.isInteger(cost) || cost < 1 || cost > this.perHost) throw new Error(m('e.invalid-connection-reservation'));
     return new Promise((resolve, reject) => {
       const entry = { hosts, cost, signal, resolve, reject };
       entry.abort = () => {

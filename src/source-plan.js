@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import path from 'node:path';
 import { parseRemoteUrl } from './security.js';
 import { mediaHeaders } from './media.js';
@@ -35,23 +36,23 @@ export function selectedFormat(info) {
 
 // Decisions depend on the selected resource, never on a provider's hostname.
 export function selectSourcePlan(info, { ffmpeg = false, ffprobe = false } = {}) {
-  if (info._type === 'playlist' || info.entries) throw new Error('Bu bağlantı bir oynatma listesi (dizi/liste). Uygulamada bağlantıyı yapıştırarak bölümleri tek seferde sıraya ekleyebilirsin.');
+  if (info._type === 'playlist' || info.entries) throw new Error(m('e.this-link-is-a-playlist-series'));
   const sources = info.requested_formats?.length ? info.requested_formats : [info];
-  if (info.has_drm === true || sources.some(source => source.has_drm === true)) throw new Error('DRM korumalı kaynak desteklenmiyor.');
+  if (info.has_drm === true || sources.some(source => source.has_drm === true)) throw new Error(m('e.a-drm-protected-source-is-not'));
   const native = reason => ({ method: 'yt-dlp', reason, selectedFormat: selectedFormat(info) });
-  if (info.is_live) return native('Canlı kaynak standart akış motoruyla işleniyor.');
-  if (!ffprobe) return native('Medya doğrulaması için ffprobe bulunamadı; standart motor kullanılıyor.');
-  if (!sources.length || sources.length > 2) return native('Seçilen akış yapısı standart medya motoru gerektiriyor.');
+  if (info.is_live) return native(m('e.a-live-source-is-processed-with'));
+  if (!ffprobe) return native(m('e.ffprobe-was-not-found-for-media'));
+  if (!sources.length || sources.length > 2) return native(m('e.the-chosen-stream-structure-needs-the'));
   for (const source of sources) {
-    if (!/^https?$/.test(source.protocol || '') || source.fragments?.length || isManifest('', source.url)) return native('Parçalı yayın, uygun HLS/DASH motoruyla indiriliyor.');
-    try { parseRemoteUrl(source.url); } catch { throw new Error('Çözümlenen medya adresi güvenli bir HTTP/HTTPS adresi değil.'); }
-    if (!mediaExtensions.has(source.ext)) return native('Bu medya biçimi standart motorla işleniyor.');
+    if (!/^https?$/.test(source.protocol || '') || source.fragments?.length || isManifest('', source.url)) return native(m('e.a-segmented-broadcast-is-downloading-with'));
+    try { parseRemoteUrl(source.url); } catch { throw new Error(m('e.the-resolved-media-address-is-not')); }
+    if (!mediaExtensions.has(source.ext)) return native(m('e.this-media-format-is-processed-with'));
   }
   if (sources.length === 1) return { method: 'parallel-http', sources, extension: sources[0].ext, selectedFormat: selectedFormat(info) };
-  if (!ffmpeg) return native('Ayrı görüntü ve ses için FFmpeg gerekli.');
+  if (!ffmpeg) return native(m('e.ffmpeg-is-needed-for-separate-picture'));
   const video = sources.find(source => source.vcodec && source.vcodec !== 'none' && source.acodec === 'none');
   const audio = sources.find(source => source.vcodec === 'none' && source.acodec && source.acodec !== 'none');
-  if (!video || !audio) return native('Seçilen akışlar güvenle ayrı görüntü ve ses olarak sınıflandırılamadı.');
+  if (!video || !audio) return native(m('e.the-chosen-streams-could-not-be'));
   const extension = mergedExtension(video.ext, audio.ext);
   return { method: 'parallel-streams', sources: [video, audio], extension, selectedFormat: selectedFormat(info) };
 }

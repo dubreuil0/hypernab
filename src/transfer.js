@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import fs from 'node:fs';
 import { setTimeout as delay } from 'node:timers/promises';
 import { requestRemote } from './network.js';
@@ -18,11 +19,11 @@ export class SourceChangedError extends Error {}
 export class SourceExpiredError extends Error {}
 export class IntegrityError extends Error {}
 export class RateLimitedError extends RemoteResponseError {
-  constructor(milliseconds, status = 429) { super(status); this.message = 'Sunucu geçici bağlantı sınırı uyguladı.'; this.retryAfter = milliseconds; }
+  constructor(milliseconds, status = 429) { super(status); this.message = m('e.the-server-applied-a-temporary-connection'); this.retryAfter = milliseconds; }
 }
 
 function checkStatus(response) {
-  if ([401, 403, 410].includes(response.statusCode)) throw new SourceExpiredError(`HTTP ${response.statusCode}: kaynak adresi/erişimi yenilenmeli.`);
+  if ([401, 403, 410].includes(response.statusCode)) throw new SourceExpiredError(m('e.http-code-the-source-address-access', { code: response.statusCode }));
   if ([429, 503].includes(response.statusCode)) {
     const value = response.headers['retry-after'];
     const ms = /^\d+(?:\.\d+)?$/.test(value || '') ? Number(value) * 1000 : Date.parse(value) - Date.now();
@@ -34,7 +35,7 @@ function checkStatus(response) {
 function checkValidator(response, validator) {
   if (!validator) return;
   const value = response.headers[validator.type === 'etag' ? 'etag' : 'last-modified'];
-  if (value && value !== validator.value) throw new SourceChangedError('Kaynak dosya indirme sırasında değişti; eski parçalarla birleştirilmedi.');
+  if (value && value !== validator.value) throw new SourceChangedError(m('e.the-source-file-changed-during-the'));
 }
 
 async function hashRange(file, start, end, signal) {
@@ -54,9 +55,9 @@ export async function publishFile(partial, destination, signal) {
   const total = fs.statSync(partial).size;
   let reusedExisting = false, sha256 = null;
   if (fs.existsSync(destination)) {
-    if (fs.statSync(destination).size !== total) throw new Error('Hedef dosya zaten var ve farklı; üzerine yazılmadı.');
+    if (fs.statSync(destination).size !== total) throw new Error(m('e.the-target-file-already-exists-and'));
     const hashes = await Promise.all([hashFile(partial, signal), hashFile(destination, signal)]);
-    if (hashes[0] !== hashes[1]) throw new Error('Hedef dosyanın içeriği farklı; üzerine yazılmadı.');
+    if (hashes[0] !== hashes[1]) throw new Error(m('e.the-content-of-the-target-file'));
     sha256 = hashes[0]; reusedExisting = true;
     signal?.throwIfAborted(); fs.rmSync(partial);
   } else {
@@ -78,7 +79,7 @@ export async function probeRange({ url, headers = {}, signal, request = requestR
     const match = /^bytes 0-0\/(\d+)$/.exec(response.headers['content-range'] || '');
     const total = match ? Number(match[1]) : 0;
     // What the server did say stays with the error, so a caller can use the headers without asking a second time.
-    if (!Number.isSafeInteger(total) || total <= 0) throw Object.assign(new RangeUnsupportedError('Kaynak byte-range indirmeyi desteklemiyor.'), { observed: { status: response.statusCode, headers: { ...response.headers }, url: String(finalUrl?.href || finalUrl || url) } });
+    if (!Number.isSafeInteger(total) || total <= 0) throw Object.assign(new RangeUnsupportedError(m('e.the-source-does-not-support-byte-range')), { observed: { status: response.statusCode, headers: { ...response.headers }, url: String(finalUrl?.href || finalUrl || url) } });
     validateRange(response, 0, 0, total);
     const etag = response.headers.etag;
     const modified = response.headers['last-modified'];
@@ -92,8 +93,8 @@ export async function probeRange({ url, headers = {}, signal, request = requestR
 }
 
 export function planRanges(total, blockSize = 2 * 1024 * 1024) {
-  if (!Number.isSafeInteger(total) || total <= 0 || !Number.isSafeInteger(blockSize) || blockSize <= 0) throw new Error('Geçersiz dosya/parça boyutu.');
-  if (Math.ceil(total / blockSize) > 100000) throw new Error('Dosyada çok fazla parça var.');
+  if (!Number.isSafeInteger(total) || total <= 0 || !Number.isSafeInteger(blockSize) || blockSize <= 0) throw new Error(m('e.invalid-file-part-size'));
+  if (Math.ceil(total / blockSize) > 100000) throw new Error(m('e.the-file-has-too-many-parts'));
   return Array.from({ length: Math.ceil(total / blockSize) }, (_, index) => ({ index, start: index * blockSize, end: Math.min(total - 1, (index + 1) * blockSize - 1) }));
 }
 
@@ -101,10 +102,10 @@ export function validateRange(response, start, end, total) {
   checkStatus(response);
   const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(response.headers['content-range'] || '');
   if (response.statusCode !== 206 || !match || Number(match[1]) !== start || Number(match[2]) !== end || Number(match[3]) !== total) {
-    throw new RangeUnsupportedError(`Sunucu istenen byte aralığını doğrulamadı (HTTP ${response.statusCode}).`);
+    throw new RangeUnsupportedError(m('e.the-server-did-not-confirm-the', { code: response.statusCode }));
   }
-  if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') throw new RangeUnsupportedError('Sıkıştırılmış yanıt üzerinde güvenli parçalı indirme yapılamaz.');
-  if (response.headers['content-length'] && Number(response.headers['content-length']) !== end - start + 1) throw new RangeUnsupportedError('Parça boyutu sunucu yanıtıyla eşleşmiyor.');
+  if (response.headers['content-encoding'] && response.headers['content-encoding'] !== 'identity') throw new RangeUnsupportedError(m('e.safe-segmented-download-is-not-possible'));
+  if (response.headers['content-length'] && Number(response.headers['content-length']) !== end - start + 1) throw new RangeUnsupportedError(m('e.the-part-size-does-not-match'));
 }
 
 // Checkpoint v2 stores an exact partition plus hashes of committed segments.
@@ -112,7 +113,7 @@ export function validateRange(response, start, end, total) {
 export async function downloadParallel({ url, headers = {}, destination, sourceKey, signal, connections = 8, blockSize = 2 * 1024 * 1024, request = requestRemote, sourceProbe, onProgress = () => {}, verify = async () => {}, overlap = 64, minSplitBytes = 128 * 1024, retryDelay = 250, maxResumeSamples = 12, resumeRetryDelay = 1500, onThrottle = () => {}, throttle = async () => {} }) {
   signal?.throwIfAborted();
   const { total, validator } = sourceProbe || await probeRange({ url, headers, signal, request });
-  if (!Number.isInteger(overlap) || overlap < 1 || overlap > 4096) throw new Error('Geçersiz örtüşme boyutu.');
+  if (!Number.isInteger(overlap) || overlap < 1 || overlap > 4096) throw new Error(m('e.invalid-overlap-size'));
   const maximum = Math.min(Math.max(1, Math.trunc(connections) || 1), 8);
   const window = new AdaptiveWindow(maximum);
   const partial = `${destination}.parallel.part`, checkpoint = `${destination}.ranges.json`;
@@ -126,8 +127,8 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       const h = { ...headers, Range: `bytes=${start}-${end}`, 'If-Range': validator.value };
       ({ response } = await request(url, signal, h)); validateRange(response, start, end, total); checkValidator(response, validator);
       const chunks = []; let bytes = 0;
-      for await (const chunk of response) { bytes += chunk.length; if (bytes > end - start + 1) throw new IntegrityError('Devam kontrolünde fazla veri alındı.'); chunks.push(chunk); }
-      if (bytes !== end - start + 1) throw new IntegrityError('Devam kontrolünde eksik veri alındı.');
+      for await (const chunk of response) { bytes += chunk.length; if (bytes > end - start + 1) throw new IntegrityError(m('e.too-much-data-was-received-in')); chunks.push(chunk); }
+      if (bytes !== end - start + 1) throw new IntegrityError(m('e.too-little-data-was-received-in'));
       verificationBytes += bytes; networkBytes += bytes; return Buffer.concat(chunks);
     } finally { response?.destroy(); }
   }
@@ -145,14 +146,14 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     onProgress({ received: 0, total, speed: 0, connections: 0, targetConnections: window.target, phase: 'checking-resume', resumeSupported: Boolean(validator), networkBytes: 0, resumedBytes: 0 });
     try {
       const saved = JSON.parse(fs.readFileSync(checkpoint, 'utf8'));
-      if (!validator || JSON.stringify(saved.identity) !== JSON.stringify(identity) || !fs.statSync(partial).isFile() || fs.statSync(partial).size !== total) throw new IntegrityError('Kaynak kimliği/validator veya checkpoint sürümü aynı değil.');
-      if (!Array.isArray(saved.parts) || !saved.parts.length || saved.parts.length > 100000 || !Array.isArray(saved.completed)) throw new IntegrityError('Checkpoint yapısı geçersiz.');
+      if (!validator || JSON.stringify(saved.identity) !== JSON.stringify(identity) || !fs.statSync(partial).isFile() || fs.statSync(partial).size !== total) throw new IntegrityError(m('e.the-source-id-validator-or-the'));
+      if (!Array.isArray(saved.parts) || !saved.parts.length || saved.parts.length > 100000 || !Array.isArray(saved.completed)) throw new IntegrityError(m('e.the-checkpoint-structure-is-invalid'));
       const ids = new Set(); let nextByte = 0;
       for (const p of [...saved.parts].sort((a, b) => a.start - b.start)) {
-        if (!Number.isSafeInteger(p.id) || p.id < 0 || p.id >= 100000 || ids.has(p.id) || p.start !== nextByte || !Number.isSafeInteger(p.end) || p.end < p.start || p.end >= total) throw new IntegrityError('Checkpoint aralıklarında boşluk/çakışma var.');
+        if (!Number.isSafeInteger(p.id) || p.id < 0 || p.id >= 100000 || ids.has(p.id) || p.start !== nextByte || !Number.isSafeInteger(p.end) || p.end < p.start || p.end >= total) throw new IntegrityError(m('e.the-checkpoint-ranges-have-a-gap'));
         ids.add(p.id); nextByte = p.end + 1;
       }
-      if (nextByte !== total || saved.completed.some(id => !ids.has(id))) throw new IntegrityError('Checkpoint tam dosyayı kapsamıyor.');
+      if (nextByte !== total || saved.completed.some(id => !ids.has(id))) throw new IntegrityError(m('e.the-checkpoint-does-not-cover-the'));
       const completed = new Set(saved.completed);
       const toCheck = saved.parts.filter(p => completed.has(p.id));
       // Disk already holds these bytes; show them while they are being compared instead of "0".
@@ -164,7 +165,7 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       // evenly spread sample: hundreds of tiny parallel requests make some CDNs answer 401 per URL.
       const sampled = new Set(spreadIndexes(toCheck.length, maxResumeSamples));
       const checkLocal = async p => {
-        if (!/^[a-f0-9]{64}$/.test(p.hash || '') || (p.start && !/^[a-f0-9]{64}$/.test(p.leftHash || '')) || await hashRange(partial, p.start, p.end, signal) !== p.hash) throw new IntegrityError('Yerel kısmi dosyanın blok özeti eşleşmedi.');
+        if (!/^[a-f0-9]{64}$/.test(p.hash || '') || (p.start && !/^[a-f0-9]{64}$/.test(p.leftHash || '')) || await hashRange(partial, p.start, p.end, signal) !== p.hash) throw new IntegrityError(m('e.the-block-digest-of-the-local'));
         checked++; report();
       };
       let next = 0, checkFailure = null;
@@ -178,14 +179,14 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
         const p = toCheck[index];
         for (const [start, end] of [[p.start, Math.min(p.end, p.start + overlap - 1)], [Math.max(p.start, p.end - overlap + 1), p.end]]) {
           const bytes = await remoteSampleWithRetry(start, end);
-          if (await hashRange(partial, start, end, signal) !== createHash('sha256').update(bytes).digest('hex')) throw new IntegrityError('Yeni kaynak verisi eski parçayla eşleşmedi.');
+          if (await hashRange(partial, start, end, signal) !== createHash('sha256').update(bytes).digest('hex')) throw new IntegrityError(m('e.the-new-source-data-did-not'));
         }
       }
       parts = saved.parts.map(p => ({ id: p.id, start: p.start, end: p.end, hash: completed.has(p.id) ? p.hash : null, leftHash: completed.has(p.id) ? p.leftHash : null, state: completed.has(p.id) ? 'done' : 'pending', cursor: completed.has(p.id) ? p.end + 1 : p.start, reservedEnd: p.start }));
       resume = true;
     } catch (error) {
       if (signal?.aborted || error instanceof SourceExpiredError || error instanceof RateLimitedError) throw error;
-      resumeReason = `${error.message} Önceki veriler korundu; aktarım baştan başlıyor.`;
+      resumeReason = m('e.message-the-earlier-data-was-kept', { message: error.message });
     }
     if (!resume) {
       const suffix = `.previous-${randomUUID()}`;
@@ -241,27 +242,27 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
         for await (const chunk of response) {
           combined.throwIfAborted();
           await throttle(chunk.length, combined);
-          if (wire + chunk.length > requestEnd - requestStart + 1) throw new IntegrityError('Sunucu fazla parça verisi gönderdi.');
+          if (wire + chunk.length > requestEnd - requestStart + 1) throw new IntegrityError(m('e.the-server-sent-too-much-part'));
           networkBytes += chunk.length;
           const position = requestStart + wire, prefixLength = Math.max(0, Math.min(chunk.length, part.start - position));
           if (prefixLength) prefixes.push(chunk.subarray(0, prefixLength));
           const payload = chunk.subarray(prefixLength), absolute = position + prefixLength;
           const length = Math.max(0, Math.min(payload.length, part.end - absolute + 1));
           if (length) {
-            if (absolute !== part.cursor) throw new IntegrityError('Parça yazma konumunda boşluk oluştu.');
+            if (absolute !== part.cursor) throw new IntegrityError(m('e.a-gap-appeared-at-the-part'));
             part.reservedEnd = absolute + length;
             let offset = 0;
             while (offset < length) {
               const written = await file.write(payload, offset, length - offset, absolute + offset);
-              if (!written.bytesWritten) throw new Error('Dosya yazılamadı.'); offset += written.bytesWritten;
+              if (!written.bytesWritten) throw new Error(m('e.the-file-could-not-be-written')); offset += written.bytesWritten;
             }
             part.cursor = absolute + length; payloadBytes += length;
           }
           wire += chunk.length; progress();
           if (part.cursor === part.end + 1 && part.end < requestEnd) { response.destroy(); break; }
         }
-        if (part.cursor !== part.end + 1) throw new Error('Sunucu parçayı eksik gönderdi.');
-        if (part.end === requestEnd && wire !== requestEnd - requestStart + 1) throw new Error('Sunucu parçayı eksik gönderdi.');
+        if (part.cursor !== part.end + 1) throw new Error(m('e.the-server-sent-the-part-incompletely'));
+        if (part.end === requestEnd && wire !== requestEnd - requestStart + 1) throw new Error(m('e.the-server-sent-the-part-incompletely'));
         part.leftHash = part.start ? createHash('sha256').update(Buffer.concat(prefixes)).digest('hex') : null;
         await file.sync(); part.hash = await hashRange(partial, part.start, part.end, combined);
         part.state = 'done'; save(); window.sample(part.end - part.start + 1, performance.now() - attemptStart); return;
@@ -289,10 +290,10 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       await Promise.race(active.values());
       if (failure) { await Promise.allSettled(active.values()); throw failure; }
     }
-    if (parts.some(p => p.state !== 'done')) throw new IntegrityError('Tüm parçalar tamamlanmadı.');
+    if (parts.some(p => p.state !== 'done')) throw new IntegrityError(m('e.not-all-parts-were-completed'));
     await file.sync();
     for (const part of parts.filter(p => p.start > 0)) {
-      if (await hashRange(partial, Math.max(0, part.start - overlap), part.start - 1, combined) !== part.leftHash) throw new IntegrityError('Komşu parçaların örtüşen byte’ları eşleşmedi; dosya tamamlandı sayılmadı.');
+      if (await hashRange(partial, Math.max(0, part.start - overlap), part.start - 1, combined) !== part.leftHash) throw new IntegrityError(m('e.the-overlapping-bytes-of-neighbouring-parts'));
     }
     await file.close(); phase = 'verifying'; progress(true); await verify(partial, combined); combined.throwIfAborted();
     const publication = await publishFile(partial, destination, combined); fs.rmSync(checkpoint, { force: true });

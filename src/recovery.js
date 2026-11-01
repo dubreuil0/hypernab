@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { NetworkStallError } from './network.js';
 
@@ -5,8 +6,8 @@ const transientStatuses = new Set([202, 408, 425, 429, 500, 502, 503, 504]);
 const networkCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT']);
 
 export class RemoteResponseError extends Error {
-  constructor(status, headers = {}, resource = 'Kaynak') {
-    super(`HTTP ${status}: ${resource} alınamadı.${status === 202 ? ' Sunucu henüz kullanılabilir medya göndermedi.' : ''}`);
+  constructor(status, headers = {}, resource = m('e.resource.source')) {
+    super(`${m('e.http.not-fetched', { status, resource })}${status === 202 ? ` ${m('e.http.not-ready')}` : ''}`);
     this.status = status;
     this.retryable = transientStatuses.has(status);
     const value = headers['retry-after'];
@@ -25,7 +26,7 @@ export function isTransient(error) {
 // The parent's cancellation always wins; neither server input nor a jitter can create an endless wait.
 export async function recoverRead(operation, { signal, retries = 2, maxElapsedMs = 20000, baseDelayMs = 500, sleep = delay, onRetry = () => {} } = {}) {
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(new DOMException('İstek süre sınırını aştı.', 'TimeoutError')), maxElapsedMs);
+  const timer = setTimeout(() => timeout.abort(new DOMException(m('e.the-request-exceeded-the-time-limit'), 'TimeoutError')), maxElapsedMs);
   timer.unref?.();
   const deadline = timeout.signal;
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;

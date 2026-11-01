@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -32,7 +33,7 @@ async function body(req, limit = 32768) {
   let content = '';
   for await (const chunk of req) {
     content += chunk;
-    if (Buffer.byteLength(content) > limit) throw new Error('İstek çok büyük.');
+    if (Buffer.byteLength(content) > limit) throw new Error(m('e.the-request-is-too-large'));
   }
   return JSON.parse(content || '{}');
 }
@@ -70,11 +71,11 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
-  if (req.headers.host !== `127.0.0.1:${port}`) return json(res, 403, { error: 'Geçersiz sunucu adresi.' });
+  if (req.headers.host !== `127.0.0.1:${port}`) return json(res, 403, { error: m('e.invalid-server-address') });
   const requestOrigin = req.headers.origin;
   const extension = /^(?:chrome-extension:\/\/[a-p]{32}|moz-extension:\/\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})$/.test(requestOrigin || '');
   const local = requestOrigin === origin;
-  if (requestOrigin && !local && !extension) return json(res, 403, { error: 'Bu kaynağa izin verilmiyor.' });
+  if (requestOrigin && !local && !extension) return json(res, 403, { error: m('e.this-source-is-not-allowed') });
   if (extension) {
     res.setHeader('Access-Control-Allow-Origin', requestOrigin);
     res.setHeader('Vary', 'Origin');
@@ -92,31 +93,31 @@ const server = http.createServer(async (req, res) => {
     }
     // Local UI bootstrap is same-origin only; token never appears in HTML or URLs.
     if (url.pathname === '/api/bootstrap' && req.method === 'GET') {
-      if (extension || req.headers['sec-fetch-site'] !== 'same-origin') return json(res, 403, { error: 'Yalnızca yerel arayüz.' });
+      if (extension || req.headers['sec-fetch-site'] !== 'same-origin') return json(res, 403, { error: m('e.local-interface-only') });
       return json(res, 200, { token });
     }
-    if (!validToken(req.headers.authorization?.replace(/^Bearer /, ''), token)) return json(res, 401, { error: 'Eşleştirme anahtarı geçersiz.' });
+    if (!validToken(req.headers.authorization?.replace(/^Bearer /, ''), token)) return json(res, 401, { error: m('e.the-pairing-key-is-invalid') });
     if (req.method === 'GET' && url.pathname === '/api/status') return json(res, 200, { version, extensionProtocol: 1, instanceId, processId: process.pid, ...queue.capabilities() });
     if (req.method === 'POST' && url.pathname === '/api/app/shutdown') {
       const input = await body(req);
-      if (input.confirm !== true || input.instanceId !== instanceId) return json(res, 409, { error: 'Kapatma onayı veya uygulama kimliği geçersiz.' });
-      if (queue.active.size || queue.jobs.some(job => ['running', 'queued'].includes(job.status))) return json(res, 409, { error: 'Aktif veya sıradaki işler var. Önce indirmelerin bitmesini bekle ya da duraklat.' });
+      if (input.confirm !== true || input.instanceId !== instanceId) return json(res, 409, { error: m('e.the-shutdown-confirmation-or-the-app') });
+      if (queue.active.size || queue.jobs.some(job => ['running', 'queued'].includes(job.status))) return json(res, 409, { error: m('e.there-are-active-or-queued-jobs') });
       res.once('finish', () => setImmediate(shutdown));
       return json(res, 200, { stopped: true });
     }
     if (req.method === 'GET' && url.pathname === '/api/jobs') return json(res, 200, queue.list());
     if (req.method === 'GET' && url.pathname === '/api/history') {
-      if (extension) return json(res, 403, { error: 'Geçmiş yalnızca uygulamada kullanılabilir.' });
+      if (extension) return json(res, 403, { error: m('e.the-history-is-only-available-in') });
       return json(res, 200, await queue.historyPage({ search: url.searchParams.get('search') || '', cursor: url.searchParams.get('cursor') }));
     }
     const historyLocation = /^\/api\/history\/([a-f0-9-]{36})\/location$/i.exec(url.pathname);
     if (req.method === 'GET' && historyLocation) {
-      if (extension) return json(res, 403, { error: 'Geçmiş yalnızca uygulamada kullanılabilir.' });
+      if (extension) return json(res, 403, { error: m('e.the-history-is-only-available-in') });
       return json(res, 200, queue.history.location(historyLocation[1]));
     }
     const location = /^\/api\/jobs\/([a-f0-9-]{36})\/location$/i.exec(url.pathname);
     if (req.method === 'GET' && location) {
-      if (extension) return json(res, 403, { error: 'Dosya konumu yalnızca uygulama arayüzünde kullanılabilir.' });
+      if (extension) return json(res, 403, { error: m('e.the-file-location-is-only-available') });
       return json(res, 200, queue.location(location[1]));
     }
     if (req.method === 'GET' && url.pathname === '/api/automation') return json(res, 200, automation.info());
@@ -127,7 +128,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && abandon) return json(res, 200, queue.abandonSubmission(abandon[1]));
     if (req.method === 'POST' && ['/api/inspect', '/api/sniff'].includes(url.pathname)) {
       const input = await body(req, 131072); // session cookies (up to 32 KB of values) travel with the inspection only
-      if (inspections >= 2) return json(res, 429, { error: 'İki inceleme zaten çalışıyor; biraz bekle.' });
+      if (inspections >= 2) return json(res, 429, { error: m('e.two-inspections-are-already-running-wait') });
       inspections++;
       try { return json(res, 200, await (url.pathname === '/api/sniff' ? queue.sniff(input) : queue.inspect(input))); }
       finally { inspections--; }
@@ -135,7 +136,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/hls/active-audio') return json(res, 200, await queue.activeAudio(await body(req, 131072))); // recent request addresses of the page, compared only
     if (req.method === 'POST' && url.pathname === '/api/playlist') {
       const input = await body(req);
-      if (inspections >= 2) return json(res, 429, { error: 'İki inceleme zaten çalışıyor; biraz bekle.' });
+      if (inspections >= 2) return json(res, 429, { error: m('e.two-inspections-are-already-running-wait') });
       inspections++;
       try { return json(res, 200, await queue.playlist(input)); } finally { inspections--; }
     }
@@ -162,17 +163,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && action) {
       const result = queue[action[2]](action[1]); return json(res, 200, result || { ok: true });
     }
-    return json(res, 404, { error: 'Bulunamadı.' });
+    return json(res, 404, { error: m('e.not-found') });
   } catch (error) {
-    return json(res, 400, { error: error.message.replace(/https?:\/\/[^\s]+/g, '[bağlantı]'), ...(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'duplicate' ? { duplicates: error.duplicates } : {}) });
+    return json(res, 400, { error: error.message.replace(/https?:\/\/[^\s]+/g, m('e.link')), ...(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'duplicate' ? { duplicates: error.duplicates } : {}) });
   }
 });
 let inspections = 0;
 server.requestTimeout = 15000;
 server.headersTimeout = 10000;
-server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? `Port ${port} kullanımda. Uygulama zaten açık olabilir: ${origin}` : error.message); process.exitCode = 1; });
+server.on('error', error => { console.error(error.code === 'EADDRINUSE' ? m('e.port-port-is-in-use-the', { port, origin }) : error.message); process.exitCode = 1; });
 server.listen(port, '127.0.0.1', () => {
-  console.log(`Hypernab hazır: ${origin}\nÇıkmak için Ctrl+C. İndirmeler: ${queue.directory}`);
+  console.log(m('e.hypernab-is-ready-origin-press-ctrl', { origin, directory: queue.directory }));
   if (process.argv.includes('--open')) spawn('cmd.exe', ['/c', 'start', '', origin], { windowsHide: true, stdio: 'ignore' });
 });
 function shutdown() { clearInterval(automationTimer); queue.stop(); server.close(); setTimeout(() => process.exit(0), 1500).unref(); }

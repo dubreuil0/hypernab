@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -19,29 +20,29 @@ export function isVideoFile(file, contentType = '') {
 export async function verifyCompletedFile({ file, expectedSize, media = null, expectedSha256 = null, deep = false, toolsDirectory, signal, probe = verifyVideo, decoder = decodeMedia, onDeep = () => {} }) {
   signal?.throwIfAborted();
   const stat = await fs.promises.stat(file);
-  if (!stat.isFile()) throw new VerificationError('Doğrulanacak çıktı normal bir dosya değil.');
-  if (expectedSize !== undefined && expectedSize !== null && (!Number.isSafeInteger(expectedSize) || expectedSize < 0)) throw new VerificationError('Beklenen dosya boyutu geçersiz.');
-  if (Number.isSafeInteger(expectedSize) && expectedSize >= 0 && stat.size !== expectedSize) throw new VerificationError('Dosya boyutu beklenen değerle eşleşmiyor.');
+  if (!stat.isFile()) throw new VerificationError(m('e.the-output-to-verify-is-not'));
+  if (expectedSize !== undefined && expectedSize !== null && (!Number.isSafeInteger(expectedSize) || expectedSize < 0)) throw new VerificationError(m('e.the-expected-file-size-is-invalid'));
+  if (Number.isSafeInteger(expectedSize) && expectedSize >= 0 && stat.size !== expectedSize) throw new VerificationError(m('e.the-file-size-does-not-match'));
   const result = { status: 'passed', bytes: stat.size, sizeCompared: Number.isSafeInteger(expectedSize), level: 'bytes', sha256: null, media: null, deep: false, warning: null };
   if (expectedSha256) {
-    if (!/^[a-f0-9]{64}$/i.test(expectedSha256)) throw new VerificationError('SHA-256 değeri 64 onaltılık karakter olmalı.');
+    if (!/^[a-f0-9]{64}$/i.test(expectedSha256)) throw new VerificationError(m('e.the-sha-256-value-must-be'));
     const hash = createHash('sha256');
     for await (const chunk of fs.createReadStream(file, { signal })) hash.update(chunk);
     result.sha256 = hash.digest('hex');
-    if (result.sha256 !== expectedSha256.toLowerCase()) throw new VerificationError('Dosyanın SHA-256 değeri beklenen özetle eşleşmiyor.');
+    if (result.sha256 !== expectedSha256.toLowerCase()) throw new VerificationError(m('e.the-sha-256-of-the-file'));
   }
   if (media) {
-    if (stat.size === 0) throw new VerificationError('Medya dosyası boş.');
+    if (stat.size === 0) throw new VerificationError(m('e.the-media-file-is-empty'));
     if (!fs.existsSync(path.join(toolsDirectory, 'ffprobe.exe'))) {
-      if (deep) throw new VerificationError('Derin medya doğrulaması için ffprobe gerekli.');
-      result.status = 'limited'; result.warning = `${result.sizeCompared ? 'Boyut karşılaştırıldı' : 'Dosya boyutu ölçüldü'}; ffprobe olmadığı için medya yapısı doğrulanamadı.`;
+      if (deep) throw new VerificationError(m('e.ffprobe-is-needed-for-deep-media'));
+      result.status = 'limited'; result.warning = m('e.verify.no-probe', { what: m(result.sizeCompared ? 'e.verify.size-compared' : 'e.verify.size-measured') });
     } else {
       try { result.media = await probe(file, toolsDirectory, media.expectedDuration, signal, media); }
       catch (error) { if (signal?.aborted) throw error; throw new VerificationError(error.message); }
-      if (media.expectedHeight && result.media.height !== media.expectedHeight) throw new VerificationError('Çıktının çözünürlüğü seçilmiş kaynakla eşleşmiyor.');
+      if (media.expectedHeight && result.media.height !== media.expectedHeight) throw new VerificationError(m('e.the-resolution-of-the-output-does'));
       result.level = 'media';
       if (deep) {
-        if (!fs.existsSync(path.join(toolsDirectory, 'ffmpeg.exe'))) throw new VerificationError('Derin doğrulama için FFmpeg gerekli.');
+        if (!fs.existsSync(path.join(toolsDirectory, 'ffmpeg.exe'))) throw new VerificationError(m('e.ffmpeg-is-needed-for-deep-verification'));
         onDeep();
         try { await decoder(file, toolsDirectory, signal); }
         catch (error) { if (signal?.aborted) throw error; throw new VerificationError(error.message); }

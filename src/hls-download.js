@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Transform } from 'node:stream';
@@ -33,7 +34,7 @@ export async function downloadHls({ sources, directory, toolsDirectory, signal, 
   };
   for (const [track, source] of sources.entries()) {
     const playlist = source.hlsPlaylist || await readHls({ url: source.url, signal: combined, request, headers: headersFor(source.url), recovery: { ...recovery, onRetry: retry(source.url) } });
-    if (!playlist || playlist.variants.length || playlist.live) throw new Error('Seçilen HLS varyantı sonlu bir medya listesi değil; başka kalite indirilmedi.');
+    if (!playlist || playlist.variants.length || playlist.live) throw new Error(m('e.the-chosen-hls-variant-is-not'));
     const pieces = [...(playlist.map ? [{ url: playlist.map, init: true }] : []), ...playlist.segments];
     let next = 0;
     const names = pieces.map((piece, index) => `${track}-${index}.${playlist.map ? 'mp4' : 'ts'}`);
@@ -64,18 +65,18 @@ export async function downloadHls({ sources, directory, toolsDirectory, signal, 
             deadline.throwIfAborted();
             ({ response } = await request(piece.url, deadline, headersFor(piece.url)));
             active++;
-            if ([401, 403, 410].includes(response.statusCode)) throw new SourceExpiredError('HLS kaynak adresi yenilenmeli.');
-            if (response.statusCode !== 200) throw new RemoteResponseError(response.statusCode, response.headers, 'HLS parçası');
-            if (/text\/html|application\/(?:json|xml)/i.test(response.headers['content-type'] || '')) throw new Error('HLS parçası yerine medya dışı yanıt alındı; çıktı yayınlanmadı.');
+            if ([401, 403, 410].includes(response.statusCode)) throw new SourceExpiredError(m('e.the-hls-source-address-must-be'));
+            if (response.statusCode !== 200) throw new RemoteResponseError(response.statusCode, response.headers, m('e.resource.hls-segment'));
+            if (/text\/html|application\/(?:json|xml)/i.test(response.headers['content-type'] || '')) throw new Error(m('e.a-non-media-response-was-received'));
             const expected = Number(response.headers['content-length']) || null;
             let bytes = 0;
             const meter = new Transform({ transform(chunk, _encoding, callback) {
               bytes += chunk.length; networkBytes += chunk.length;
-              if (bytes > 128 * 1048576) { callback(new Error('HLS parça boyutu sınırı aşıldı.')); return; }
+              if (bytes > 128 * 1048576) { callback(new Error(m('e.the-hls-segment-size-limit-was'))); return; }
               Promise.resolve(throttle?.(chunk.length, deadline)).then(() => { inflight.set(target, bytes); progress(); callback(null, chunk); }, callback);
             } });
             await pipeline(response, meter, fs.createWriteStream(partial, { flags: 'wx' }), { signal: deadline });
-            if (!bytes || (expected && expected !== bytes)) throw new IncompleteResourceError('HLS parçası eksik; çıktı yayınlanmadı.');
+            if (!bytes || (expected && expected !== bytes)) throw new IncompleteResourceError(m('e.an-hls-segment-is-missing-the'));
             deadline.throwIfAborted();
             await publishFile(partial, target, deadline); // works on non-hardlink filesystems too; never overwrites a committed piece
             received += bytes;
@@ -114,7 +115,7 @@ export async function downloadHls({ sources, directory, toolsDirectory, signal, 
     // Do not echo media-controlled text (URLs/session data) from FFmpeg.
     child.stderr.on('data', () => {});
     child.on('error', reject);
-    child.on('close', code => signal.aborted ? reject(signal.reason) : code === 0 ? resolve() : reject(new Error('HLS dosyası birleştirilemedi; parçalar korundu.')));
+    child.on('close', code => signal.aborted ? reject(signal.reason) : code === 0 ? resolve() : reject(new Error(m('e.the-hls-file-could-not-be'))));
   });
   return { output, staging };
 }

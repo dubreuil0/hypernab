@@ -1,4 +1,5 @@
 // Small, provider-independent HLS reader. No external resolver and no URL guessing.
+import { m } from './messages.js';
 import { requestRemote } from './network.js';
 import { parseRemoteUrl } from './security.js';
 import { recoverRead, RemoteResponseError, IncompleteResourceError } from './recovery.js';
@@ -21,7 +22,7 @@ export function parseHls(text, base) {
     const line = raw.trim();
     if (/^#EXT-X-(?:SESSION-)?KEY:/.test(line)) {
       const attrs = hlsAttributes(line);
-      if (attrs.METHOD !== 'NONE') throw new Error('Şifreli/DRM korumalı HLS bu okuyucuda desteklenmiyor; koruma kaldırılmadı.');
+      if (attrs.METHOD !== 'NONE') throw new Error(m('e.encrypted-drm-protected-hls-is-not'));
     }
     if (line.startsWith('#EXT-X-MEDIA:')) {
       const a = hlsAttributes(line);
@@ -30,9 +31,9 @@ export function parseHls(text, base) {
     } else if (line.startsWith('#EXT-X-STREAM-INF:')) pending = hlsAttributes(line);
     else if (line.startsWith('#EXT-X-MAP:')) {
       const a = hlsAttributes(line);
-      if (a.BYTERANGE || (map && map !== address(a.URI, base))) throw new Error('Değişen veya byte-range HLS başlangıç parçası henüz desteklenmiyor.');
+      if (a.BYTERANGE || (map && map !== address(a.URI, base))) throw new Error(m('e.a-changing-or-byte-range-hls'));
       map = address(a.URI, base);
-    } else if (/^#EXT-X-(?:BYTERANGE|GAP|DISCONTINUITY)(?::|$)/.test(line)) throw new Error('Byte-range, eksik veya süreksiz HLS parçaları henüz desteklenmiyor.');
+    } else if (/^#EXT-X-(?:BYTERANGE|GAP|DISCONTINUITY)(?::|$)/.test(line)) throw new Error(m('e.byte-range-missing-or-discontinuous-hls'));
     else if (line.startsWith('#EXTINF:')) duration = positive(line.slice(8).split(',')[0]);
     else if (line && !line.startsWith('#')) {
       const url = address(line, base);
@@ -47,10 +48,10 @@ export function parseHls(text, base) {
         pending = null;
       } else if (duration) { segments.push({ url, duration }); duration = null; }
     }
-    if (variants.length > 256 || segments.length > 100000) throw new Error('HLS liste sınırı aşıldı.');
+    if (variants.length > 256 || segments.length > 100000) throw new Error(m('e.the-hls-list-limit-was-exceeded'));
   }
-  if (pending || duration !== null) throw new IncompleteResourceError('HLS listesi tamamlanmadan kesildi.');
-  if (!variants.length && !segments.length) throw new Error('HLS listesinde kullanılabilir akış yok.');
+  if (pending || duration !== null) throw new IncompleteResourceError(m('e.the-hls-list-was-cut-off'));
+  if (!variants.length && !segments.length) throw new Error(m('e.the-hls-list-has-no-usable'));
   return { variants, audios, subtitles, segments, map, duration: segments.length ? segments.reduce((n, s) => n + s.duration, 0) : null, live: !variants.length && !/#EXT-X-ENDLIST(?:\s|$)/m.test(text) };
 }
 
@@ -67,10 +68,10 @@ export async function readHlsResponse(response, base, signal) {
       if (prefix.length < 32) prefix = Buffer.concat([prefix, Buffer.from(chunk).subarray(0, 32 - prefix.length)]);
       const head = prefix.toString('utf8');
       if (bytes >= 12 && !/^\uFEFF?#EXTM3U(?:\s|$)/.test(head)) return null;
-      if (bytes > MAX) throw new Error('HLS liste boyutu sınırı aşıldı.');
+      if (bytes > MAX) throw new Error(m('e.the-hls-list-size-limit-was'));
     }
     const expected = Number(response.headers?.['content-length']);
-    if (expected > 0 && expected !== bytes) throw new IncompleteResourceError('HLS listesi eksik alındı.');
+    if (expected > 0 && expected !== bytes) throw new IncompleteResourceError(m('e.the-hls-list-was-received-incompletely'));
     return parseHls(Buffer.concat(chunks).toString('utf8'), base);
   } finally { signal?.removeEventListener('abort', abort); response.destroy(); }
 }
@@ -83,8 +84,8 @@ export async function readHls({ url, headers = {}, signal, request = requestRemo
       if (result.response.statusCode !== 200) {
         const { statusCode, headers: responseHeaders } = result.response;
         result.response.destroy();
-        if ([401, 403, 410].includes(statusCode)) throw new SourceExpiredError(`HTTP ${statusCode}: HLS kaynak adresi/erişimi yenilenmeli.`);
-        throw new RemoteResponseError(statusCode, responseHeaders, 'HLS listesi');
+        if ([401, 403, 410].includes(statusCode)) throw new SourceExpiredError(m('e.http-code-the-hls-source-address', { code: statusCode }));
+        throw new RemoteResponseError(statusCode, responseHeaders, m('e.resource.hls-list'));
       }
       return await readHlsResponse(result.response, String(result.url || url), combined);
     } catch (error) { combined.throwIfAborted(); throw error; }

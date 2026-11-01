@@ -5,6 +5,7 @@ const { spawn } = require('node:child_process');
 const { openJobLocation, playJob } = require('./job-location.cjs');
 const { TrayPanel } = require('./tray-panel.cjs');
 const { Updater } = require('./updater.cjs');
+const { t, setLanguage } = require('./texts.cjs');
 if (process.env.HD_DESKTOP_TEST === '1' && process.env.HD_DESKTOP_PROFILE) app.setPath('userData', process.env.HD_DESKTOP_PROFILE);
 app.setAppUserModelId('com.hypernab.desktop'); // Windows shows the app's own name and icon on notifications and the taskbar
 
@@ -24,23 +25,23 @@ let trayClickTimer = null, lastTrayDoubleClick = 0;
 async function request(route, body) {
   token ||= fs.readFileSync(path.join(data, 'pairing-token'), 'utf8').trim();
   const response = await fetch(origin + route, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(5000) });
-  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Uygulamaya bağlanılamadı.'); return result;
+  const result = await response.json(); if (!response.ok) throw new Error(result.error || t('desk.err.connect')); return result;
 }
 async function startEngine() {
   try { const status = await request('/api/status'); instanceId = status.instanceId; return; } catch {}
   // A listener with a different data directory must never be replaced or killed.
-  if (await fetch(origin, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false)) throw new Error('Başka bir Hypernab motoru açık. Önce eski uygulamayı kapatın. İndirmeleriniz korunuyor.');
+  if (await fetch(origin, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false)) throw new Error(t('desk.err.otherEngine'));
   fs.mkdirSync(data, { recursive: true });
   engine = spawn(node, [path.join(root, 'src/server.js')], { cwd: root, env: { ...process.env, HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads, HYPERNAB_LOCALE: app.getLocale() }, windowsHide: true, stdio: 'ignore' });
   let error; engine.on('error', e => { error = e; });
   owned = true;
   for (let i = 0; i < 80; i++) {
     if (error) throw error;
-    if (engine.exitCode !== null) throw new Error('İndirme motoru başlatılamadı.');
+    if (engine.exitCode !== null) throw new Error(t('desk.err.engineStart'));
     try { const status = await request('/api/status'); instanceId = status.instanceId; return; } catch {}
     await new Promise(resolve => setTimeout(resolve, 150));
   }
-  throw new Error('İndirme motoru zamanında hazır olmadı.');
+  throw new Error(t('desk.err.engineLate'));
 }
 function show() { clearTimeout(trayClickTimer); trayPanel?.close(); if (window) { window.show(); if (window.isMinimized()) window.restore(); window.focus(); } }
 async function quit(finish) {
@@ -57,7 +58,7 @@ async function quit(finish) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       await request('/api/app/shutdown', { confirm: true, instanceId });
-    } catch (error) { dialog.showErrorBox('İndirmeler korunuyor', `Motor güvenle kapatılamadı: ${error.message}`); return; }
+    } catch (error) { dialog.showErrorBox(t('desk.keptTitle'), t('desk.err.shutdown', { message: error.message })); return; }
   }
   quitting = true; typeof finish === 'function' ? finish() : app.quit(); // a menu click passes an event object here, not a function
 }
@@ -88,7 +89,12 @@ function saveWindowState(win) {
     fs.renameSync(`${windowStateFile}.tmp`, windowStateFile);
   } catch { /* remembering the window is optional */ }
 }
-async function loadSettings() { try { settings = { ...settings, ...await request('/api/settings') }; } catch { /* keep the last known values */ } }
+// The desktop texts follow the app's interface language; the tray menu is rebuilt when it changes.
+let menuLanguage = null, rebuildMenu = () => {};
+async function loadSettings() {
+  try { settings = { ...settings, ...await request('/api/settings') }; } catch { /* keep the last known values */ }
+  if (settings.interfaceLanguageResolved && settings.interfaceLanguageResolved !== menuLanguage) { menuLanguage = settings.interfaceLanguageResolved; setLanguage(menuLanguage); rebuildMenu(); }
+}
 
 // "Finished" / "failed" notices, only for changes seen while the app runs (never for history loaded at start).
 const lastStatus = new Map();
@@ -103,8 +109,8 @@ async function watchJobs() {
       const before = lastStatus.get(job.id); lastStatus.set(job.id, job.status);
       if (!before || before === job.status || !settings.notifyOnFinish || !Notification.isSupported()) continue;
       const name = job.title && job.title !== 'video' ? job.title : job.host;
-      const notice = job.status === 'completed' ? { title: 'İndirme tamamlandı', body: name }
-        : job.status === 'failed' ? { title: 'İndirme tamamlanamadı', body: `${name}\n${job.error || ''}`.trim() } : null;
+      const notice = job.status === 'completed' ? { title: t('desk.notice.done'), body: name }
+        : job.status === 'failed' ? { title: t('desk.notice.failed'), body: `${name}\n${job.error || ''}`.trim() } : null;
       if (!notice) continue;
       const toast = new Notification({ ...notice, icon: iconFile, silent: false });
       toast.on('click', show); toast.show();
@@ -147,7 +153,7 @@ else {
     window.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
     const fromApp = event => {
       const url = new URL(event.senderFrame.url);
-      if (url.origin !== origin || url.pathname !== '/') throw new Error('Geçersiz pencere.');
+      if (url.origin !== origin || url.pathname !== '/') throw new Error(t('desk.err.window'));
     };
     ipcMain.handle('desktop:settings', event => {
       fromApp(event);
@@ -164,14 +170,14 @@ else {
       if (command === 'startup' && typeof value === 'boolean' && app.isPackaged) { app.setLoginItemSettings({ openAtLogin: value, args: ['--startup'] }); return true; }
       if (command === 'settings-changed') { await loadSettings(); return true; }
       if (command === 'pick-folder') {
-        const result = await dialog.showOpenDialog(window, { title: 'İndirme klasörünü seç', defaultPath: await currentDownloads(), properties: ['openDirectory', 'createDirectory'] });
+        const result = await dialog.showOpenDialog(window, { title: t('desk.pickFolder'), defaultPath: await currentDownloads(), properties: ['openDirectory', 'createDirectory'] });
         return result.canceled ? null : result.filePaths[0] || null;
       }
       if (command === 'native') {
         const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/install-native.js')).href);
         return installNative({ rootDirectory: root, nodePath: node, dataDirectory: data, downloadDirectory: downloads, desktopExecutable: app.isPackaged ? process.execPath : undefined });
       }
-      throw new Error('Geçersiz masaüstü komutu.');
+      throw new Error(t('desk.err.command'));
     });
     trayPanel = new TrayPanel({ BrowserWindow, screen: require('electron').screen, origin,
       onRefresh: watchJobs, onOpen: show, onAction: body => request('/api/queue/bulk', body) });
@@ -190,7 +196,13 @@ else {
     tray.on('double-click', () => { lastTrayDoubleClick = Date.now(); show(); });
     // Automated acceptance uses only this isolated instance's native tray event.
     if (process.env.HD_DESKTOP_TEST === '1') globalThis.__hypernabTestTray = tray;
-    tray.setContextMenu(Menu.buildFromTemplate([{ label: 'Hızlı panel', click: quickPanel }, { label: 'Hypernab’ı aç', click: show }, { label: 'İndirme klasörü', click: async () => shell.openPath(await currentDownloads()) }, { type: 'separator' }, { label: 'Tümünü duraklat', click: () => action('/api/queue/bulk', { action: 'pause', all: true }) }, { label: 'Tümünü sürdür', click: () => action('/api/queue/bulk', { action: 'resume', all: true }) }, { type: 'separator' }, { label: 'Güncellemeleri denetle', click: () => { if (updater) void updater.check(true); else void dialog.showMessageBox({ type: 'info', message: 'Güncelleme denetimi yalnızca kurulu sürümde çalışır.' }); } }, { label: 'Çıkış', click: () => quit() }]));
+    rebuildMenu = () => {
+      if (!tray) return;
+      tray.setContextMenu(Menu.buildFromTemplate([{ label: t('desk.menu.quick'), click: quickPanel }, { label: t('desk.menu.open'), click: show }, { label: t('app.dir'), click: async () => shell.openPath(await currentDownloads()) }, { type: 'separator' },
+        { label: t('app.pauseAll'), click: () => action('/api/queue/bulk', { action: 'pause', all: true }) }, { label: t('app.resumeAll'), click: () => action('/api/queue/bulk', { action: 'resume', all: true }) }, { type: 'separator' },
+        { label: t('desk.menu.update'), click: () => { if (updater) void updater.check(true); else void dialog.showMessageBox({ type: 'info', message: t('desk.update.installedOnly') }); } }, { label: t('desk.menu.quit'), click: () => quit() }]));
+    };
+    rebuildMenu();
     await window.loadURL(origin);
     engine?.once('exit', code => { if (code === 0 && !quitting) { quitting = true; app.quit(); } }); // explicit Native shutdown must also close the owning desktop
     windowReady = true;
@@ -200,5 +212,5 @@ else {
       try { const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/install-native.js')).href); installNative({ rootDirectory: root, nodePath: node, dataDirectory: data, downloadDirectory: downloads, desktopExecutable: process.execPath }); }
       catch { /* Repair is available in Settings; HTTP pairing remains available. */ }
     }
-  }).catch(error => { dialog.showErrorBox('Hypernab açılamadı', error.message); quitting = true; app.quit(); });
+  }).catch(error => { dialog.showErrorBox(t('desk.err.startTitle'), error.message); quitting = true; app.quit(); });
 }

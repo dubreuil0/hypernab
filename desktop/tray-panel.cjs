@@ -1,3 +1,4 @@
+const { t } = require('./texts.cjs');
 const path = require('node:path');
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const pauseable = job => ['running', 'queued'].includes(job.status);
@@ -40,7 +41,7 @@ class TrayPanel {
   async toggle(anchor) {
     if (this.window && !this.window.isDestroyed()) { this.close(); return; }
     const area = this.screen.getDisplayMatching(anchor).workArea;
-    const win = new this.BrowserWindow({ ...panelBounds(anchor, area), title: 'Hypernab Hızlı Panel', frame: false,
+    const win = new this.BrowserWindow({ ...panelBounds(anchor, area), title: t('desk.panel.title'), frame: false,
       show: false, resizable: false, minimizable: false, maximizable: false, fullscreenable: false,
       skipTaskbar: true, alwaysOnTop: true, hasShadow: false, roundedCorners: false,
       backgroundColor: '#0e1113', autoHideMenuBar: true,
@@ -67,14 +68,14 @@ class TrayPanel {
   fail() { if (this.visible) this.window.webContents.send('tray:state', { connected: false }); }
   async command(event, command, id) {
     const win = this.window;
-    if (!win || win.isDestroyed() || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || event.senderFrame.url !== `${this.origin}/tray.html`) throw new Error('Geçersiz panel.');
+    if (!win || win.isDestroyed() || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || event.senderFrame.url !== `${this.origin}/tray.html`) throw new Error(t('desk.err.panel'));
     if (command === 'close') { this.close(); return true; }
     if (command === 'open') { this.close(); this.onOpen(); return true; }
     if (command === 'refresh') { await this.onRefresh(); return true; }
-    if (!['pause', 'resume', 'pause-all', 'resume-all'].includes(command)) throw new Error('Geçersiz panel işlemi.');
+    if (!['pause', 'resume', 'pause-all', 'resume-all'].includes(command)) throw new Error(t('desk.err.panelAction'));
     const all = command.endsWith('-all');
-    if ((!all && (typeof id !== 'string' || !ID.test(id))) || (all && id !== undefined)) throw new Error('Geçersiz indirme kimliği.');
-    if (this.busy) throw new Error('İşlem sürüyor.');
+    if ((!all && (typeof id !== 'string' || !ID.test(id))) || (all && id !== undefined)) throw new Error(t('desk.err.jobId'));
+    if (this.busy) throw new Error(t('desk.err.busy'));
     this.busy = true;
     try {
       const result = await this.onAction({ action: command.startsWith('pause') ? 'pause' : 'resume', ...(all ? { all: true } : { ids: [id] }) });

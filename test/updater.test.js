@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const { Updater, busy } = createRequire(import.meta.url)('../desktop/updater.cjs');
+createRequire(import.meta.url)('../desktop/texts.cjs').setLanguage('tr'); // these tests read the Turkish texts
 
 function fixture({ latest = '0.10.24', answers = [0, 0], fail = false } = {}) {
   const calls = [], queue = [...answers], messages = [];

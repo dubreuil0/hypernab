@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -47,13 +48,13 @@ export class HistoryStore {
   location(id) {
     try {
       const row = this.open() && this.lookup.get(id);
-      if (!row) throw new Error('Geçmiş kaydı bulunamadı.');
+      if (!row) throw new Error(m('e.history-entry-not-found'));
       return { directory: row.directory, file: row.file };
     } finally { this.release(); }
   }
   async page({ search = '', cursor = null } = {}) {
-    if (typeof search !== 'string' || search.length > 200 || (cursor !== null && (!/^\d{1,16}$/.test(String(cursor)) || !Number.isSafeInteger(Number(cursor)) || Number(cursor) < 1))) throw new Error('Geçmiş araması geçersiz.');
-    if (this.workers.size >= 2) throw new Error('Geçmiş okunuyor; biraz bekle.');
+    if (typeof search !== 'string' || search.length > 200 || (cursor !== null && (!/^\d{1,16}$/.test(String(cursor)) || !Number.isSafeInteger(Number(cursor)) || Number(cursor) < 1))) throw new Error(m('e.invalid-history-search'));
+    if (this.workers.size >= 2) throw new Error(m('e.the-history-is-being-read-wait'));
     this.open(); this.release();
     // Searches run outside the engine thread. Only 50 rows reach the renderer, even with years of history.
     return new Promise((resolve, reject) => {
@@ -64,7 +65,7 @@ export class HistoryStore {
       worker.once('error', reject);
       worker.once('exit', code => {
         this.workers.delete(worker);
-        if (code || !result) reject(new Error('Geçmiş okunamadı.'));
+        if (code || !result) reject(new Error(m('e.the-history-could-not-be-read')));
         else if (result.error) reject(new Error(result.error));
         else resolve(result);
       });
@@ -89,6 +90,6 @@ if (!isMainThread && workerData?.file) {
       .all(workerData.cursor === null ? Number.MAX_SAFE_INTEGER : Number(workerData.cursor), `%${term}%`);
     const page = rows.slice(0, 50);
     parentPort.postMessage({ entries: page.map(fields), cursor: rows.length > 50 ? String(page.at(-1).sequence) : null });
-  } catch { parentPort.postMessage({ error: 'Geçmiş okunamadı. Kayıt dosyası korunuyor.' }); }
+  } catch { parentPort.postMessage({ error: m('e.the-history-could-not-be-read-2') }); }
   finally { db?.close(); }
 }

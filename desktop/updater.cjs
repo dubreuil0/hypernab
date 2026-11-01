@@ -1,5 +1,6 @@
 // Update flow: nothing is downloaded or installed without the user's click, and never while a transfer is running.
 // The package comes from the project's GitHub release; electron-updater checks its SHA-512 against latest.yml.
+const { t } = require('./texts.cjs');
 const busy = jobs => jobs.some(job => job.settling || ['queued', 'running'].includes(job.status));
 
 class Updater {
@@ -12,7 +13,7 @@ class Updater {
   }
   async check(manual = false) {
     if (this.state === 'checking' || this.state === 'downloading') {
-      if (manual) await this.dialog.showMessageBox({ type: 'info', message: 'Güncelleme işlemi zaten sürüyor.' });
+      if (manual) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.busy') });
       return this.state;
     }
     if (this.state === 'ready') { this.pending = true; return this.state; }
@@ -22,19 +23,19 @@ class Updater {
       const next = result?.updateInfo?.version;
       if (!next || !this.newer(next)) {
         this.state = 'idle';
-        if (manual) await this.dialog.showMessageBox({ type: 'info', message: 'Hypernab güncel.', detail: `Kurulu sürüm: ${this.version}` });
+        if (manual) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.current'), detail: t('desk.update.installed', { version: this.version }) });
         return this.state;
       }
       this.state = 'available';
-      const answer = await this.dialog.showMessageBox({ type: 'question', buttons: ['İndir', 'Sonra'], defaultId: 0, cancelId: 1,
-        message: `Yeni sürüm hazır: ${next}`, detail: 'İndirme sırasında indirmelerin kesilmez. Kurulum için uygulama yeniden açılır; yarım indirmeler korunur.' });
+      const answer = await this.dialog.showMessageBox({ type: 'question', buttons: [t('app.download'), t('desk.update.later')], defaultId: 0, cancelId: 1,
+        message: t('desk.update.available', { version: next }), detail: t('desk.update.availableDetail') });
       if (answer.response !== 0) { this.state = 'idle'; return this.state; }
       this.state = 'downloading';
       await this.autoUpdater.downloadUpdate();
       this.state = 'ready'; this.pending = true; this.asked = false;
     } catch (error) {
       this.state = 'idle'; this.log(error);
-      if (manual) await this.dialog.showMessageBox({ type: 'warning', message: 'Güncelleme denetlenemedi.', detail: 'İnternet bağlantını kontrol edip tekrar dene. Mevcut sürüm çalışmaya devam ediyor.' });
+      if (manual) await this.dialog.showMessageBox({ type: 'warning', message: t('desk.update.checkFailed'), detail: t('desk.update.checkFailedDetail') });
     }
     return this.state;
   }
@@ -49,8 +50,8 @@ class Updater {
   async idle(jobs) {
     if (this.state !== 'ready' || !this.pending || this.asked || busy(jobs)) return false;
     this.asked = true;
-    const answer = await this.dialog.showMessageBox({ type: 'question', buttons: ['Şimdi yeniden başlat', 'Sonra'], defaultId: 0, cancelId: 1,
-      message: 'Güncelleme kuruluma hazır.', detail: 'Aktif indirme yok. Bekleyen işler ve ayarların korunur.' });
+    const answer = await this.dialog.showMessageBox({ type: 'question', buttons: [t('desk.update.restart'), t('desk.update.later')], defaultId: 0, cancelId: 1,
+      message: t('desk.update.ready'), detail: t('desk.update.readyDetail') });
     if (answer.response !== 0) { this.pending = false; return false; }
     await this.onInstall(() => this.autoUpdater.quitAndInstall(true, true));
     return true;

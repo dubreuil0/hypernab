@@ -1,6 +1,7 @@
 // Browser-side capture for pages yt-dlp cannot resolve (JavaScript players, iframes, anti-bot pages).
 // Opens the page in a real, throw-away browser profile, lets the player start and records the media
 // requests the page itself makes, like a download manager's network sniffer. Provider-agnostic.
+import { m } from './messages.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,7 +43,7 @@ export function pickCandidates(found) {
 class Cdp {
   constructor(url) {
     this.socket = new WebSocket(url); this.id = 0; this.pending = new Map(); this.handlers = [];
-    this.ready = new Promise((resolve, reject) => { this.socket.addEventListener('open', resolve, { once: true }); this.socket.addEventListener('error', () => reject(new Error('Tarayıcı kontrol bağlantısı kurulamadı.')), { once: true }); });
+    this.ready = new Promise((resolve, reject) => { this.socket.addEventListener('open', resolve, { once: true }); this.socket.addEventListener('error', () => reject(new Error(m('e.the-browser-control-connection-could-not'))), { once: true }); });
     this.socket.addEventListener('message', event => {
       const message = JSON.parse(event.data);
       if (message.id && this.pending.has(message.id)) { const { resolve, reject } = this.pending.get(message.id); this.pending.delete(message.id); message.error ? reject(new Error(message.error.message)) : resolve(message.result); }
@@ -71,7 +72,7 @@ const PLAY_SCRIPT = `(() => {
 export async function sniffPage(pageUrl, { signal, timeoutMs = 40000, challengeGraceMs = 10000, headless = true, browser = findBrowser(), tick = ms => wait(ms, signal) } = {}) {
   const page = parseRemoteUrl(pageUrl);
   await resolveRemote(page.href);
-  if (!browser) throw new Error('Sayfa yakalama için Edge, Chrome veya Brave gerekli; bilgisayarda bulunamadı.');
+  if (!browser) throw new Error(m('e.edge-chrome-or-brave-is-needed'));
   const profile = path.join(os.tmpdir(), `hypernab-sniff-${randomUUID()}`);
   fs.mkdirSync(profile, { recursive: true });
   const stop = new AbortController();
@@ -83,7 +84,7 @@ export async function sniffPage(pageUrl, { signal, timeoutMs = 40000, challengeG
   const deadline = Date.now() + timeoutMs;
   try {
     const portFile = path.join(profile, 'DevToolsActivePort');
-    while (!fs.existsSync(portFile)) { if (Date.now() > deadline || child.exitCode !== null) throw new Error('Tarayıcı başlatılamadı.'); await tick(150); }
+    while (!fs.existsSync(portFile)) { if (Date.now() > deadline || child.exitCode !== null) throw new Error(m('e.the-browser-could-not-be-started')); await tick(150); }
     await tick(100);
     const [port, wsPath] = fs.readFileSync(portFile, 'utf8').split(/\r?\n/);
     cdp = new Cdp(`ws://127.0.0.1:${port}${wsPath}`); await cdp.ready;

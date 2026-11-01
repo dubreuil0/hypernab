@@ -1,3 +1,4 @@
+import { m } from './messages.js';
 import http from 'node:http';
 import https from 'node:https';
 import { resolveRemote } from './security.js';
@@ -7,7 +8,7 @@ export class NetworkStallError extends Error {}
 
 // Shared by sequential and range transfers. Every redirect gets its own DNS check.
 export async function requestRemote(raw, signal, headers = {}, redirects = 0, budget = null) {
-  if (redirects > 5) throw new Error('Çok fazla yönlendirme.');
+  if (redirects > 5) throw new Error(m('e.too-many-redirects'));
   const { url, records } = await resolveRemote(raw);
   signal?.throwIfAborted();
   const transport = url.protocol === 'https:' ? https : http;
@@ -20,13 +21,13 @@ export async function requestRemote(raw, signal, headers = {}, redirects = 0, bu
     }, res => {
       res.once('end', release); res.once('close', release); res.once('error', release); resolve(res);
     }); } catch (error) { release(); reject(error); return; }
-    req.setTimeout(30000, () => req.destroy(new NetworkStallError('Sunucu 30 saniye boyunca veri göndermedi.')));
+    req.setTimeout(30000, () => req.destroy(new NetworkStallError(m('e.the-server-sent-no-data-for'))));
     req.on('error', error => { release(); reject(error); });
   });
   if ([301, 302, 303, 307, 308].includes(response.statusCode)) {
     const location = response.headers.location;
     response.destroy();
-    if (!location) throw new Error('Yönlendirme adresi eksik.');
+    if (!location) throw new Error(m('e.the-redirect-address-is-missing'));
     const next = new URL(location, url);
     // A session cookie belongs to the origin it was issued for: never forward it to another host or scheme.
     const forward = next.origin === url.origin ? headers : Object.fromEntries(Object.entries(headers).filter(([name]) => !/^(?:cookie|authorization)$/i.test(name)));

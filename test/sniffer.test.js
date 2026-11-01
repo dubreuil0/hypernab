@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { classifyRequest, pickCandidates, findBrowser } from '../src/sniffer.js';
 import { DownloadQueue } from '../src/downloads.js';
-import { cleanMediaError, SESSION_REQUIRED } from '../src/media.js';
+import { cleanMediaError, sessionMessage } from '../src/media.js';
 
 test('istek sınıflandırma: manifest, dosya; parça/görsel/hata elenir', () => {
   assert.equal(classifyRequest({ url: 'https://cdn.example/a/master.m3u8?t=1', mime: 'application/vnd.apple.mpegurl' }).rank, 0);
@@ -52,11 +52,11 @@ test('yalnızca takipçilere/üyelere açık video: anlaşılır "oturum gerekli
     mediaInspector: async () => { throw new Error(cleanMediaError('ERROR: [site] -1_2: Video only available to followers')); },
     pageSniffer: async () => { sniffed++; return { candidates: [] }; }
   });
-  await assert.rejects(queue.inspect({ url: 'https://video.example.org/video-1_2', engine: 'extractor' }), error => error.message === SESSION_REQUIRED);
+  await assert.rejects(queue.inspect({ url: 'https://video.example.org/video-1_2', engine: 'extractor' }), error => error.message === sessionMessage());
   assert.equal(sniffed, 0, 'oturumu olmayan uygulama tarayıcısı denenmez');
   for (const raw of ['ERROR: [site] x: Private video. Sign in if you\'ve been granted access', 'ERROR: [site] login required', 'ERROR: x: This video is only available for registered users'])
-    assert.equal(cleanMediaError(raw), SESSION_REQUIRED, raw);
-  assert.notEqual(cleanMediaError('ERROR: [generic] Unsupported URL: x'), SESSION_REQUIRED);
+    assert.equal(cleanMediaError(raw), sessionMessage(), raw);
+  assert.notEqual(cleanMediaError('ERROR: [generic] Unsupported URL: x'), sessionMessage());
 });
 
 test('çözümleyici sayfayı bulamazsa tarayıcıyla yakalanan kaynak incelenir ve indirme bilgisi döner', async t => {

@@ -3,6 +3,7 @@
 // downloads the first segment's head and lets ffprobe read the real resolution / frame rate / codecs, and estimates the total
 // size from the real sizes of a few segments spread over the playlist. Provider-agnostic; every request goes through the same
 // guarded network layer as downloads (no local addresses). Encrypted or unreadable playlists are simply left unmeasured.
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { requestRemote } from './network.js';
@@ -46,7 +47,7 @@ function runProbe(toolsDirectory, data, signal) {
     child.stderr.on('data', () => {});
     child.stdin.on('error', () => {}); // ffprobe may stop reading early; that is fine
     child.on('error', reject);
-    child.on('close', () => { try { resolve(JSON.parse(output)); } catch { reject(new Error('ffprobe çıktısı okunamadı.')); } });
+    child.on('close', () => { try { resolve(JSON.parse(output)); } catch { reject(new Error(m('e.the-ffprobe-output-could-not-be'))); } });
     child.stdin.end(data);
   });
 }

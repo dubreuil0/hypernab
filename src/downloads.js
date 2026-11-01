@@ -1,3 +1,4 @@
+import { m, setMessageLanguage } from './messages.js';
 import path from 'node:path';
 import { rateLimiter } from './rate-limit.js';
 import fs from 'node:fs';
@@ -15,7 +16,7 @@ import os from 'node:os';
 import { sanitizeCookies, withCookie, writeCookieJar, removeCookieJar } from './session.js';
 import { ProgressMeter, NativeProgress, jobPhase, sourceMeasureKey, estimateBeforeDownload } from './job-progress.js';
 import { SubmissionStore, submissionId } from './submissions.js';
-import { mediaHeaders, baseExtractorArgs, formatSelector, cleanMediaError, SESSION_REQUIRED, sessionRequired, inspectWithExtractor, extractMediaInfo, verifyVideo, mergeMediaFiles } from './media.js';
+import { mediaHeaders, baseExtractorArgs, formatSelector, cleanMediaError, sessionMessage, sessionRequired, inspectWithExtractor, extractMediaInfo, verifyVideo, mergeMediaFiles } from './media.js';
 import { requestRemote, NetworkStallError } from './network.js';
 import { downloadParallel, probeRange, publishFile, RangeUnsupportedError, SourceChangedError, SourceExpiredError, RateLimitedError } from './transfer.js';
 import { selectSourcePlan, sourceHeaders, safeExtension, isManifest } from './source-plan.js';
@@ -37,13 +38,13 @@ export function assertCompleteResponse(response) {
   if (![200, 206].includes(response.statusCode)) {
     const code = response.statusCode;
     response.destroy();
-    throw new Error(cleanMediaError(`HTTP ${code}. Sunucu indirme isteğini reddetti.`));
+    throw new Error(cleanMediaError(m('e.http-code-the-server-refused-the', { code })));
   }
   if (response.statusCode === 206 || response.headers['content-range']) {
     const range = /^bytes 0-(\d+)\/(\d+)$/.exec(response.headers['content-range'] || '');
     if (!range || BigInt(range[1]) + 1n !== BigInt(range[2])) {
       response.destroy();
-      throw new Error('Bu bağlantı videonun yalnızca bir parçası. Eklentide “Sayfayı incele” ile tam video kaynağını seç.');
+      throw new Error(m('e.this-link-is-only-one-part'));
     }
     response.headers['content-length'] ||= range[2];
   }
@@ -78,7 +79,7 @@ const SETTING_DEFAULTS = {
   closeToTray: true,        // desktop window close button keeps the app in the tray
   startMinimized: false     // when Windows starts the app, keep it in the tray
 };
-const bool = name => value => typeof value === 'boolean' || `${name} açık veya kapalı olmalı.`;
+const bool = nameKey => value => typeof value === 'boolean' || m('e.must-be-on-or-off', { name: m(nameKey) });
 // Only known column ids and bounded numbers are stored; never free-form CSS or markup.
 const LAYOUT_COLUMNS = ['name', 'size', 'speed', 'eta', 'state'], LAYOUT_HIDEABLE = ['size', 'speed', 'eta', 'state'];
 const validLayout = value => value && typeof value === 'object' && !Array.isArray(value)
@@ -90,26 +91,26 @@ const validLayout = value => value && typeof value === 'object' && !Array.isArra
 const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout'];
 const SETTING_CHECKS = {
   interfaceLanguage: value => validInterfaceLanguage(value) || 'Invalid interface language.',
-  subtitleLanguage: value => validSubtitleLanguage(value) || 'Altyazı dili geçersiz.',
-  audioLanguage: value => validAudioLanguage(value) || 'Ses dili geçersiz.',
-  subtitleContainer: value => ['keep', 'mkv'].includes(value) || 'Altyazılı video biçimi geçersiz.',
-  smartNames: bool('Akıllı dosya adı'),
-  folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || 'Klasör düzeni geçersiz.',
-  subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || 'Altyazı seçimi geçersiz.',
-  listLayout: value => validLayout(value) || 'Liste düzeni geçersiz.',
-  appearance: value => ['compact', 'normal'].includes(value) || 'Görünüm geçersiz.',
-  textSize: value => ['small', 'normal', 'large'].includes(value) || 'Yazı boyutu geçersiz.',
-  theme: value => ['dark', 'light', 'system'].includes(value) || 'Tema geçersiz.',
-  accent: value => ['green', 'blue', 'orange', 'violet'].includes(value) || 'Vurgu rengi geçersiz.',
-  downloadDirectory: value => value === null || (typeof value === 'string' && path.isAbsolute(value) && value.length <= 240 && !/[\x00-\x1f<>"|?*]/.test(value.slice(2))) || 'İndirme klasörü tam bir klasör yolu olmalı (ör. D:\\Videolar).',
-  maxQuality: value => value === 'best' || [2160, 1440, 1080, 720, 480, 360].includes(value) || 'Kalite sınırı geçersiz.',
-  preferCompatible: bool('Uyumlu biçim tercihi'),
-  maxConnections: value => (Number.isInteger(value) && value >= 1 && value <= 16) || 'Bağlantı sayısı 1 ile 16 arasında olmalı.',
-  autoRetries: value => (Number.isInteger(value) && value >= 0 && value <= 5) || 'Otomatik yeniden deneme 0 ile 5 arasında olmalı.',
-  deepVerifyDefault: bool('Derin doğrulama'),
-  notifyOnFinish: bool('Bildirim'),
-  closeToTray: bool('Tepsiye küçültme'),
-  startMinimized: bool('Gizli başlatma')
+  subtitleLanguage: value => validSubtitleLanguage(value) || m('e.invalid-subtitle-language'),
+  audioLanguage: value => validAudioLanguage(value) || m('e.invalid-sound-language'),
+  subtitleContainer: value => ['keep', 'mkv'].includes(value) || m('e.invalid-video-format-for-subtitles'),
+  smartNames: bool('e.name.smart-names'),
+  folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || m('e.invalid-folder-layout'),
+  subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || m('e.invalid-subtitle-choice'),
+  listLayout: value => validLayout(value) || m('e.invalid-list-layout'),
+  appearance: value => ['compact', 'normal'].includes(value) || m('e.invalid-appearance'),
+  textSize: value => ['small', 'normal', 'large'].includes(value) || m('e.invalid-text-size'),
+  theme: value => ['dark', 'light', 'system'].includes(value) || m('e.invalid-theme'),
+  accent: value => ['green', 'blue', 'orange', 'violet'].includes(value) || m('e.invalid-accent-color'),
+  downloadDirectory: value => value === null || (typeof value === 'string' && path.isAbsolute(value) && value.length <= 240 && !/[\x00-\x1f<>"|?*]/.test(value.slice(2))) || m('e.the-download-folder-must-be-a'),
+  maxQuality: value => value === 'best' || [2160, 1440, 1080, 720, 480, 360].includes(value) || m('e.invalid-quality-limit'),
+  preferCompatible: bool('e.name.compatible'),
+  maxConnections: value => (Number.isInteger(value) && value >= 1 && value <= 16) || m('e.the-number-of-connections-must-be'),
+  autoRetries: value => (Number.isInteger(value) && value >= 0 && value <= 5) || m('e.automatic-retries-must-be-between-0'),
+  deepVerifyDefault: bool('e.name.deep-verify'),
+  notifyOnFinish: bool('e.name.notification'),
+  closeToTray: bool('e.name.tray'),
+  startMinimized: bool('e.name.hidden')
 };
 // A chosen folder must exist (or be creatable) and accept files, before any download is sent there.
 function usableDirectory(dir) {
@@ -117,7 +118,7 @@ function usableDirectory(dir) {
     fs.mkdirSync(dir, { recursive: true });
     const probe = path.join(dir, `.hypernab-write-test-${randomUUID()}`);
     fs.writeFileSync(probe, '', { flag: 'wx' }); fs.rmSync(probe);
-  } catch { throw new Error('Bu klasöre yazılamıyor. Başka bir klasör seç.'); }
+  } catch { throw new Error(m('e.this-folder-cannot-be-written-to')); }
 }
 
 // An upload id is a UUID the browser made up; anything else simply means no upload.
@@ -169,7 +170,7 @@ export class DownloadQueue {
       this.jobs = JSON.parse(fs.readFileSync(stateFile, 'utf8')).map(job => ({
         ...job, resumeRequested: false, speed: 0, status: ['queued', 'running'].includes(job.status) ? 'interrupted' : job.status,
         sizeKind: job.sizeKind || (job.total > 0 ? job.status === 'completed' || job.transfer?.method === 'parallel-http' ? 'exact' : 'approx' : 'unknown'),
-        error: ['queued', 'running'].includes(job.status) ? 'Uygulama kapandı; yeniden deneyebilirsin.' : job.error
+        error: ['queued', 'running'].includes(job.status) ? m('e.the-app-was-closed-you-can') : job.error
       }));
     } catch { /* First launch; no queue yet. */ }
     for (const job of this.jobs) {
@@ -206,6 +207,7 @@ export class DownloadQueue {
       // The first version saved "embed only" as the default; the default is now "embed + side .srt": a file still holding the old value moves over once.
       if (saved.settingsVersion !== 2 && this.settings.subtitleMode === 'embed') this.settings.subtitleMode = 'both';
     } catch { /* defaults: one at a time */ }
+    setMessageLanguage(this.interfaceLanguage());
     this.queueRunning = false;
     this.runningQueue = null;
     this.limiters = new Map();
@@ -234,9 +236,9 @@ export class DownloadQueue {
 
   location(id) {
     const job = this.jobs.find(item => item.id === id);
-    if (!job) throw new Error('İndirme bulunamadı.');
+    if (!job) throw new Error(m('e.download-not-found'));
     const directory = this.dirOf(job);
-    if (!path.isAbsolute(directory)) throw new Error('İndirme konumu geçersiz.');
+    if (!path.isAbsolute(directory)) throw new Error(m('e.the-download-location-is-invalid'));
     // Partial files are never executed or selected as if they were finished.
     return { directory, file: job.status === 'completed' ? job.file : null };
   }
@@ -298,7 +300,7 @@ export class DownloadQueue {
   }
 
   validateIds(ids) {
-    if (!Array.isArray(ids) || ids.length > 500 || ids.some(id => typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id))) throw new Error('Geçerli indirme kimlikleri seç.');
+    if (!Array.isArray(ids) || ids.length > 500 || ids.some(id => typeof id !== 'string' || !/^[a-f0-9-]{36}$/.test(id))) throw new Error(m('e.choose-valid-download-ids'));
     return new Set(ids);
   }
 
@@ -339,8 +341,8 @@ export class DownloadQueue {
   }
 
   batch(action, { ids, all = false } = {}) {
-    if (!['pause', 'resume', 'cancel'].includes(action)) throw new Error('Geçersiz toplu işlem.');
-    if (typeof all !== 'boolean' || (all && ids !== undefined) || (!all && ids === undefined)) throw new Error('Tüm işler veya belirli bir seçim belirt.');
+    if (!['pause', 'resume', 'cancel'].includes(action)) throw new Error(m('e.invalid-bulk-action'));
+    if (typeof all !== 'boolean' || (all && ids !== undefined) || (!all && ids === undefined)) throw new Error(m('e.specify-all-jobs-or-a-specific'));
     const selected = all ? null : this.validateIds(ids);
     let changed = 0, skipped = 0;
     for (const job of this.jobs) {
@@ -356,7 +358,7 @@ export class DownloadQueue {
   pause(id) { return this.singleAction('pause', id); }
   resume(id) { return this.singleAction('resume', id); }
   singleAction(action, id) {
-    if (!this.jobs.some(job => job.id === id)) throw new Error('İndirme bulunamadı.');
+    if (!this.jobs.some(job => job.id === id)) throw new Error(m('e.download-not-found'));
     return this.batch(action, { ids: [id] });
   }
 
@@ -374,8 +376,8 @@ export class DownloadQueue {
       } catch (error) { if (signal.aborted) throw error; }
     }
     throw new Error(result.challenge
-      ? 'Site, otomatik tarayıcıyı Cloudflare doğrulamasıyla engelledi. Sayfayı kendi tarayıcında açıp videoyu oynat; eklenti kaynağı yakalayıp gönderir.'
-      : `${original.message} Sayfa tarayıcıda açıldı ancak indirilebilir (DRM’siz) bir video isteği görülmedi.`);
+      ? m('e.the-site-blocked-the-automatic-browser')
+      : m('e.message-the-page-was-opened-in', { message: original.message }));
   }
 
   async inspectHls(input, cookies, signal, playlist = null) {
@@ -385,7 +387,7 @@ export class DownloadQueue {
     if (!entry || Date.now() - entry.at > 900000) {
       const request = (target, requestSignal, extra = {}) => this.rangeRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target));
       playlist ||= await readHls({ url, headers, signal, request });
-      if (!playlist) throw new Error('Yakalanan kaynak geçerli bir HLS listesi değil.');
+      if (!playlist) throw new Error(m('e.the-captured-source-is-not-a'));
       const raw = hlsInfo(playlist, url, input.title);
       entry = { raw, at: Date.now(), pending: true };
       this.hlsInspections.set(key, entry);
@@ -414,7 +416,7 @@ export class DownloadQueue {
       engine: 'extractor', resolved: { engine: 'extractor', mediaKind: 'HLS' }, nativeHls: true, inspectionPending: entry.pending, sessionUsed: cookies.length > 0,
       silentStream: entry.raw.silentStream === true, audioOnly: entry.raw.audioOnly === true,
       ...(audioChoices(entry.raw).length ? { audioTracks: audioChoices(entry.raw) } : {}),
-      qualityNote: entry.pending && !options.length ? 'Kalite arka planda ölçülüyor; liste otomatik güncellenecek.' : null };
+      qualityNote: entry.pending && !options.length ? m('e.the-quality-is-being-measured-in') : null };
   }
 
   async inspect(input, signal = AbortSignal.timeout(60000), fromBrowser = false) {
@@ -424,7 +426,7 @@ export class DownloadQueue {
     const cookies = sanitizeCookies(input.cookies, [url, input.pageUrl]);
     if (input.mediaKind === 'HLS' || /\.m3u8(?:\?|$)/i.test(url)) return this.inspectHls(input, cookies, signal);
     if (input.engine !== 'direct') {
-      if (!this.capabilities().ytDlp) throw new Error('Video bilgisi için yt-dlp kurulmalı.');
+      if (!this.capabilities().ytDlp) throw new Error(m('e.yt-dlp-must-be-installed-for'));
       let info, usedCookies = cookies;
       const resolveWith = async list => {
         const jar = writeCookieJar(list, this.cookieDirectory);
@@ -449,7 +451,7 @@ export class DownloadQueue {
       catch (error) {
         // Automatic checks (input.noBrowser) never open a browser window on their own; only a user-pressed inspection may.
         // A sign-in/followers-only video cannot be opened by the app's own browser either (it has no session): say so at once.
-        if (sessionRequired(error.message)) throw new Error(SESSION_REQUIRED);
+        if (sessionRequired(error.message)) throw new Error(sessionMessage());
         if (fromBrowser || input.noBrowser === true || signal.aborted || /DRM/i.test(error.message)) throw error;
         return this.inspectViaBrowser(input, url, error, AbortSignal.timeout(120000));
       }
@@ -460,7 +462,7 @@ export class DownloadQueue {
       info.defaultOptionId = preferredOptionId(info.options, this.settings) ?? info.defaultOptionId;
       const { rawInfo, ...publicInfo } = info;
       this.rememberOffered(url, info.options, usedCookies, rawInfo);
-      return { ...publicInfo, sessionUsed: usedCookies.length > 0, engine: 'extractor', warning: this.capabilities().ffmpeg ? null : 'FFmpeg yok: ayrı ses ve görüntü akışları indirilemez.' };
+      return { ...publicInfo, sessionUsed: usedCookies.length > 0, engine: 'extractor', warning: this.capabilities().ffmpeg ? null : m('e.ffmpeg-is-missing-separate-sound-and') };
     }
     const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, withCookie(headers, cookies, url));
     this.rememberOffered(url, [], cookies);
@@ -468,11 +470,11 @@ export class DownloadQueue {
       const mime = String(response.headers['content-type'] || '');
       const playlist = await readHlsResponse(response, finalUrl.href, signal);
       if (playlist) return this.inspectHls(input, cookies, signal, playlist);
-      if (/text\/html|mpegurl|dash\+xml/i.test(mime)) throw new Error('Bu bir sayfa veya akış listesi. Akış/site motorunu seç.');
+      if (/text\/html|mpegurl|dash\+xml/i.test(mime)) throw new Error(m('e.this-is-a-page-or-a'));
       const extension = mime.includes('video/mp4') ? 'mp4' : mime.includes('video/webm') ? 'webm' : path.extname(finalUrl.pathname).slice(1) || safeExtension(finalUrl.href, mime).replace(/^bin$/, '') || null;
       const filesize = Number(response.headers['content-length']) || null;
       const estimate = estimateBeforeDownload(this.jobs, sourceMeasureKey([{ url: finalUrl.href, protocol: 'https' }]), filesize);
-      return { title: safeTitle(input.title || path.basename(finalUrl.pathname) || 'video'), extension, filesize, ...estimate, estimatedSize: false, heights: [], duration: null, sessionUsed: cookies.length > 0, engine: 'direct', options: [], defaultOptionId: null, qualityNote: 'Doğrudan dosyada seçilebilir kalite yok; dosya olduğu gibi indirilir.' };
+      return { title: safeTitle(input.title || path.basename(finalUrl.pathname) || 'video'), extension, filesize, ...estimate, estimatedSize: false, heights: [], duration: null, sessionUsed: cookies.length > 0, engine: 'direct', options: [], defaultOptionId: null, qualityNote: m('e.a-direct-file-has-no-selectable') };
     } finally { response.destroy(); }
   }
 
@@ -481,7 +483,7 @@ export class DownloadQueue {
     const cookies = sanitizeCookies(input.cookies, [url, input.pageUrl]);
     const headers = mediaHeaders(input);
     const playlist = await readHls({ url, signal, request: (target, requestSignal, extra) => this.rangeRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target)) });
-    if (!playlist) throw new Error('Yanıt bir HLS listesi değil.');
+    if (!playlist) throw new Error(m('e.the-response-is-not-an-hls'));
     return this.inspectHls(input, cookies, signal, playlist);
   }
 
@@ -548,43 +550,43 @@ export class DownloadQueue {
     const nativeHls = this.offered.get(url)?.raw?.nativeHls === true || /\.m3u8(?:\?|$)/i.test(url);
     const engine = !nativeHls && input.engine === 'direct' && !isManifest('', url) ? 'direct' : 'extractor';
     const sid = submissionId(input.submissionId);
-    if (input.start !== undefined && !['now', 'queue'].includes(input.start)) throw new Error('Başlatma seçimi geçersiz (şimdi veya sıraya).');
+    if (input.start !== undefined && !['now', 'queue'].includes(input.start)) throw new Error(m('e.invalid-start-choice-now-or-queue'));
     const toQueue = input.start === 'queue';
     let pageHost = null; // only a label; an unusable page address (local, odd port) must not block the download itself
     try { pageHost = input.pageUrl ? parseRemoteUrl(input.pageUrl).hostname : null; } catch { /* label stays empty */ }
     const fingerprint = sid ? createHash('sha256').update(JSON.stringify({ url, engine, pageHost, title: safeTitle(input.title), headers: mediaHeaders(input), quality: input.quality || 'best', audioUrl: input.audioUrl || null, audioTrack: input.audioTrack || null, formatId: input.formatId || null, deepVerify: input.deepVerify === true, expectedSha256: input.expectedSha256?.toLowerCase?.() || null })).digest('hex') : null;
     const receipt = this.findSubmission(sid, fingerprint);
-    if (receipt?.abandoned) throw new Error('Bu gönderim kullanıcı tarafından bırakıldı; bağlantıyı yeniden incele.');
+    if (receipt?.abandoned) throw new Error(m('e.this-submission-was-dropped-by-the'));
     if (receipt) { this.pump(); return receipt.id; }
-    if (this.jobs.length >= 500) throw new Error('Kuyruk sınırı 500 kayıt.');
+    if (this.jobs.length >= 500) throw new Error(m('e.the-queue-limit-is-500-entries'));
     let formatId = null, formatLabel = null, formatSlot = null;
     if (input.formatId !== undefined && input.formatId !== null && input.formatId !== '') {
-      if (engine !== 'extractor') throw new Error('Kalite seçimi yalnızca akış/site motorunda kullanılabilir.');
-      if (!isFormatId(input.formatId)) throw new Error('Geçersiz format seçimi.');
+      if (engine !== 'extractor') throw new Error(m('e.quality-selection-is-only-available-with'));
+      if (!isFormatId(input.formatId)) throw new Error(m('e.invalid-format-choice'));
       // Only an id the server itself offered for this exact URL a moment ago is accepted.
       const offered = this.offered.get(url);
-      if (!offered || Date.now() - offered.at > 3600000 || !offered.options.has(input.formatId)) throw Object.assign(new Error('Bu kalite bağlantının son incelemesinde sunulmadı. Bağlantıyı yeniden incele ve listeden seç.'), { code: 'SELECTION_EXPIRED' });
+      if (!offered || Date.now() - offered.at > 3600000 || !offered.options.has(input.formatId)) throw Object.assign(new Error(m('e.this-quality-was-not-offered-in')), { code: 'SELECTION_EXPIRED' });
       formatId = input.formatId; formatLabel = offered.options.get(formatId); formatSlot = offered.slots?.get(formatId) ?? null;
     }
-    if (input.deepVerify !== undefined && typeof input.deepVerify !== 'boolean') throw new Error('Derin doğrulama seçimi geçersiz.');
+    if (input.deepVerify !== undefined && typeof input.deepVerify !== 'boolean') throw new Error(m('e.invalid-deep-verification-choice'));
     const expectedSha256 = input.expectedSha256 === undefined || input.expectedSha256 === null || input.expectedSha256 === '' ? null : input.expectedSha256;
-    if (expectedSha256 !== null && (typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(expectedSha256))) throw new Error('SHA-256 değeri 64 onaltılık karakter olmalı.');
-    if (input.deepVerify && !this.capabilities().ffmpeg) throw new Error('Derin doğrulama için FFmpeg kurulmalı.');
+    if (expectedSha256 !== null && (typeof expectedSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(expectedSha256))) throw new Error(m('e.the-sha-256-value-must-be'));
+    if (input.deepVerify && !this.capabilities().ffmpeg) throw new Error(m('e.ffmpeg-must-be-installed-for-deep'));
     // Separate sound playlist for a silent video playlist (both shown by the page's own player).
     let audioUrl = null;
     if (input.audioUrl !== undefined && input.audioUrl !== null && input.audioUrl !== '') {
-      if (engine !== 'extractor' || !this.capabilities().ffmpeg || (!nativeHls && !this.capabilities().ytDlp)) throw new Error('Ayrı ses akışı için desteklenen medya motoru ve FFmpeg gerekli.');
+      if (engine !== 'extractor' || !this.capabilities().ffmpeg || (!nativeHls && !this.capabilities().ytDlp)) throw new Error(m('e.a-supported-media-engine-and-ffmpeg'));
       audioUrl = parseRemoteUrl(input.audioUrl).href;
     }
     // Another sound of the same master (dubbed / original ...): only one the server itself offered for this exact address.
     let audioTrack = null, audioName = null;
     if (input.audioTrack !== undefined && input.audioTrack !== null && input.audioTrack !== '') {
       const picked = typeof input.audioTrack === 'string' && /^a\d{1,2}$/.test(input.audioTrack) ? this.offered.get(url)?.raw?.audioTracks?.find(track => track.id === input.audioTrack) : null;
-      if (!nativeHls || !picked) throw Object.assign(new Error('Seçtiğin ses bu bağlantının son incelemesinde sunulmadı. Bağlantıyı yeniden incele ve listeden seç.'), { code: 'SELECTION_EXPIRED' });
+      if (!nativeHls || !picked) throw Object.assign(new Error(m('e.the-sound-you-chose-was-not')), { code: 'SELECTION_EXPIRED' });
       audioTrack = picked.id; audioName = String(picked.name || picked.language || '').slice(0, 60) || null;
     }
-    if (engine === 'extractor' && !nativeHls && !this.capabilities().ytDlp) throw new Error('Bu indirme için önce yt-dlp kurulmalı. Kurulum adımlarına bak.');
-    if (nativeHls && !this.capabilities().ffmpeg) throw new Error('HLS indirmek için FFmpeg gerekli.');
+    if (engine === 'extractor' && !nativeHls && !this.capabilities().ytDlp) throw new Error(m('e.yt-dlp-must-be-installed-first'));
+    if (nativeHls && !this.capabilities().ffmpeg) throw new Error(m('e.ffmpeg-is-needed-to-download-hls'));
     // A plain file taken over from the browser keeps its real name (with extension) and never gets video-style naming.
     const fileName = engine === 'direct' && input.fileMode === true && typeof input.fileName === 'string' ? fileNameFor({ hint: input.fileName }) : null;
     const job = {
@@ -609,7 +611,7 @@ export class DownloadQueue {
     if (session?.cookies?.length && Date.now() - session.at <= 3600000) this.sessions.set(job.id, session.cookies);
     const uploaded = this.takeSubtitleUpload(input.subtitleUpload);
     job.subtitlePending = this.storeSubtitleInputs(job.id, { ...input, subtitleTracks: [...(Array.isArray(input.subtitleTracks) ? input.subtitleTracks : []), ...uploaded] });
-    if (typeof input.subtitleUpload === 'string' && !uploaded.length) job.subtitleResult = { mode: 'none', note: 'Sayfadaki altyazılar uygulamaya ulaşmadı (bağlantı yenilenmiş olabilir).' };
+    if (typeof input.subtitleUpload === 'string' && !uploaded.length) job.subtitleResult = { mode: 'none', note: m('e.the-subtitles-on-the-page-did') };
     // Subtitle tracks listed in the stream's own master playlist (read once during the look-up; no extra request).
     for (const item of nativeHls ? (this.offered.get(url)?.raw?.hlsSubtitles || []).slice(0, 16) : []) job.subtitlePending.push({ kind: 'url', url: item.url, lang: String(item.language || '').slice(0, 20), label: String(item.name || '').slice(0, 60), default: item.default === true, sure: true });
     if (!job.subtitlePending.length) delete job.subtitlePending;
@@ -643,18 +645,18 @@ export class DownloadQueue {
   receiveSubtitle(input = {}) {
     const id = uploadKey(input.uploadId);
     const track = Number(input.track), seq = Number(input.seq), count = Number(input.count);
-    if (!id || !Number.isInteger(track) || track < 0 || track >= MAX_SUBTITLE_TRACKS || !Number.isInteger(count) || count < 1 || count > 200 || !Number.isInteger(seq) || seq < 0 || seq >= count || typeof input.chunk !== 'string' || input.chunk.length > 12000) throw new Error('Altyazı parçası geçersiz.');
+    if (!id || !Number.isInteger(track) || track < 0 || track >= MAX_SUBTITLE_TRACKS || !Number.isInteger(count) || count < 1 || count > 200 || !Number.isInteger(seq) || seq < 0 || seq >= count || typeof input.chunk !== 'string' || input.chunk.length > 12000) throw new Error(m('e.invalid-subtitle-part'));
     const clean = (value, max) => typeof value === 'string' ? value.replace(/[\x00-\x1f]/g, '').trim().slice(0, max) : '';
     const now = Date.now();
     for (const [key, upload] of this.subtitleUploads) if (now - upload.at > 3600000) this.subtitleUploads.delete(key);
     while (this.subtitleUploads.size >= 40 && !this.subtitleUploads.has(id)) this.subtitleUploads.delete(this.subtitleUploads.keys().next().value);
     const upload = this.subtitleUploads.get(id) || { at: now, tracks: new Map() };
     const entry = upload.tracks.get(track) || { parts: new Map(), count, lang: clean(input.lang, 20), label: clean(input.label, 60), default: input.default === true };
-    if (entry.count !== count) throw new Error('Altyazı parça sayısı değişti.');
+    if (entry.count !== count) throw new Error(m('e.the-number-of-subtitle-parts-changed'));
     entry.parts.set(seq, input.chunk); upload.tracks.set(track, entry); upload.at = now; this.subtitleUploads.set(id, upload);
     const size = [...entry.parts.values()].reduce((sum, part) => sum + part.length, 0);
     const total = [...this.subtitleUploads.values()].reduce((sum, item) => sum + [...item.tracks.values()].reduce((s, t) => s + [...t.parts.values()].reduce((n, p) => n + p.length, 0), 0), 0);
-    if (size > MAX_SUBTITLE_BYTES || total > 32 * 1048576) { upload.tracks.delete(track); throw new Error('Altyazı çok büyük.'); }
+    if (size > MAX_SUBTITLE_BYTES || total > 32 * 1048576) { upload.tracks.delete(track); throw new Error(m('e.the-subtitle-is-too-large')); }
     return { received: entry.parts.size, complete: entry.parts.size === count };
   }
   takeSubtitleUpload(raw) {
@@ -726,7 +728,7 @@ export class DownloadQueue {
         found.push({ ...lang, name: item.label && item.label.length <= 60 ? item.label : lang.name, default: item.default === true, cues: parsed.cues });
       }
       const expected = candidates.some(item => item.kind === 'file' || item.sure);
-      if (!found.length) { if (expected) job.subtitleResult = { mode: 'none', note: 'Sayfada altyazı vardı ama okunabilir bir altyazı dosyası alınamadı.' }; return; }
+      if (!found.length) { if (expected) job.subtitleResult = { mode: 'none', note: m('e.the-page-had-a-subtitle-but') }; return; }
       // The track the page was showing leads; otherwise a full-length one in the user's subtitle language (system language unless changed).
       // No such track: nothing is flagged and no side file is written, so no player shows a wrong language by itself.
       found.sort((a, b) => Number(b.default) - Number(a.default));
@@ -737,8 +739,8 @@ export class DownloadQueue {
       found.forEach((track, index) => { track.file = path.join(directory, `track-${index}.vtt`); fs.writeFileSync(track.file, toVtt(track.cues)); });
       let embedded = false, note = null;
       if (mode === 'embed' || mode === 'both') {
-        if (!canEmbed(video)) note = 'Bu dosya türüne altyazı gömülemedi; altyazılar yan dosya olarak kaydedildi.';
-        else { try { const finished = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined, preferred: this.subtitleLanguage(), container: this.settings.subtitleContainer }); embedded = Boolean(finished); if (finished && finished !== video) { video = finished; job.file = path.basename(finished); } } catch { embedded = false; } if (!embedded) note = 'Altyazılar videoya gömülemedi (videoda zaten altyazı olabilir); yan dosya olarak kaydedildi.'; }
+        if (!canEmbed(video)) note = m('e.a-subtitle-could-not-be-embedded');
+        else { try { const finished = await embedSubtitles({ video, tracks: found, toolsDirectory: this.toolsDirectory, signal: combined, preferred: this.subtitleLanguage(), container: this.settings.subtitleContainer }); embedded = Boolean(finished); if (finished && finished !== video) { video = finished; job.file = path.basename(finished); } } catch { embedded = false; } if (!embedded) note = m('e.the-subtitles-could-not-be-embedded'); }
       }
       // 'both': the file carries every track, and the leading (default) one is also written next to it: players such as Windows Media Player
       // and Films & TV ignore tracks inside an mp4 but load a same-named .srt on their own (VLC does too).
@@ -746,7 +748,7 @@ export class DownloadQueue {
       job.subtitleResult = { mode: embedded ? (files.length ? 'embedded+sidecar' : 'embedded') : 'sidecar', tracks: found.map(track => ({ name: track.name, lang: track.iso1 || track.iso3, default: track.default })), files, note, ...(encodingSuspect ? { encodingNote: true } : {}) };
       job.subtitlePending = undefined;
     } catch (error) {
-      if (!signal.aborted) job.subtitleResult = { mode: 'none', note: 'Altyazı eklenirken sorun oluştu; video indirildi.' };
+      if (!signal.aborted) job.subtitleResult = { mode: 'none', note: m('e.there-was-a-problem-adding-the') };
     } finally {
       try { fs.rmSync(directory, { recursive: true, force: true }); } catch { /* temp copies only */ }
       delete job.subtitlePending;
@@ -756,13 +758,13 @@ export class DownloadQueue {
   // ---- Series / playlist: list the videos of one address, then queue the chosen ones (never started all at once) ----
   async playlist(input = {}, signal = AbortSignal.timeout(90000)) {
     const url = parseRemoteUrl(input.url).href;
-    if (!this.capabilities().ytDlp) throw new Error('Liste için önce yt-dlp kurulmalı. Kurulum adımlarına bak.');
+    if (!this.capabilities().ytDlp) throw new Error(m('e.yt-dlp-must-be-installed-first-2'));
     const list = await this.playlistLister({ url, toolsDirectory: this.toolsDirectory, headers: mediaHeaders(input), signal });
     return { title: list.title, more: list.more === true, entries: list.entries.map(entry => ({ ...entry, duplicate: this.findDuplicates({ url: entry.url }).length > 0, name: episodeName(list.title, entry.title, entry.index, list.entries.length) })) };
   }
   addPlaylist(input = {}) {
     const entries = Array.isArray(input.entries) ? input.entries : [];
-    if (!entries.length || entries.length > MAX_PLAYLIST) throw new Error(`Listeden 1–${MAX_PLAYLIST} video seç.`);
+    if (!entries.length || entries.length > MAX_PLAYLIST) throw new Error(m('e.choose-1-max-videos-from-the', { max: MAX_PLAYLIST }));
     const series = safeTitle(String(input.title || 'Liste')), ids = [], listSize = Number.isInteger(input.total) && input.total >= entries.length && input.total <= 100000 ? input.total : entries.length; let skipped = 0, failed = 0, full = false;
     for (const [at, entry] of entries.entries()) {
       try {
@@ -783,7 +785,7 @@ export class DownloadQueue {
       return { url: probe.url, total: probe.total, contentType: probe.contentType, disposition: probe.disposition || '', ranges: true, raw: probe };
     } catch (error) {
       if (signal.aborted) throw error;
-      if (error instanceof SourceExpiredError) throw Object.assign(new Error('Sunucu erişimi reddetti (giriş veya izin gerekebilir).'), { code: 'ACCESS_DENIED' });
+      if (error instanceof SourceExpiredError) throw Object.assign(new Error(m('e.the-server-refused-access-a-sign')), { code: 'ACCESS_DENIED' });
       if (!(error instanceof RangeUnsupportedError)) throw error;
       // The server answered the range request with the whole file (200): its headers already tell what the file is.
       const seen = error.observed;
@@ -795,7 +797,7 @@ export class DownloadQueue {
     const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, headers);
     try {
       const status = response.statusCode;
-      if (status && (status < 200 || status >= 300)) throw Object.assign(new Error(status === 401 || status === 403 ? 'Sunucu erişimi reddetti (giriş veya izin gerekebilir).' : `Sunucu HTTP ${status} yanıtı verdi.`), { code: [401, 403].includes(status) ? 'ACCESS_DENIED' : 'HTTP_ERROR' });
+      if (status && (status < 200 || status >= 300)) throw Object.assign(new Error(status === 401 || status === 403 ? m('e.the-server-refused-access-a-sign') : m('e.the-server-answered-with-http-status', { status })), { code: [401, 403].includes(status) ? 'ACCESS_DENIED' : 'HTTP_ERROR' });
       const length = Number(response.headers['content-length']);
       return { url: String(finalUrl?.href || finalUrl || url), total: Number.isSafeInteger(length) && length > 0 ? length : null, contentType: String(response.headers['content-type'] || ''), disposition: String(response.headers['content-disposition'] || ''), ranges: false };
     } finally { response.destroy(); }
@@ -809,11 +811,11 @@ export class DownloadQueue {
     const start = input.start === 'queue' ? 'queue' : 'now';
     if (input.allowDuplicate !== true) {
       const found = this.findDuplicates({ url });
-      if (found.length) throw Object.assign(new Error('Bu dosya zaten listede.'), { code: 'duplicate', duplicates: found.map(item => ({ title: item.title, status: item.status })) });
+      if (found.length) throw Object.assign(new Error(m('e.this-file-is-already-in-the')), { code: 'duplicate', duplicates: found.map(item => ({ title: item.title, status: item.status })) });
     }
     const probe = await this.probeFile(url, headers, AbortSignal.timeout(12000));
-    if (/text\/html/i.test(probe.contentType)) throw Object.assign(new Error('Bağlantı dosya yerine bir web sayfası döndürdü.'), { code: 'NOT_A_FILE' });
-    if (isManifest(probe.contentType, probe.url) || isManifest('', url)) throw Object.assign(new Error('Bu bağlantı bir akış listesi; video olarak yakalanmalı.'), { code: 'NOT_A_FILE' });
+    if (/text\/html/i.test(probe.contentType)) throw Object.assign(new Error(m('e.the-link-returned-a-web-page')), { code: 'NOT_A_FILE' });
+    if (isManifest(probe.contentType, probe.url) || isManifest('', url)) throw Object.assign(new Error(m('e.this-link-is-a-stream-list')), { code: 'NOT_A_FILE' });
     const name = fileNameFor({ hint: typeof input.fileName === 'string' ? input.fileName : '', disposition: probe.disposition, url: probe.url, contentType: probe.contentType });
     // The cookies live in memory only, for this job, exactly like the ones of a video the user picked.
     this.rememberOffered(url, [], cookies);
@@ -889,7 +891,7 @@ export class DownloadQueue {
 
   abandonSubmission(id) {
     id = submissionId(id);
-    if (!id) throw new Error('Gönderim kimliği gerekli.');
+    if (!id) throw new Error(m('e.a-submission-id-is-required'));
     const status = this.submissionStatus(id);
     if (status.known) return status; // Never cancel or restart an already-created job.
     this.submissions.remember({ submissionId: id, abandoned: true });
@@ -908,7 +910,7 @@ export class DownloadQueue {
 
   retry(id) {
     const job = this.jobs.find(j => j.id === id);
-    if (!job || !['failed', 'cancelled', 'interrupted'].includes(job.status) || this.active.has(id)) throw new Error('Bu indirme şu anda yeniden başlatılamaz.');
+    if (!job || !['failed', 'cancelled', 'interrupted'].includes(job.status) || this.active.has(id)) throw new Error(m('e.this-download-cannot-be-restarted-right'));
     if (['parallel-http', 'parallel-streams'].includes(job.transfer?.method) && job.transfer.networkBytes > 0 && job.transfer.elapsedSeconds > 0) {
       job.transferHistory = [...(job.transferHistory || []).slice(-9), { networkBytes: job.transfer.networkBytes, elapsedSeconds: job.transfer.elapsedSeconds }];
     }
@@ -952,20 +954,20 @@ export class DownloadQueue {
   setSettings(input = {}) {
     const next = { ...this.settings };
     if (input.addQueue !== undefined) {
-      if (typeof input.addQueue !== 'string' || !input.addQueue.trim() || input.addQueue.trim().length > 40 || /[\x00-\x1f]/.test(input.addQueue) || next.queueNames.length >= 20) throw new Error('Kuyruk adı 1–40 karakter olmalı (en fazla 20 kuyruk).');
+      if (typeof input.addQueue !== 'string' || !input.addQueue.trim() || input.addQueue.trim().length > 40 || /[\x00-\x1f]/.test(input.addQueue) || next.queueNames.length >= 20) throw new Error(m('e.the-queue-name-must-be-1'));
       next.queueNames = [...new Set([...next.queueNames, input.addQueue.trim()])];
       next.selectedQueue = input.addQueue.trim();
     }
     if (input.selectedQueue !== undefined) {
-      if (!next.queueNames.includes(input.selectedQueue)) throw new Error('Kuyruk bulunamadı.');
+      if (!next.queueNames.includes(input.selectedQueue)) throw new Error(m('e.queue-not-found'));
       next.selectedQueue = input.selectedQueue;
     }
     if (input.speedLimitKiB !== undefined) {
-      if (!Number.isInteger(input.speedLimitKiB) || input.speedLimitKiB < 0 || input.speedLimitKiB > 1048576) throw new Error('Hız sınırı 0–1048576 KiB/sn olmalı.');
+      if (!Number.isInteger(input.speedLimitKiB) || input.speedLimitKiB < 0 || input.speedLimitKiB > 1048576) throw new Error(m('e.the-speed-limit-must-be-0'));
       next.speedLimitKiB = input.speedLimitKiB;
     }
     if (input.queueLimit !== undefined) {
-      if (input.queueLimit !== 'all' && (!Number.isInteger(input.queueLimit) || input.queueLimit < 1 || input.queueLimit > 6)) throw new Error('Aynı anda indirme sayısı 1 ile 6 arasında ya da Hepsi olmalı.');
+      if (input.queueLimit !== 'all' && (!Number.isInteger(input.queueLimit) || input.queueLimit < 1 || input.queueLimit > 6)) throw new Error(m('e.the-number-of-simultaneous-downloads-must'));
       next.queueLimit = input.queueLimit;
     }
     for (const [key, check] of Object.entries(SETTING_CHECKS)) {
@@ -976,6 +978,7 @@ export class DownloadQueue {
     }
     if (input.downloadDirectory) usableDirectory(next.downloadDirectory);
     this.settings = next;
+    setMessageLanguage(this.interfaceLanguage()); // messages made from now on are in the new language
     fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
     fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: 2 }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
     if (input.speedLimitKiB !== undefined) this.applySpeedLimit();
@@ -989,7 +992,7 @@ export class DownloadQueue {
   // instead, and takes the new limit the next time it starts.
   applySpeedLimit() {
     const kib = this.settings.speedLimitKiB;
-    const later = 'Yeni hız sınırı bu indirme yeniden başlayınca uygulanır (bu motor sınırı yalnız başlarken alır).';
+    const later = m('e.the-new-speed-limit-applies-when');
     for (const job of this.jobs) {
       if (job.status !== 'running' || !this.active.has(job.id) || job.speedLimitKiB === kib) continue;
       if (job.transfer?.method === 'yt-dlp') { if (!String(job.notice || '').includes(later)) job.notice = [job.notice, later].filter(Boolean).join(' '); continue; }
@@ -999,24 +1002,24 @@ export class DownloadQueue {
   }
 
   startQueue(name = this.settings.selectedQueue) {
-    if (!this.settings.queueNames.includes(name)) throw new Error('Kuyruk bulunamadı.');
-    if (this.queueRunning && this.runningQueue !== name) throw new Error('Önce çalışan kuyruğu durdur.');
+    if (!this.settings.queueNames.includes(name)) throw new Error(m('e.queue-not-found'));
+    if (this.queueRunning && this.runningQueue !== name) throw new Error(m('e.stop-the-running-queue-first'));
     this.runningQueue = name; this.queueRunning = this.heldJobs(name).length > 0; this.pump(); return this.queueInfo();
   }
   stopQueue() { this.queueRunning = false; this.runningQueue = null; return this.queueInfo(); } // running downloads continue; nothing new starts from the queue
 
   startNow(id) {
     const job = this.jobs.find(j => j.id === id);
-    if (!job || job.status !== 'held') throw new Error('Bu indirme sırada değil.');
+    if (!job || job.status !== 'held') throw new Error(m('e.this-download-is-not-in-the'));
     job.status = 'queued'; job.viaQueue = false;
     this.save(); this.pump();
     return { ok: true };
   }
 
   reorder(ids) {
-    if (!Array.isArray(ids) || ids.length > 500) throw new Error('Geçersiz sıra listesi.');
+    if (!Array.isArray(ids) || ids.length > 500) throw new Error(m('e.invalid-order-list'));
     const selected = this.validateIds(ids), byId = new Map(this.jobs.map(job => [job.id, job]));
-    if (selected.size !== ids.length || ids.some(id => !byId.has(id))) throw new Error('Sıralanacak indirmeler değişti; listeyi yenile.');
+    if (selected.size !== ids.length || ids.some(id => !byId.has(id))) throw new Error(m('e.the-downloads-to-sort-changed-refresh'));
     this.jobs = [...ids.map(id => byId.get(id)), ...this.jobs.filter(job => !selected.has(job.id))];
     this.save(); this.pump();
     return { ok: true };
@@ -1044,7 +1047,7 @@ export class DownloadQueue {
       if (job.status === 'running') {
         job.status = 'completed'; job.completedAt = new Date().toISOString(); this.dropSession(job);
         try { this.archiveCompleted([job]); }
-        catch { job.notice = [job.notice, 'Geçmiş kaydı yazılamadı; indirme kaydı listede korunuyor.'].filter(Boolean).join(' '); }
+        catch { job.notice = [job.notice, m('e.the-history-entry-could-not-be')].filter(Boolean).join(' '); }
       }
     }).catch(error => {
       if (job.status !== 'running') return;
@@ -1088,7 +1091,7 @@ export class DownloadQueue {
       try { return await probeRange({ url, headers, signal: quick, request: this.rangeRequest }); }
       catch (error) {
         parent.throwIfAborted();
-        if (quick.aborted) throw new NetworkStallError('Kaynak 10 saniye içinde yanıt vermedi.');
+        if (quick.aborted) throw new NetworkStallError(m('e.the-source-did-not-answer-within'));
         throw error;
       }
     }, { signal, maxElapsedMs: 25000, onRetry: detail => {
@@ -1133,11 +1136,11 @@ export class DownloadQueue {
     try {
       let seed = job.kind === 'file' ? this.probeSeeds?.get(job.url) : null; this.probeSeeds?.delete(job.url);
       if (seed && Date.now() - seed.at >= 30000) seed = null;
-      if (seed && !seed.probe) throw new RangeUnsupportedError('Kaynak byte-range indirmeyi desteklemiyor.'); // the takeover already asked
+      if (seed && !seed.probe) throw new RangeUnsupportedError(m('e.the-source-does-not-support-byte-range')); // the takeover already asked
       const probe = seed ? seed.probe : await this.probeSource(job.url, this.requestHeaders(job, job.url), signal);
       job.measurementKey = sourceMeasureKey([{ url: probe.url, protocol: 'https' }]);
       if (isManifest(probe.contentType, probe.url)) return this.routeManifest(job, signal);
-      if (/text\/html/i.test(probe.contentType)) throw new RangeUnsupportedError('Kaynak dosya yerine HTML sayfası döndürdü.');
+      if (/text\/html/i.test(probe.contentType)) throw new RangeUnsupportedError(m('e.the-source-returned-an-html-page'));
       const filename = this.outputName(job, probe.url, probe.contentType);
       const isVideo = isVideoFile(filename, probe.contentType);
       const result = await downloadParallel({
@@ -1155,7 +1158,7 @@ export class DownloadQueue {
       return;
     } catch (error) {
       if (signal.aborted || !(error instanceof RangeUnsupportedError)) throw error;
-      job.notice = `${cleanMediaError(error.message)} Tek bağlantılı dosya motoru kullanılıyor.`;
+      job.notice = m('e.message-the-single-connection-file-engine', { message: cleanMediaError(error.message) });
     }
     return this.directSequential(job, signal);
   }
@@ -1170,7 +1173,7 @@ export class DownloadQueue {
 
   routeManifest(job, signal) {
     signal.throwIfAborted();
-    if (!this.capabilities().ytDlp) throw new Error('Akış/manifest indirmesi için yt-dlp kurulmalı.');
+    if (!this.capabilities().ytDlp) throw new Error(m('e.yt-dlp-must-be-installed-for-2'));
     job.engine = 'extractor';
     return this.extract(job, signal);
   }
@@ -1196,14 +1199,14 @@ export class DownloadQueue {
     }
     if (contentType.includes('text/html')) {
       response.destroy();
-      throw new Error('Bu bağlantı bir sayfa veya akış listesi; akış/site motoruyla yeniden ekle.');
+      throw new Error(m('e.this-link-is-a-page-or'));
     }
     const filename = this.outputName(job, url.href, contentType);
     const destination = path.join(this.dirOf(job), filename);
     const partial = `${destination}.part`;
     if (fs.existsSync(partial)) {
       fs.renameSync(partial, `${partial}.previous-${Date.now()}`);
-      job.notice = 'Bu doğrudan dosya yeniden baştan indiriliyor; önceki parça korunuyor.';
+      job.notice = m('e.this-direct-file-is-downloading-again');
     }
     job.received = 0;
     const total = Number(response.headers['content-length']);
@@ -1212,7 +1215,7 @@ export class DownloadQueue {
     this.measure(job, 0);
     const queue = this;
     const progress = new Transform({ transform(chunk, _encoding, callback) {
-      if (job.status !== 'running') return callback(new Error('Aktarım durduruldu.'));
+      if (job.status !== 'running') return callback(new Error(m('e.the-transfer-was-stopped')));
       (queue.limiters.get(job.id)?.(chunk.length, signal) || Promise.resolve()).then(() => {
         job.received += chunk.length; queue.measure(job); callback(null, chunk);
       }, callback);
@@ -1220,7 +1223,7 @@ export class DownloadQueue {
     try {
       await pipeline(response, progress, fs.createWriteStream(partial), { signal });
       signal.throwIfAborted();
-      if (job.total && job.received !== job.total) throw new Error('Dosya eksik indirildi.');
+      if (job.total && job.received !== job.total) throw new Error(m('e.the-file-was-downloaded-incompletely'));
       await this.verifyOutput(job, partial, job.total, isVideoFile(filename, contentType) ? { requireVideo: true, requireAudio: false } : null, signal);
       await publishFile(partial, destination, signal);
       job.file = filename; job.total = fs.statSync(destination).size;
@@ -1252,7 +1255,7 @@ export class DownloadQueue {
         // rate, HDR), so look for the same one under whatever id is offered now. Same size with another codec/container is fine;
         // a different size is never substituted: the user re-chooses then.
         const replacement = await this.findSameQuality(job, resolve, jar, signal);
-        if (!replacement) throw new Error(`Seçtiğin kalite (${job.formatLabel || job.formatId}) kaynakta artık yok. Başka bir kaliteye otomatik geçilmedi; bağlantıyı yeniden incele ve kaliteyi tekrar seç.`);
+        if (!replacement) throw new Error(m('e.the-quality-you-chose-quality-is', { quality: job.formatLabel || job.formatId }));
         job.formatId = replacement.id; job.formatLabel = replacement.label;
         info = await resolve(replacement.id, jar);
       }
@@ -1262,7 +1265,7 @@ export class DownloadQueue {
     const resolvedSources = info.requested_formats?.length ? info.requested_formats : [info];
     if (resolvedSources.length <= 2 && resolvedSources.every(source => /^m3u8/.test(source.protocol || ''))) return this.transferHls(job, info, signal);
     const plan = selectSourcePlan(info, { ...caps, ffprobe: fs.existsSync(path.join(this.toolsDirectory, 'ffprobe.exe')) });
-    if (job.sourceSelection?.format && plan.selectedFormat && job.sourceSelection.format !== plan.selectedFormat) throw new SourceChangedError('Seçili format değişti; kaliteyi yeniden inceleyip onayla.');
+    if (job.sourceSelection?.format && plan.selectedFormat && job.sourceSelection.format !== plan.selectedFormat) throw new SourceChangedError(m('e.the-selected-format-changed-inspect-the'));
     job.sourceSelection = { format: plan.selectedFormat, media: mediaExpectation(info) };
     this.phase(job, 'probing');
     if (plan.method !== 'yt-dlp') {
@@ -1276,7 +1279,7 @@ export class DownloadQueue {
         // A server that goes silent or resets before the first byte (a CDN that dislikes our requests) is treated the same way.
         const silent = job.engine === 'extractor' && !(job.received > 0) && (error instanceof NetworkStallError || error.name === 'TimeoutError' || /ECONNRESET|ETIMEDOUT|socket hang up|UND_ERR/i.test(`${error.code || ''} ${error.message}`));
         if (!(error instanceof RangeUnsupportedError) && !refused && !silent) throw error;
-        job.notice = refused || silent ? 'Hızlı indirme yolu çalışmadı (site yanıt vermedi veya reddetti); aynı kalite standart medya motoruyla indiriliyor (daha yavaş olabilir).' : `${cleanMediaError(error.message)} Seçili format standart medya motoruyla indiriliyor.`;
+        job.notice = refused || silent ? m('e.the-fast-download-path-did-not') : m('e.message-the-chosen-format-is-downloading', { message: cleanMediaError(error.message) });
         recordRecovery(job, 'native-selected', { reason: refused ? 'source-refused' : silent ? 'network' : 'range' });
       }
     } else { job.notice = plan.reason; recordRecovery(job, 'native-selected', { reason: 'protocol' }); }
@@ -1284,7 +1287,7 @@ export class DownloadQueue {
   }
 
   async extractHls(job, signal) {
-    if (!this.capabilities().ffmpeg) throw new Error('HLS indirmek için FFmpeg gerekli.');
+    if (!this.capabilities().ffmpeg) throw new Error(m('e.ffmpeg-is-needed-to-download-hls'));
     this.phase(job, 'resolving');
     // Re-read the master after restart or source refusal; validate the picture before using the new addresses.
     if (!this.offered.get(job.url)?.raw || job.sourceRefreshes || job.autoRetries) {
@@ -1296,7 +1299,7 @@ export class DownloadQueue {
         view = await this.inspectHls(input, this.jobCookies(job), signal);
       }
       const match = job.formatSlot && view.options.find(o => o.height === job.formatSlot.height && (o.fps >= 48 ? o.fps : null) === (job.formatSlot.fps >= 48 ? job.formatSlot.fps : null) && Boolean(o.hdr) === Boolean(job.formatSlot.hdr));
-      if (job.formatId && !match) throw new Error('Seçtiğin HLS kalitesi artık sunulmuyor; başka kalite indirilmedi.');
+      if (job.formatId && !match) throw new Error(m('e.the-hls-quality-you-chose-is'));
       if (match) job.formatId = match.id;
       else if (!job.formatId && view.options.length) {
         const desired = job.quality === 'best' ? view.options[0] : view.options.find(o => o.height <= Number(job.quality)) || view.options.at(-1);
@@ -1305,7 +1308,7 @@ export class DownloadQueue {
     }
     const raw = this.offered.get(job.url)?.raw;
     const info = this.cachedSelection(job) || (raw?.formats?.length === 1 ? { ...raw, ...raw.formats[0] } : null);
-    if (!info) throw new Error('HLS kalite listesini yeniden incele; varyant seçilmedi.');
+    if (!info) throw new Error(m('e.inspect-the-hls-quality-list-again'));
     return this.transferHls(job, info, signal);
   }
 
@@ -1320,7 +1323,7 @@ export class DownloadQueue {
   }
 
   async transferHls(job, info, signal) {
-    if (!this.capabilities().ffmpeg) throw new Error('HLS indirmek için FFmpeg gerekli.');
+    if (!this.capabilities().ffmpeg) throw new Error(m('e.ffmpeg-is-needed-to-download-hls'));
     job.measurementKey = sourceMeasureKey(info.requested_formats?.length ? info.requested_formats : [info]);
     const sources = info.requested_formats?.length ? info.requested_formats : [info];
     if (job.audioUrl && sources.length === 1) sources.push({ url: job.audioUrl });
@@ -1366,7 +1369,7 @@ export class DownloadQueue {
     const headers = sources.map(source => this.requestHeaders(job, source.url, sourceHeaders(source, info, job.headers)));
     for (let i = 0; i < sources.length; i++) {
       const probe = await this.probeSource(sources[i].url, headers[i], signal, job);
-      if (/text\/html/i.test(probe.contentType) || isManifest(probe.contentType, probe.url)) throw new RangeUnsupportedError('Medya kaynağı tek dosya yerine sayfa veya manifest döndürdü.');
+      if (/text\/html/i.test(probe.contentType) || isManifest(probe.contentType, probe.url)) throw new RangeUnsupportedError(m('e.the-media-source-returned-a-page'));
       probes.push(probe);
     }
     const filename = `${job.id}-${safeTitle(job.title)}.${plan.extension}`;
@@ -1462,7 +1465,7 @@ export class DownloadQueue {
     // Preserve old stages rather than trusting an expired/changed source.
     if (fs.existsSync(staging)) {
       fs.renameSync(staging, `${staging}.previous-${randomUUID()}`);
-      job.notice = [job.notice, 'Standart motorda güvenli devam doğrulanamadı; önceki veriler korunarak yeniden başlanıyor.'].filter(Boolean).join(' ');
+      job.notice = [job.notice, m('e.safe-resume-could-not-be-verified')].filter(Boolean).join(' ');
     }
     fs.mkdirSync(staging);
     job.transfer = { method: 'yt-dlp', phase: 'downloading', connections: slots, resumeSupported: false };
@@ -1528,7 +1531,7 @@ export class DownloadQueue {
         if (code === 0 && stagedOutput && fs.existsSync(stagedOutput)) resolve();
         else {
           // Do not echo signed URLs, request headers or cookies into the UI.
-          reject(new Error(cleanMediaError(stderr || `Medya motoru dosya üretemedi (kod ${code}).`)));
+          reject(new Error(cleanMediaError(stderr || m('e.the-media-engine-could-not-produce', { code }))));
         }
       });
     });
@@ -1550,7 +1553,7 @@ export class DownloadQueue {
   // The sound playlist the page loaded next to a silent video playlist. Same guarded extractor, own output file, then a stream copy join.
   async attachCompanionAudio(job, signal, staging, videoFile) {
     this.phase(job, 'downloading');
-    job.notice = [job.notice, 'Ses akışı ayrı indiriliyor ve videoyla birleştirilecek.'].filter(Boolean).join(' ');
+    job.notice = [job.notice, m('e.the-sound-stream-is-downloading-separately')].filter(Boolean).join(' ');
     await this.remoteResolver(job.audioUrl);
     const args = [
       ...baseExtractorArgs(this.toolsDirectory, job.headers, null),
@@ -1573,7 +1576,7 @@ export class DownloadQueue {
       });
       child.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-6000); });
       child.on('error', reject);
-      child.on('close', code => code === 0 && output && fs.existsSync(output) ? resolve(output) : reject(new Error(cleanMediaError(stderr || `Ses akışı indirilemedi (kod ${code}).`))));
+      child.on('close', code => code === 0 && output && fs.existsSync(output) ? resolve(output) : reject(new Error(cleanMediaError(stderr || m('e.the-sound-stream-could-not-be', { code })))));
     });
     this.phase(job, 'merging');
     const merged = path.join(staging, 'merged.mp4');

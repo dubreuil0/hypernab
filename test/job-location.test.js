@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { DownloadQueue } from '../src/downloads.js';
 const { openJobLocation, playJob } = createRequire(import.meta.url)('../desktop/job-location.cjs');
+createRequire(import.meta.url)('../desktop/texts.cjs').setLanguage('tr'); // these tests read the Turkish texts
 const id = '11111111-1111-4111-8111-111111111111';
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA, 'Temp/opencode/hypernab-location-'));

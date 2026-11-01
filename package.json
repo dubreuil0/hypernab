@@ -13,7 +13,7 @@
     "start": "node src/server.js",
     "desktop": "electron .",
     "dist": "node scripts/prepare-desktop.js && electron-builder --win nsis --x64 --publish never",
-    "test": "node --test",
+    "test": "node --import ./test/setup-locale.js --test",
     "check:feedback": "node --check src/hls-size.js && node --check desktop/job-location.cjs && node --check desktop/main.cjs && node --check scripts/desktop-smoke.js && node --check scripts/float-e2e.js",
     "smoke": "node scripts/network-smoke.js",
     "smoke:auto": "node scripts/automatic-smoke.js",

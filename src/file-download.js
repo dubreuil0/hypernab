@@ -1,5 +1,6 @@
 // General (non-video) file downloads: real file names, categories, risk hints, structural checks and the Windows
 // "downloaded from the internet" mark. Decisions come from the file name / bytes / headers only, never from a site name.
+import { m } from './messages.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { cleanName } from './file-layout.js';
@@ -19,15 +20,17 @@ const MIME_EXTENSIONS = {
 const PROGRAM = new Set(['exe', 'msi', 'msix', 'appx', 'msp', 'scr', 'com', 'pif', 'dll', 'cpl', 'sys', 'jar', 'apk']);
 const SCRIPT = new Set(['bat', 'cmd', 'ps1', 'psm1', 'vbs', 'vbe', 'js', 'jse', 'wsf', 'wsh', 'hta', 'lnk', 'reg', 'msc', 'url', 'docm', 'xlsm', 'pptm']);
 const GROUPS = [
-  ['video', 'Video', ['mp4', 'mkv', 'webm', 'mov', 'avi', 'wmv', 'flv', 'm4v', 'ts', '3gp', 'mpg', 'mpeg', 'ogv']],
-  ['audio', 'Ses', ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'flac', 'wma', 'weba']],
-  ['image', 'Resim', ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tif', 'tiff', 'ico', 'heic', 'avif']],
-  ['document', 'Belge', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'csv', 'odt', 'ods', 'odp', 'epub', 'md']],
-  ['archive', 'Arşiv', ['zip', '7z', 'rar', 'gz', 'tgz', 'bz2', 'xz', 'tar', 'zst', 'cab']],
-  ['program', 'Program', [...PROGRAM, ...SCRIPT]],
-  ['disk', 'Disk görüntüsü', ['iso', 'img', 'vhd', 'vhdx', 'dmg']]
+  ['video', ['mp4', 'mkv', 'webm', 'mov', 'avi', 'wmv', 'flv', 'm4v', 'ts', '3gp', 'mpg', 'mpeg', 'ogv']],
+  ['audio', ['mp3', 'm4a', 'aac', 'ogg', 'opus', 'wav', 'flac', 'wma', 'weba']],
+  ['image', ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tif', 'tiff', 'ico', 'heic', 'avif']],
+  ['document', ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'csv', 'odt', 'ods', 'odp', 'epub', 'md']],
+  ['archive', ['zip', '7z', 'rar', 'gz', 'tgz', 'bz2', 'xz', 'tar', 'zst', 'cab']],
+  ['program', [...PROGRAM, ...SCRIPT]],
+  ['disk', ['iso', 'img', 'vhd', 'vhdx', 'dmg']]
 ];
-const CATEGORY_BY_EXTENSION = new Map(GROUPS.flatMap(([id, label, list]) => list.map(ext => [ext, { id, label }])));
+// the label is read when needed, in the language of the moment
+const category = id => ({ id, get label() { return m(`e.category.${id}`); } });
+const CATEGORY_BY_EXTENSION = new Map(GROUPS.flatMap(([id, list]) => list.map(ext => [ext, category(id)])));
 
 export const extensionOf = name => path.extname(String(name || '')).slice(1).toLowerCase();
 
@@ -72,10 +75,10 @@ export function categoryFor(name, contentType = '') {
   const ext = extensionOf(name);
   if (CATEGORY_BY_EXTENSION.has(ext)) return CATEGORY_BY_EXTENSION.get(ext);
   const major = String(contentType).split('/')[0].toLowerCase();
-  if (major === 'video') return { id: 'video', label: 'Video' };
-  if (major === 'audio') return { id: 'audio', label: 'Ses' };
-  if (major === 'image') return { id: 'image', label: 'Resim' };
-  return { id: 'other', label: 'Diğer' };
+  if (major === 'video') return category('video');
+  if (major === 'audio') return category('audio');
+  if (major === 'image') return category('image');
+  return category('other');
 }
 
 // 'program' runs code, 'script' can run code or macros. Only a hint for the user; nothing is blocked.
@@ -102,56 +105,56 @@ export async function verifyFileFormat(file, name, { sizeCompared = false } = {}
   const handle = await fs.promises.open(file, 'r');
   try {
     const size = (await handle.stat()).size;
-    if (size === 0) throw new VerificationError('İndirilen dosya boş.');
+    if (size === 0) throw new VerificationError(m('e.the-downloaded-file-is-empty'));
     const head = await readAt(handle, 0, Math.min(size, 1024));
     if (!TEXT_LIKE.has(ext) && /^\s*(?:<!doctype\s+html|<html[\s>]|<head[\s>]|<body[\s>])/i.test(head.subarray(0, 512).toString('latin1'))) {
-      throw new VerificationError('Sunucu dosya yerine bir web sayfası gönderdi (giriş veya hata sayfası olabilir). Dosya tamamlandı sayılmadı.');
+      throw new VerificationError(m('e.the-server-sent-a-web-page'));
     }
     const pass = format => ({ status: 'passed', format });
     if (ZIP_FAMILY.has(ext)) {
-      if (!startsWith(head, [0x50, 0x4b, 0x03, 0x04]) && !startsWith(head, [0x50, 0x4b, 0x05, 0x06]) && !startsWith(head, [0x4d, 0x5a])) throw new VerificationError('Dosya ZIP yapısında değil; bozuk veya eksik olabilir.');
+      if (!startsWith(head, [0x50, 0x4b, 0x03, 0x04]) && !startsWith(head, [0x50, 0x4b, 0x05, 0x06]) && !startsWith(head, [0x4d, 0x5a])) throw new VerificationError(m('e.the-file-is-not-in-zip'));
       const tailLength = Math.min(size, 65557), tail = await readAt(handle, size - tailLength, tailLength);
       const at = tail.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-      if (at < 0 || at + 22 > tail.length) throw new VerificationError('ZIP dosyasının sonu eksik; indirme tamamlanmamış veya bozuk.');
+      if (at < 0 || at + 22 > tail.length) throw new VerificationError(m('e.the-end-of-the-zip-file'));
       const centralSize = tail.readUInt32LE(at + 12), centralOffset = tail.readUInt32LE(at + 16), zip64 = centralOffset === 0xffffffff || centralSize === 0xffffffff;
-      if (!zip64 && centralOffset + centralSize > size - tailLength + at) throw new VerificationError('ZIP içindeki dosya listesi dosya sınırlarının dışında; arşiv bozuk.');
+      if (!zip64 && centralOffset + centralSize > size - tailLength + at) throw new VerificationError(m('e.the-file-list-inside-the-zip'));
       return pass('zip');
     }
     if (ext === 'pdf') {
-      if (!head.toString('latin1').includes('%PDF-')) throw new VerificationError('Dosya PDF başlığı taşımıyor.');
+      if (!head.toString('latin1').includes('%PDF-')) throw new VerificationError(m('e.the-file-has-no-pdf-header'));
       const tail = (await readAt(handle, size - Math.min(size, 2048), Math.min(size, 2048))).toString('latin1');
       if (!tail.includes('%%EOF')) {
-        if (!sizeCompared) throw new VerificationError('PDF dosyasının sonu eksik; indirme tamamlanmamış olabilir.');
-        return { status: 'passed', format: 'pdf', note: 'PDF sonu işareti bulunamadı ama boyut sunucudakiyle eşleşti.' };
+        if (!sizeCompared) throw new VerificationError(m('e.the-end-of-the-pdf-file'));
+        return { status: 'passed', format: 'pdf', note: m('e.the-pdf-end-marker-was-not') };
       }
       return pass('pdf');
     }
     if (ext === 'png') {
-      if (!startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) throw new VerificationError('Dosya PNG imzası taşımıyor.');
-      if (!(await readAt(handle, size - Math.min(size, 16), 16)).includes(Buffer.from('IEND'))) throw new VerificationError('PNG dosyasının sonu eksik.');
+      if (!startsWith(head, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) throw new VerificationError(m('e.the-file-has-no-png-signature'));
+      if (!(await readAt(handle, size - Math.min(size, 16), 16)).includes(Buffer.from('IEND'))) throw new VerificationError(m('e.the-end-of-the-png-file'));
       return pass('png');
     }
     if (ext === 'jpg' || ext === 'jpeg') {
-      if (!startsWith(head, [0xff, 0xd8, 0xff])) throw new VerificationError('Dosya JPEG imzası taşımıyor.');
+      if (!startsWith(head, [0xff, 0xd8, 0xff])) throw new VerificationError(m('e.the-file-has-no-jpeg-signature'));
       const tail = await readAt(handle, size - Math.min(size, 64), 64);
-      if (tail.lastIndexOf(Buffer.from([0xff, 0xd9])) < 0) throw new VerificationError('JPEG dosyasının sonu eksik.');
+      if (tail.lastIndexOf(Buffer.from([0xff, 0xd9])) < 0) throw new VerificationError(m('e.the-end-of-the-jpeg-file'));
       return pass('jpeg');
     }
-    if (ext === 'gif') { if (!startsWith(head, [0x47, 0x49, 0x46, 0x38])) throw new VerificationError('Dosya GIF imzası taşımıyor.'); return pass('gif'); }
-    if (ext === 'webp') { if (head.subarray(0, 4).toString('latin1') !== 'RIFF' || head.subarray(8, 12).toString('latin1') !== 'WEBP') throw new VerificationError('Dosya WebP imzası taşımıyor.'); return pass('webp'); }
+    if (ext === 'gif') { if (!startsWith(head, [0x47, 0x49, 0x46, 0x38])) throw new VerificationError(m('e.the-file-has-no-gif-signature')); return pass('gif'); }
+    if (ext === 'webp') { if (head.subarray(0, 4).toString('latin1') !== 'RIFF' || head.subarray(8, 12).toString('latin1') !== 'WEBP') throw new VerificationError(m('e.the-file-has-no-webp-signature')); return pass('webp'); }
     if (['exe', 'dll', 'sys', 'scr', 'cpl'].includes(ext)) {
-      if (!startsWith(head, [0x4d, 0x5a])) throw new VerificationError('Dosya Windows programı yapısında değil.');
+      if (!startsWith(head, [0x4d, 0x5a])) throw new VerificationError(m('e.the-file-is-not-in-windows'));
       const peOffset = head.length >= 0x40 ? head.readUInt32LE(0x3c) : 0;
-      if (!peOffset || peOffset + 4 > size) throw new VerificationError('Windows programının başlığı eksik; indirme bozuk olabilir.');
-      if ((await readAt(handle, peOffset, 4)).toString('latin1') !== 'PE\u0000\u0000') throw new VerificationError('Windows programının başlığı geçersiz.');
+      if (!peOffset || peOffset + 4 > size) throw new VerificationError(m('e.the-header-of-the-windows-program'));
+      if ((await readAt(handle, peOffset, 4)).toString('latin1') !== 'PE\u0000\u0000') throw new VerificationError(m('e.the-header-of-the-windows-program-2'));
       return pass('pe');
     }
-    if (OLE_FAMILY.has(ext)) { if (!startsWith(head, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) throw new VerificationError('Dosya beklenen Microsoft biçiminde değil.'); return pass('ole'); }
-    if (ext === '7z') { if (!startsWith(head, [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c])) throw new VerificationError('Dosya 7z imzası taşımıyor.'); return pass('7z'); }
-    if (ext === 'rar') { if (head.subarray(0, 4).toString('latin1') !== 'Rar!') throw new VerificationError('Dosya RAR imzası taşımıyor.'); return pass('rar'); }
-    if (ext === 'gz' || ext === 'tgz') { if (!startsWith(head, [0x1f, 0x8b])) throw new VerificationError('Dosya gzip imzası taşımıyor.'); return pass('gzip'); }
-    if (ext === 'xz') { if (!startsWith(head, [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00])) throw new VerificationError('Dosya xz imzası taşımıyor.'); return pass('xz'); }
-    if (ext === 'bz2') { if (head.subarray(0, 3).toString('latin1') !== 'BZh') throw new VerificationError('Dosya bzip2 imzası taşımıyor.'); return pass('bzip2'); }
+    if (OLE_FAMILY.has(ext)) { if (!startsWith(head, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])) throw new VerificationError(m('e.the-file-is-not-in-the')); return pass('ole'); }
+    if (ext === '7z') { if (!startsWith(head, [0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c])) throw new VerificationError(m('e.the-file-has-no-7z-signature')); return pass('7z'); }
+    if (ext === 'rar') { if (head.subarray(0, 4).toString('latin1') !== 'Rar!') throw new VerificationError(m('e.the-file-has-no-rar-signature')); return pass('rar'); }
+    if (ext === 'gz' || ext === 'tgz') { if (!startsWith(head, [0x1f, 0x8b])) throw new VerificationError(m('e.the-file-has-no-gzip-signature')); return pass('gzip'); }
+    if (ext === 'xz') { if (!startsWith(head, [0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00])) throw new VerificationError(m('e.the-file-has-no-xz-signature')); return pass('xz'); }
+    if (ext === 'bz2') { if (head.subarray(0, 3).toString('latin1') !== 'BZh') throw new VerificationError(m('e.the-file-has-no-bzip2-signature')); return pass('bzip2'); }
     return { status: 'limited', format: null };
   } finally { await handle.close(); }
 }
