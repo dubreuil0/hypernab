@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const dir = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA, 'Temp/opencode/hypernab-desktop-'));
 const port = await freePort(), debug = await freePort(), inspector = await freePort();
 const exe = path.join(root, 'dist/win-unpacked/Hypernab.exe');
-const env = { ...process.env, HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile') };
+const env = { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile') };
 const child = spawn(exe, ['--native-background', `--remote-debugging-port=${debug}`, `--inspect=${inspector}`], { env, stdio: 'ignore' });
 const connections = [];
 async function connect(url) {
