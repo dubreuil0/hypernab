@@ -8,6 +8,7 @@ body{margin:0;padding:14px 16px 12px;background:var(--bg,Canvas);color:var(--tex
 .info{min-width:0;flex:1}
 .info strong{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .info span{display:block;font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.info small{display:inline-block;margin-top:5px;padding:1px 9px;border-radius:999px;background:var(--chip);color:var(--muted);font-size:11px}
 .where{display:flex;gap:10px;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--border);font-size:12px;color:var(--muted)}
 .where span:first-child{flex:none}
 .where span:last-child{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl;text-align:start;color:var(--text)}

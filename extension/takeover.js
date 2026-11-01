@@ -250,7 +250,7 @@
       duplicate = ((await client.request('/api/duplicates', { method: 'POST', body: JSON.stringify({ url: record.url }) })).duplicates || []).length > 0;
       directory = (await client.request('/api/status')).directory || null;
     } catch { /* the choices still work; the app is asked again when one is pressed */ }
-    return { ok: true, id: record.id, name: record.name, host: hostOf(record.url), bytes: record.bytes, ext: extOf(record.name), risk: riskOf(record.name), duplicate, directory, remaining: list.length - 1 };
+    return { ok: true, id: record.id, name: record.name, host: hostOf(record.url), bytes: record.bytes, ext: extOf(record.name), risk: riskOf(record.name), secure: /^https:/i.test(record.url), duplicate, directory, remaining: list.length - 1 };
   }
 
   const busy = new Set();

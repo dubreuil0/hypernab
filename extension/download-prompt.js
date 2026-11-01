@@ -36,7 +36,11 @@
     $('directory').textContent = item.directory ? `\u202A${item.directory}` : T('prompt.defaultDir');
     $('directory').title = item.directory || '';
     $('queue-note').textContent = item.remaining > 0 ? T('prompt.queueNote', { n: item.remaining }) : '';
-    show('risk', item.risk === 'program' ? T('prompt.risk.program') : item.risk === 'script' ? T('prompt.risk.script') : '');
+    // A program file from a normal (https) address is just named, quietly: it is what the user asked to download. The orange notice is for
+    // what really deserves a second look: scripts and macros, and a program fetched over an unencrypted (http) address.
+    const warning = item.risk === 'script' ? 'prompt.risk.script' : item.risk === 'program' && item.secure === false ? 'prompt.risk.insecure' : '';
+    show('risk', warning ? T(warning) : '');
+    show('kind', item.risk === 'program' && !warning ? T('prompt.kind.program') : '');
     show('duplicate', item.duplicate ? T('prompt.duplicate') : '');
     show('message', '');
     $('browser').hidden = true;

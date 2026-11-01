@@ -183,10 +183,14 @@ test('a download that finishes before it can be paused is left completely alone'
 test('programs and scripts are marked; duplicates are reported', async () => {
   const f = setup({ duplicates: [{ title: 'x' }] }); await f.created(f.download(1, { filename: 'C:\\x\\setup.exe', url: 'https://files.example.org/setup.exe' }));
   const view = await f.send({ type: 'hypernab:takeover:next' });
-  assert.equal(view.risk, 'program'); assert.equal(view.duplicate, true);
+  assert.equal(view.risk, 'program'); assert.equal(view.secure, true); assert.equal(view.duplicate, true);
   await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'browser' });
   await f.created(f.download(2, { filename: 'C:\\x\\run.ps1', url: 'https://files.example.org/run.ps1' }));
   assert.equal((await f.send({ type: 'hypernab:takeover:next' })).risk, 'script');
+  await f.send({ type: 'hypernab:takeover:decide', id: 2, choice: 'browser' });
+  await f.created(f.download(3, { filename: 'C:\\x\\old.msi', url: 'http://files.example.org/old.msi' }));
+  const plain = await f.send({ type: 'hypernab:takeover:next' });
+  assert.equal(plain.risk, 'program'); assert.equal(plain.secure, false, 'a program over http is told apart');
 });
 
 test('remembering: "always this type" skips the window next time and still falls back to the browser on any failure; "this site" leaves the site to the browser', async () => {
