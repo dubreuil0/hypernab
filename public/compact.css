@@ -147,3 +147,7 @@ html[data-appearance="compact"] .unit-input>span { top:7px; }
   html[data-appearance="compact"] .queue-state { flex-basis:100%; }
 }
 @media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important;transition:none!important; } }
+/* a quiet note on a row (not an error): an info icon with a tooltip */
+.job-note { display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border-radius:6px;color:var(--muted);cursor:help; }
+.job-note:hover,.job-note:focus-visible { color:var(--text); }
+.job-note .ic { width:16px;height:16px; }

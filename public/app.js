@@ -126,8 +126,8 @@ function render(force = false) {
       actions.append(button);
     };
     if (job.status === 'held') addAction('start-now', T('app.startNow'));
-    if (canPause(job)) addAction('pause', 'Duraklat');
-    if (canResume(job)) addAction('resume', 'Devam et');
+    if (canPause(job)) addAction('pause', T('app.pause'));
+    if (canResume(job)) addAction('resume', T('app.resume'));
     if (canCancel(job)) addAction('cancel', T('app.cancel'));
     const detailButton = el('button', 'btn icon-only ghost job-details-toggle'); detailButton.append(icon('chevron')); detailButton.title = T('app.details.toggle'); detailButton.setAttribute('aria-label', T('app.details.aria')); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); detailButton.setAttribute('aria-controls', details.id); detailButton.dataset.jobAction = `${job.id}-details`;
     detailButton.addEventListener('click', () => { if (expandedJobs.has(job.id)) expandedJobs.delete(job.id); else expandedJobs.add(job.id); card.classList.toggle('details-open', expandedJobs.has(job.id)); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); });
@@ -174,17 +174,26 @@ function render(force = false) {
     }
     if (view.remaining) card.append(el('div', 'job-file job-remaining', view.remaining));
     if (job.error) card.append(el('div', 'job-error', job.error));
-    if (job.notice) card.append(el('div', 'job-error', job.notice));
-    if (job.transfer?.resumeReason) card.append(el('div', 'job-error', job.transfer.resumeReason));
+    // Notes that are not errors (a different engine was used, a check was limited...) are a quiet info icon with a tooltip, not a line of
+    // warning text under the row; the same text is in the row's details. Real errors stay as visible text.
+    const notes = [job.notice, job.transfer?.resumeReason].filter(Boolean);
+    const addNote = text => notes.push(text);
     if (job.verification) {
       const v = job.verification;
       const description = v.status === 'passed' ? `${v.level === 'format' ? T(v.sizeCompared ? 'app.verify.formatSize' : 'app.verify.format', { format: v.format }) : v.level === 'bytes' ? v.sizeCompared ? T('app.verify.size') : T('app.verify.output') : v.sizeCompared ? T('app.verify.sizeMedia') : T('app.verify.media')}${v.deep ? ` · ${T('app.verify.deep')}` : ''}${v.sha256 ? ` · ${T('app.verify.sha')}` : ''}`
         : v.status === 'limited' ? T('app.verify.limited') : v.status === 'failed' ? T('app.verify.failed') : v.status === 'paused' ? T('app.verify.paused') : T('app.verify.running');
-      (['failed', 'limited'].includes(v.status) ? card : details).append(el('div', `job-verification ${v.status}`, description));
+      if (v.status === 'limited') addNote(description);
+      else (v.status === 'failed' ? card : details).append(el('div', `job-verification ${v.status}`, description));
     }
     if (job.status === 'cancelled') details.append(el('div', 'job-file', job.settling ? T('app.cancelled.settling') : T('app.cancelled.hint')));
     else if (['failed', 'interrupted'].includes(job.status) && !job.canClear) card.append(el('div', 'job-file', T('app.partial.kept')));
-    if (job.status === 'paused' && (job.transfer?.method === 'single-http' || job.transfer?.resumeSupported === false)) card.append(el('div', 'job-error', T('app.paused.restart')));
+    if (job.status === 'paused' && (job.transfer?.method === 'single-http' || job.transfer?.resumeSupported === false)) addNote(T('app.paused.restart'));
+    if (notes.length) {
+      const text = notes.join(' ');
+      const badge = el('span', 'job-note'); badge.tabIndex = 0; badge.setAttribute('role', 'img'); badge.title = text; badge.setAttribute('aria-label', text); badge.append(icon('info'));
+      if (!actions.isConnected) top.append(actions);
+      actions.prepend(badge); details.append(el('div', 'job-file', text));
+    }
     if (['parallel-http', 'parallel-streams'].includes(job.transfer?.method) && job.transfer.connections) {
       const transferFacts = [`${TN(job.status === 'completed' ? 'app.transfer.connectionsMax' : 'app.transfer.connections', job.transfer.connections)} · ${T(job.transfer.method === 'parallel-streams' ? 'app.transfer.parallel' : 'app.transfer.http')}`];
       if (job.status === 'running' && job.transfer.targetConnections) transferFacts.push(`Hedef ${job.transfer.targetConnections}/${job.transfer.maxConnections || 8}`);
