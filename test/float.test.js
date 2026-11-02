@@ -9,10 +9,11 @@ const TOKEN = 'a'.repeat(64);
 // Real core.js + float.js against a fake browser and a fake app server.
 function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
   const session = { 'tab:7': entries, 'context:7': { frames } }, local = { token: TOKEN };
-  const cookieCalls = [], requests = [];
+  const cookieCalls = [], requests = [], appLanguage = { value: 'tr' }, alarms = { created: [], fire: null };
   let listener = null;
   const browser = {
     runtime: { id: 'ext', getManifest: () => ({ version: '9.9.9' }), onMessage: { addListener(fn) { listener = fn; } } },
+    alarms: { create: (name, info) => alarms.created.push([name, info]), onAlarm: { addListener: fn => { alarms.fire = fn; } } },
     tabs: { async get(id) { return { id, url: 'https://example.org/watch?v=1&token=SECRET-PAGE', title: 'Video başlığı' }; } },
     storage: {
       session: { async get(keys) { return Object.fromEntries([].concat(keys).map(key => [key, session[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(session, values); } },
@@ -23,7 +24,7 @@ function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
   const fetcher = async (url, options) => {
     const route = new URL(url).pathname, body = options.body ? JSON.parse(options.body) : null;
     requests.push({ route, body });
-    const data = route === '/api/status' ? { extensionProtocol: 1, instanceId: 'engine-1' } : ['/api/inspect', '/api/sniff'].includes(route) ? inspect(body) : route.startsWith('/api/submissions/') ? { known: false } : { id: 'job-1' };
+    const data = route === '/api/status' ? { extensionProtocol: 1, instanceId: 'engine-1' } : route === '/api/prefs' ? { interfaceLanguage: appLanguage.value, audioLanguage: 'player' } : ['/api/inspect', '/api/sniff'].includes(route) ? inspect(body) : route.startsWith('/api/submissions/') ? { known: false } : { id: 'job-1' };
     return { ok: !data?.httpError, status: data?.httpError ? 422 : 200, json: async () => data?.httpError ? { error: data.httpError } : data };
   };
   const context = vm.createContext({ browser, URL, AbortSignal, JSON, Promise, Date, Math, crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' }, navigator: { userAgent: 'UA' }, setTimeout, clearTimeout, fetch: fetcher, globalThis: null });
@@ -36,12 +37,27 @@ function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
     if (keep !== true) resolve(null);
   });
   const raw = (message, sender) => new Promise(resolve => { if (listener(message, sender, resolve) !== true) resolve(null); });
-  return { send, raw, cookieCalls, requests, session, local };
+  return { send, raw, cookieCalls, requests, session, local, appLanguage, alarms };
 }
 const info = { title: 'Video başlığı', duration: 125, defaultOptionId: 'a', sessionUsed: false, options: [
   { id: 'a', label: '1080p · MP4 · H.264', height: 1080, fps: 60, hdr: false, codec: 'H.264', ext: 'mp4', filesize: 5e7, sizeKind: 'approx', recommended: true, audio: 'merged' },
   { id: 'b', label: '1080p · WEBM · VP9', height: 1080, fps: 60, hdr: false, codec: 'VP9', ext: 'webm', filesize: 4e7, sizeKind: 'approx', recommended: false, audio: 'merged' }
 ] };
+
+test('uygulamada dil değişince eklenti yeniden yüklenmeden öğrenir: sayfa açılışı hemen, açık sayfa yoksa dakikalık alarm', async () => {
+  const app = setup({ inspect: () => info });
+  assert.equal(JSON.stringify(app.alarms.created), JSON.stringify([['hypernab-language', { periodInMinutes: 1 }]]));
+  assert.equal((await app.raw({ type: 'hypernab:language' }, { id: 'ext' }))?.ok, true);
+  assert.equal(app.local.uiLanguage, 'tr');
+  app.appLanguage.value = 'en';
+  assert.equal((await app.raw({ type: 'hypernab:language' }, { id: 'ext' }))?.ok, true, 'a page opening is not held back by the earlier look-up');
+  assert.equal(app.local.uiLanguage, 'en');
+  app.appLanguage.value = 'tr'; app.alarms.fire({ name: 'hypernab-language' });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(app.local.uiLanguage, 'tr', 'the alarm reads it with no page open');
+  const stranger = await app.raw({ type: 'hypernab:language' }, { id: 'other-extension' });
+  assert.equal(stranger, null, 'only our own pages may ask');
+});
 
 test('uzantısız HLS yerel okuyucuya gider; yanlış MP4/blob yanıtı sayfadan önce koklanır', async () => {
   const app = setup({ entries: [{ url: 'https://cdn.example.org/opaque', kind: 'HLS' }], inspect: () => info });

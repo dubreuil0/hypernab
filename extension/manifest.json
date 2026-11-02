@@ -10,7 +10,8 @@
     "nativeMessaging",
     "cookies",
     "downloads",
-    "contextMenus"
+    "contextMenus",
+    "alarms"
   ],
   "host_permissions": [
     "http://*/*",

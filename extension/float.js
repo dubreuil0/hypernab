@@ -370,18 +370,21 @@
   // The extension speaks the app's language: read it from the app now and then (browser start, install, our own pages opening) so the
   // pages follow a language change without waiting for a video panel. The app being closed is fine; the last known language stays.
   let languageAt = 0;
-  async function syncLanguage() {
-    if (Date.now() - languageAt < 15000) return;
+  async function syncLanguage(force = false) {
+    if (!force && Date.now() - languageAt < 15000) return;
     languageAt = Date.now();
     try { await prefsOf(await connection(false)); } catch { /* app closed: keep the last language */ }
   }
   api.runtime.onStartup?.addListener(() => { void syncLanguage(); });
   api.runtime.onInstalled?.addListener(() => { void syncLanguage(); });
+  // A language changed in the app reaches the extension within a minute even when no page of the extension is open (the background
+  // sleeps between events; an alarm wakes it).
+  try { api.alarms?.create?.('hypernab-language', { periodInMinutes: 1 }); api.alarms?.onAlarm?.addListener?.(alarm => { if (alarm?.name === 'hypernab-language') void syncLanguage(true); }); } catch { /* no alarms: pages still ask when they open */ }
 
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (message?.type === 'hypernab:language') {
       if (sender.id !== api.runtime?.id) return false;
-      syncLanguage().then(() => respond({ ok: true }), () => respond({ ok: false }));
+      syncLanguage(true).then(() => respond({ ok: true }), () => respond({ ok: false })); // a page opening is asked for right now
       return true;
     }
     if (message?.type === 'hypernab:diagnose') {
