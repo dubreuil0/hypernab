@@ -1992,7 +1992,11 @@
   // follow the app's language setting (setLanguage).
   const supported = () => Object.keys(TEXTS);
   const guess = () => { const base = String(globalThis.navigator?.language || '').toLowerCase().split('-')[0]; return TEXTS[base] ? base : 'en'; };
-  let current = guess();
+  // The extension's own pages remember the language they last showed (their own storage, never a web page's), so a page that is drawn
+  // again starts in the right language at once instead of starting in the browser's and changing again.
+  const ownPage = () => /^(?:moz|chrome|ms-browser)-extension:$/.test(String(globalThis.location?.protocol || ''));
+  const remembered = () => { try { const code = ownPage() ? globalThis.localStorage?.getItem('hypernab-language') : null; return TEXTS[code] ? code : null; } catch { return null; } };
+  let current = remembered() ?? guess();
   function t(key, vars) {
     const text = TEXTS[current]?.[key] ?? TEXTS.en[key] ?? key;
     return vars ? text.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? '')) : text;
@@ -2008,7 +2012,7 @@
   // The extension's own scripts follow the app's language: the background stores it (storage.local "uiLanguage") whenever it reads the
   // app's preferences; every other script of the extension reads it here and again when it changes. onChange runs after a real change.
   function follow(api, onChange) {
-    const apply = code => { if (typeof code === 'string' && TEXTS[code] && code !== current) { current = code; try { onChange?.(code); } catch { /* cosmetic */ } } };
+    const apply = code => { if (typeof code === 'string' && TEXTS[code] && code !== current) { current = code; try { if (ownPage()) globalThis.localStorage?.setItem('hypernab-language', code); } catch { /* not remembered */ } try { onChange?.(code); } catch { /* cosmetic */ } } };
     try {
       Promise.resolve(api?.storage?.local?.get?.('uiLanguage')).then(value => apply(value?.uiLanguage), () => {});
       api?.storage?.onChanged?.addListener?.((changes, area) => { if (area === 'local' && changes.uiLanguage) apply(changes.uiLanguage.newValue); });
