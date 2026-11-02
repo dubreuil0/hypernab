@@ -13,7 +13,8 @@ const selected = new Set();
 const expandedJobs = new Set();
 let queueBusy = false, pendingQueueCommand = null;
 const $ = id => document.getElementById(id);
-let selectedQueueName = 'Genel';
+let selectedQueueName = 'Genel'; // the default queue's stored name is data; it is shown translated
+const queueLabel = name => (!name || name === 'Genel' ? T('app.queue.general') : name);
 let dragging = null;
 const advanced = setupAdvanced(api, status);
 const fmt = value => {
@@ -104,9 +105,9 @@ function render(force = false) {
     const titleNode = el('div', 'job-title', title); titleNode.title = title;
     const sourceText = `${job.host} · ${job.engine === 'direct' ? T('app.kind.file') : T('app.kind.stream')}${job.formatLabel || job.media?.height ? ` · ${job.formatLabel || `${job.media.height}p`}` : ''}`;
     info.append(titleNode, el('div', 'job-meta', `${sourceText} · ${view.size}${view.speed ? ` · ${view.speed}` : ''}`));
-    details.append(el('div', 'job-meta compact-source', `${title} · ${sourceText}${job.viaQueue ? ` · Kuyruk: ${job.queueName || 'Genel'}` : ''}`));
+    details.append(el('div', 'job-meta compact-source', `${title} · ${sourceText}${job.viaQueue ? ` · ${T('app.queue.name', { name: queueLabel(job.queueName) })}` : ''}`));
     const stage = view.stage;
-    if (job.viaQueue) info.append(el('div', 'job-meta', T('app.queue.name', { name: job.queueName || T('app.queue.general') })));
+    if (job.viaQueue) info.append(el('div', 'job-meta', T('app.queue.name', { name: queueLabel(job.queueName) })));
     const tile = el('span', 'file-icon'); tile.append(icon(job.status === 'completed' ? 'check' : job.status === 'held' ? 'list' : 'download'));
     const stageNode = el('span', `job-state ${job.status}`, stage); stageNode.title = stage;
     top.append(tile, info, stageNode);

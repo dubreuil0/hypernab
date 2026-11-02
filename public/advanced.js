@@ -74,14 +74,14 @@ export function setupAdvanced(api, refreshStatus) {
     for (const [key, select] of Object.entries(languageSelects)) if (settings[key] && select.getValue() !== settings[key]) select.setValue(settings[key]);
     if (!loaded) { $('deep-verify').checked = settings.deepVerifyDefault; loaded = true; }
     const parts = [];
-    if (info.schedule) parts.push(T.t('app.schedule.status', { queue: info.schedule.queue, date: new Date(info.schedule.at).toLocaleString(T.language()) }));
+    if (info.schedule) parts.push(T.t('app.schedule.status', { queue: info.schedule.queue === 'Genel' ? T.t('app.queue.general') : info.schedule.queue, date: new Date(info.schedule.at).toLocaleString(T.language()) }));
     if (info.power) parts.push(info.power.deadline ? T.t(`app.power.countdown.${info.power.action === 'shutdown' ? 'shutdown' : 'sleep'}`, { s: Math.max(0, Math.ceil((info.power.deadline - Date.now()) / 1000)) }) : T.t('app.power.armed'));
     if (info.error) parts.push(info.error);
     $('automation-status').textContent = parts.join(' '); $('automation-bar').hidden = !parts.length; $('cancel-power').hidden = !info.power;
   }
   return { poll, render(queue) {
     const select = $('named-queue');
-    if (JSON.stringify([...select.options].map(option => option.value)) !== JSON.stringify(queue.queueNames)) select.replaceChildren(...queue.queueNames.map(name => new Option(name, name)));
+    if (JSON.stringify([...select.options].map(option => option.value)) !== JSON.stringify(queue.queueNames)) select.replaceChildren(...queue.queueNames.map(name => new Option(name === 'Genel' ? T.t('app.queue.general') : name, name)));
     if (document.activeElement !== select) select.value = queue.selectedQueue;
     if (document.activeElement !== $('speed-limit-mb')) $('speed-limit-mb').value = queue.speedLimitKiB / 1024;
   } };
