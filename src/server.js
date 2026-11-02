@@ -13,6 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
 const port = Number(process.env.HYPERNAB_PORT || 17846);
 const origin = `http://127.0.0.1:${port}`;
+let extensionSeenAt = 0; // when the browser extension last talked to the app (not stored)
 const instanceId = randomUUID();
 const dataDir = process.env.HYPERNAB_DATA_DIR || path.join(root, 'data');
 fs.mkdirSync(dataDir, { recursive: true });
@@ -97,6 +98,9 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { token });
     }
     if (!validToken(req.headers.authorization?.replace(/^Bearer /, ''), token)) return json(res, 401, { error: m('e.the-pairing-key-is-invalid') });
+    // The extension is known by its browser origin, or by the header its native host sends. Only cosmetic: the app window shows a green mark.
+    if (extension || req.headers['x-hypernab-client'] === 'extension') extensionSeenAt = Date.now();
+    if (req.method === 'GET' && url.pathname === '/api/extension') return extension ? json(res, 403, { error: m('e.local-interface-only') }) : json(res, 200, { connected: Date.now() - extensionSeenAt < 180000, seenAt: extensionSeenAt || null });
     if (req.method === 'GET' && url.pathname === '/api/status') return json(res, 200, { version, extensionProtocol: 1, instanceId, processId: process.pid, ...queue.capabilities() });
     if (req.method === 'POST' && url.pathname === '/api/app/shutdown') {
       const input = await body(req);

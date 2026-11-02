@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain, clipboard } = require('electron');
 const { offerFor } = require('./clipboard-links.cjs');
+const { detectBrowsers, openBrowserSetup } = require('./browsers.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -180,6 +181,8 @@ else {
       if (command === 'history-play') return playJob(value, { lookup: id => request(`/api/history/${id}/location`), shell });
       if (command === 'history-location') return openJobLocation(value, { lookup: id => request(`/api/history/${id}/location`), shell });
       if (command === 'extensions') return shell.openPath(path.join(root, 'build/extensions'));
+    if (command === 'browsers') return detectBrowsers().map(({ id, name, family }) => ({ id, name, family }));
+    if (command === 'browser-setup' && typeof value === 'string') return openBrowserSetup(value, { spawn, shell, clipboard, extensionsFolder: path.join(root, 'build', 'extensions') });
       if (command === 'startup' && typeof value === 'boolean' && app.isPackaged) { app.setLoginItemSettings({ openAtLogin: value, args: ['--startup'] }); return true; }
       if (command === 'settings-changed') { await loadSettings(); return true; }
       if (command === 'pick-folder') {

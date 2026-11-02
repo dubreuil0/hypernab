@@ -49,6 +49,8 @@ Eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions`
 
 Uygulamanın **Ayarlar > Tarayıcı eklentisi** bölümü bu adımları kopyalanabilir adreslerle gösterir.
 
+Masaüstü uygulamasında aynı bölüm, bilgisayarda bulunan her desteklenen tarayıcı için bir **<tarayıcı> için kur** düğmesiyle başlar: o tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, seçilecek yolu panoya kopyalar; onay her zaman tarayıcının kendisinden gelir, arkandan hiçbir şey kurulmaz. Eklenti uygulamaya ulaşınca yeşil bir işaret çıkar.
+
 **Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simge gri olur ve üstünde kırmızı çapraz çizgi görünür; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Dosya indirmelerini yakala*, *Ayarlar ve teşhis*. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
 
 ## Güncelleme

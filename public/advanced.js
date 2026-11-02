@@ -58,7 +58,7 @@ export function setupAdvanced(api, refreshStatus) {
   if (desktop) {
     for (const id of ['s-desktop', 'nav-desktop', 'desktop-settings', 'open-downloads']) $(id).hidden = false;
     $('dir-edit').hidden = true;
-    desktop.settings().then(info => { setupExtensionHelp(info.extensions); $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
+    desktop.settings().then(info => { setupExtensionHelp(info.extensions, () => api('/api/extension')); $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
     $('desktop-startup').onchange = run(() => desktop.action('startup', $('desktop-startup').checked));
     for (const [id, action] of [['open-downloads', 'downloads'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }

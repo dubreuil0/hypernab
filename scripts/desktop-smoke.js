@@ -180,6 +180,19 @@ try {
   await evaluate(`document.querySelector('#set-watchClipboard').click()`); await browserUntil(async () => (await call('/api/settings')).watchClipboard === false);
   await mainEval(`${electron}.clipboard.writeText('')`);
   console.log('OK clipboard offer: off by default, strip on focus with the link\'s site, once per text, Add fills the several-links dialog');
+  // The extension setup wizard: the browsers found on this computer, and the mark that turns green when the extension reaches the app.
+  await evaluate('document.querySelector("#open-settings").click()');
+  await browserUntil(() => evaluate(`document.querySelector('#extension-help .ext-wizard') !== null && document.querySelector('#extension-help .ext-wizard .ext-browsers').children.length > 0`));
+  const wizardRows = await evaluate(`[...document.querySelectorAll('#extension-help .ext-wizard .ext-browsers button')].map(b => b.textContent.trim())`);
+  const installed = await mainEval(`(()=>{try{return require('node:fs').existsSync(process.env['ProgramFiles(x86)']+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe')}catch{return false}})()`);
+  assert.ok(wizardRows.length >= 1 || !installed, 'one set-up button per browser found');
+  assert.ok(wizardRows.every(text => /kur$/i.test(text)), `the buttons are in the app's language: ${wizardRows}`);
+  assert.equal(await evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').className.includes('ok')`), false, 'not connected yet');
+  await fetch(`http://127.0.0.1:${port}/api/prefs`, { headers: { Authorization: `Bearer ${token}`, 'X-Hypernab-Client': 'extension' } }); // what the extension's native host does
+  await browserUntil(() => evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').className.includes('ok')`), 15000).catch(async error => { throw new Error('wizard mark: ' + await evaluate(`(async()=>{const b=document.querySelector('#extension-help .ext-wizard');const t=(await fetch('/api/bootstrap').then(r=>r.json())).token;const s=await fetch('/api/extension',{headers:{Authorization:'Bearer '+t}}).then(r=>r.text());return JSON.stringify({connected:b?.isConnected,offsetParent:b?.offsetParent?.tagName||null,state:b?.querySelector('.ext-state')?.textContent,api:s})})()`)); });
+  assert.match(await evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').textContent`), /Bağlı/);
+  await evaluate('document.querySelector("#close-settings").click()');
+  console.log('OK extension wizard: one button per browser found, green mark when the extension talks to the app');
   // Real pointer input, not a synthetic reorder API call: hold the handle across a poll cycle and drop it.
   await call('/api/settings', { queueLimit: 1, speedLimitKiB: 16 });
   const ids = [];

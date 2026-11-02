@@ -26,7 +26,7 @@ export class NativeGateway {
     if (!/^[a-f0-9]{64}$/i.test(token)) throw fail('APP_AUTH', m('e.the-local-app-key-is-invalid'));
     let response;
     try {
-      response = await this.fetcher(`http://127.0.0.1:${c.port}${command.route}`, { method: command.method, redirect: 'error', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      response = await this.fetcher(`http://127.0.0.1:${c.port}${command.route}`, { method: command.method, redirect: 'error', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Hypernab-Client': 'extension' },
         ...(command.method === 'POST' ? { body: JSON.stringify(command.body) } : {}), signal: AbortSignal.timeout(command.route === '/api/inspect' ? 65000 : 10000) });
     } catch { throw fail('APP_OFFLINE', m('e.could-not-connect-to-hypernab-open')); }
     let length = 0, parts = [];

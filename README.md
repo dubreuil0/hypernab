@@ -48,6 +48,8 @@ The extension is built from source: `npm run build:extensions` produces the Fire
 
 The app's **Settings > Browser extension** section shows these steps with copyable addresses.
 
+In the desktop app the same section starts with a **Set up in <browser>** button for every supported browser found on the computer: it opens that browser's extensions page and the extension folder and copies the path to pick; the browser itself always asks you to confirm, nothing is installed behind your back. A green mark shows when the extension has reached the app.
+
 **Use:** there is no pop-up. **Clicking** the Hypernab icon in the toolbar **turns capture on or off** (when off, the icon turns grey with a red slash; no button or panel appears on pages and nothing is captured). **Right-clicking** opens a menu: *Open Hypernab*, *Inspect this page*, *Capture videos*, *Capture file downloads*, *Settings and diagnostics*. The **Download** button that appears on the page when a video plays is the main place to download.
 
 ## Updates
