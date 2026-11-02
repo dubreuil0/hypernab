@@ -40,8 +40,13 @@ export function finishedName(job, original, extension = '') {
   return cleanName(clipName(base, 100 - suffix.length).trimEnd() + suffix);
 }
 
-export function layoutDirectory(root, mode, { host, series } = {}) {
+// Folders of the optional "sort by type" setting. Fixed names (not translated) so a language change never splits one kind over two folders.
+export const TYPE_FOLDERS = { video: 'Video', audio: 'Music', image: 'Images', document: 'Documents', archive: 'Archives', program: 'Programs', disk: 'Disk images', other: 'Other' };
+
+// root / [type] / [site] / [series]: the type folder (only when sorting by type is on and the type is known) comes first.
+export function layoutDirectory(root, mode, { host, series, category } = {}) {
   const parts = [];
+  if (TYPE_FOLDERS[category]) parts.push(TYPE_FOLDERS[category]);
   if (['site', 'site-series'].includes(mode) && host) parts.push(cleanName(host, 'site'));
   if (['series', 'site-series'].includes(mode) && series) parts.push(cleanName(series, 'Dizi'));
   return path.join(root, ...parts);

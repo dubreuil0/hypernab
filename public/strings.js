@@ -994,6 +994,9 @@
       'x.phase.failed': 'Failed',
       'x.phase.cancelled': 'Cancelled',
       'x.phase.interrupted': 'Interrupted',
+      'app.sortByType': 'Sort files into folders by type',
+      'app.sortByType.hint': 'Off: everything goes into the one download folder. On: new downloads go into Video, Music, Images, Documents, Archives, Programs and Other folders inside it. Files already downloaded are never moved.',
+      'e.name.sort-by-type': 'Sorting by type',
     },
     tr: {
       'lang.subtitle.title': 'Varsayılan altyazı dili',
@@ -1986,6 +1989,9 @@
       'x.phase.failed': 'Başarısız',
       'x.phase.cancelled': 'İptal edildi',
       'x.phase.interrupted': 'Kesintiye uğradı',
+      'app.sortByType': 'Dosyaları türüne göre klasörlere ayır',
+      'app.sortByType.hint': 'Kapalı: her şey tek indirme klasörüne iner. Açık: yeni indirmeler içinde Video, Music, Images, Documents, Archives, Programs ve Other klasörlerine ayrılır. İndirilmiş dosyalar hiçbir zaman taşınmaz.',
+      'e.name.sort-by-type': 'Türe göre ayırma',
     },
   };
   // The interface language: the browser's/Windows' own when the app has it, else English. The app window and the extension then

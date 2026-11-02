@@ -102,6 +102,19 @@ test('takeFile: real name kept, parallel download, structure verified, marked, n
   assert.ok(requests.some(item => item.headers.Referer === 'https://files.example.org/page' && item.headers['User-Agent'] === 'UA/1'));
 });
 
+test('takeFile with sorting by type on: the finished file really lies in its type folder, verified and marked', async t => {
+  const queue = queueFixture(t, { headers: { 'content-disposition': 'attachment; filename="Sirali.zip"' } });
+  queue.setSettings({ sortByType: true });
+  const answer = await queue.takeFile({ url: 'https://files.example.org/sorted', fileName: '', submissionId: '33333333-3333-4333-8333-333333333333' });
+  assert.equal(answer.directory, path.join(queue.directory, 'Archives'), 'the window shows the folder the file will go to');
+  await settled(queue);
+  const [job] = queue.list(); assert.equal(job.status, 'completed', job.error);
+  const file = path.join(queue.directory, 'Archives', 'Sirali.zip');
+  assert.deepEqual(fs.readFileSync(file), bigZip); assert.equal(job.verification.status, 'passed');
+  assert.equal(fs.existsSync(path.join(queue.directory, 'Sirali.zip')), false, 'nothing is left in the main folder');
+  assert.equal(fs.readFileSync(`${file}:Zone.Identifier`, 'utf8'), '[ZoneTransfer]\r\nZoneId=3\r\n');
+});
+
 test('takeFile: name collisions get a number and never overwrite; resubmitting the same id adds nothing', async t => {
   const queue = queueFixture(t), id = '22222222-2222-4222-8222-222222222222';
   fs.mkdirSync(queue.directory, { recursive: true }); fs.writeFileSync(path.join(queue.directory, 'veri.zip'), 'ESKI');

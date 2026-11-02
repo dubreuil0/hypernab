@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { chromiumBrowser, firefoxBrowser, freePort } from './browser-driver.js';
+import { buildExtensions } from './build-extensions.js';
+import { zipFolder } from './zip-store.js';
 
 const root = path.resolve(import.meta.dirname, '..');
 const base = path.join(process.env.LOCALAPPDATA, 'Temp/opencode');
@@ -40,6 +42,13 @@ async function run(name, launch) {
     const selected = await ev(`document.getElementById('set-interfaceLanguage').value`);
     check(name, 'Settings has a language list, "Same as Windows" by default', selected === 'auto' && /Language/.test(await ev(`document.querySelector('#s-appearance h2')?.textContent + ' ' + document.querySelector('#s-appearance .setting strong')?.textContent`)), selected);
     check(name, 'no raw text key shows in Settings (language lists, extension help, engines)', (await ev(LEAK)).length === 0, JSON.stringify(await ev(LEAK)));
+    // Sorting by type: a switch, off by default; clicking it is saved by the engine
+    const sortSaved = () => ev(`(async () => { const b = await fetch('/api/bootstrap').then(r => r.json()); return (await fetch('/api/settings', { headers: { Authorization: 'Bearer ' + b.token } }).then(r => r.json())).sortByType; })()`);
+    check(name, 'Settings has the sort-by-type switch, off by default, with its English text', await ev(`document.getElementById('set-sortByType')?.checked`) === false && await sortSaved() === false && /Sort files into folders by type/.test(await ev(`document.getElementById('set-sortByType').closest('.setting').textContent`)));
+    await ev(`document.getElementById('set-sortByType').click()`); await sleep(600);
+    check(name, 'turning it on is saved by the engine', await sortSaved() === true && await ev(`document.getElementById('set-sortByType').checked`) === true);
+    await ev(`document.getElementById('set-sortByType').click()`); await sleep(600);
+    check(name, 'and off again', await sortSaved() === false);
     await browser.screenshot(tab, path.join(shots, `${name}-ui-english-settings.png`));
     // choose Turkish: saved by the engine, the window reloads itself once
     await ev(`(async () => { const b = await fetch('/api/bootstrap').then(r => r.json()); await fetch('/api/settings', { method: 'POST', headers: { Authorization: 'Bearer ' + b.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ interfaceLanguage: 'tr' }) }); })()`);
@@ -59,7 +68,8 @@ async function run(name, launch) {
 }
 
 try {
-  if (wanted.includes('firefox')) await run('firefox', () => firefoxBrowser(tools.firefox, path.join(dir, 'ff-profile')));
+  // Firefox needs an add-on to start its test session; the app window itself does not use it.
+if (wanted.includes('firefox')) { const builds = buildExtensions(path.join(dir, 'ext')); await run('firefox', () => firefoxBrowser('C:/Program Files/Mozilla Firefox/firefox.exe', tools.geckodriver, path.join(dir, 'ff-profile'), zipFolder(builds.firefox, path.join(dir, 'hypernab.xpi')))); }
   if (wanted.includes('chrome')) await run('chrome', () => chromiumBrowser(tools.chrome, path.join(dir, 'chrome-profile'), []));
 } finally { server.kill(); await sleep(300); fs.rmSync(dir, { recursive: true, force: true }); }
 console.log(results.every(Boolean) ? 'SONUÇ: hepsi geçti' : 'SONUÇ: hata var');

@@ -19,7 +19,7 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera
 - **Dil tercihleri:** Ayarlar'dan varsayılan altyazı dili (varsayılan: arayüz dili) ve ses dili seçilir. Sayfa kendi altyazısını söylediyse o kazanır; seçtiğin dilde parça yoksa hiçbiri işaretlenmez. Ses, altyazı diline bağlı değildir: oynatıcıda çalan ses, yoksa ayardaki ses tercihi, yoksa sitenin varsayılanı seçilir ve panelde yazılır.
 - **Altyazılı video biçimi:** mp4 içindeki gömülü altyazıyı VLC kendiliğinden açmaz (yan `.srt` dosyasını açar). İstersen Ayarlar'dan "mkv olarak kaydet" seçilir: video kayıpsız mkv'ye kopyalanır ve VLC varsayılan altyazıyı kendisi açar. Varsayılan: mp4 kalır.
 - **Oynatma listeleri:** listeyi görüp istediğin bölümleri kuyruğa ekleme.
-- **Akıllı adlandırma ve klasörleme:** her alfabede güvenli Windows dosya adları, isteğe bağlı klasör düzeni; mevcut dosyalar üzerine yazılmaz.
+- **Akıllı adlandırma ve klasörleme:** her alfabede güvenli Windows dosya adları, isteğe bağlı klasör düzeni; mevcut dosyalar üzerine yazılmaz. Her şey Windows gibi tek indirme klasörüne iner; Ayarlar'daki tek bir anahtar yeni indirmeleri Video, Music, Images, Documents, Archives, Programs ve Other klasörlerine ayırır (indirilmiş dosyalar hiçbir zaman taşınmaz).
 - **Geçmiş:** kuyruğu temizlesen de silinmeyen, aranabilir geçmiş. Kuyruğu temizlemek dosyaları silmez.
 - **Tepsi hızlı paneli:** toplam hız ve ilk işler; tekli ve toplu duraklat/sürdür.
 - **Arayüz:** koyu, açık ve sistem teması; dört vurgu rengi; küçük/normal/büyük yazı; kompakt veya normal liste. Düşük donanımda akıcı kalması için bulanıklık, büyük gölge ve sürekli animasyon kullanılmaz.

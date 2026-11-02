@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { cleanName, knownYear, finishedName, layoutDirectory } from '../src/file-layout.js';
+import { cleanName, knownYear, finishedName, layoutDirectory, TYPE_FOLDERS } from '../src/file-layout.js';
 import { DownloadQueue } from '../src/downloads.js';
 
 test('clean names preserve Turkish, contain paths and Windows device names', () => {
@@ -72,4 +72,30 @@ test('new job snapshots layout; clean completion never overwrites; old jobs reta
   assert.equal(old.file, 'Eski.mp4');
   assert.throws(() => queue.setSettings({ folderLayout: '../outside' }));
   assert.throws(() => queue.setSettings({ smartNames: 'yes' }));
+});
+
+test('sorting by type is off by default (one folder, like Windows); on, it adds a type folder in front of the site/series layout', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-sort-'));
+  const queue = new DownloadQueue({ directory: path.join(root, 'downloads'), stateFile: path.join(root, 'queue.json'), toolsDirectory: path.resolve('tools') });
+  t.after(() => { queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+  const base = path.join(root, 'downloads');
+  assert.equal(queue.settings.sortByType, false);
+  const directoryOf = input => { const id = queue.add({ start: 'queue', ...input }); return queue.jobs.find(job => job.id === id).directory; };
+  assert.equal(directoryOf({ url: 'https://example.org/a.zip', engine: 'direct', fileMode: true, fileName: 'a.zip' }), base, 'off: everything in the one folder');
+  queue.setSettings({ sortByType: true });
+  assert.equal(directoryOf({ url: 'https://example.org/b.zip', engine: 'direct', fileMode: true, fileName: 'b.zip' }), path.join(base, 'Archives'));
+  assert.equal(directoryOf({ url: 'https://example.org/c.pdf', engine: 'direct', fileMode: true, fileName: 'c.pdf' }), path.join(base, 'Documents'));
+  assert.equal(directoryOf({ url: 'https://example.org/d.exe', engine: 'direct', fileMode: true, fileName: 'd.exe' }), path.join(base, 'Programs'));
+  assert.equal(directoryOf({ url: 'https://example.org/e.mp3', engine: 'direct', fileMode: true, fileName: 'e.mp3' }), path.join(base, 'Music'));
+  assert.equal(directoryOf({ url: 'https://example.org/f.unknownext', engine: 'direct', fileMode: true, fileName: 'f.unknownext' }), path.join(base, 'Other'));
+  assert.equal(directoryOf({ url: 'https://example.org/v.mp4', engine: 'direct' }), path.join(base, 'Video'), 'a captured video');
+  queue.setSettings({ folderLayout: 'site' });
+  assert.equal(directoryOf({ url: 'https://example.org/g.zip', engine: 'direct', fileMode: true, fileName: 'g.zip' }), path.join(base, 'Archives', 'example.org'), 'type first, then the site');
+  const first = queue.jobs.find(job => job.directory === path.join(base, 'Archives'));
+  queue.setSettings({ sortByType: false, folderLayout: 'flat' });
+  assert.equal(first.directory, path.join(base, 'Archives'), 'a job already made keeps its folder; nothing is moved');
+  assert.equal(directoryOf({ url: 'https://example.org/h.zip', engine: 'direct', fileMode: true, fileName: 'h.zip' }), base, 'off again: back to the one folder');
+  assert.throws(() => queue.setSettings({ sortByType: 'yes' }));
+  assert.equal(layoutDirectory(base, 'flat', { category: '../../x' }), base, 'an unknown type never makes a folder');
+  assert.deepEqual(Object.keys(TYPE_FOLDERS).sort(), ['archive', 'audio', 'disk', 'document', 'image', 'other', 'program', 'video']);
 });

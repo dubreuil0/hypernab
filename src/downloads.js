@@ -70,6 +70,7 @@ const SETTING_DEFAULTS = {
   subtitleContainer: 'keep', // video with subtitles: 'keep' its format (mp4) or 'mkv' (lossless copy; VLC then opens the default subtitle by itself)
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
+  sortByType: false,        // true = files go into Video / Music / Images... folders (new downloads only); false = one folder, like Windows
   downloadDirectory: null,  // null = the default folder; changing it affects new downloads only
   maxQuality: 'best',       // pre-selected quality cap: 'best' or a picture height
   preferCompatible: false,  // pre-select H.264/MP4 at the same height when offered (plays everywhere)
@@ -96,6 +97,7 @@ const SETTING_CHECKS = {
   subtitleContainer: value => ['keep', 'mkv'].includes(value) || m('e.invalid-video-format-for-subtitles'),
   smartNames: bool('e.name.smart-names'),
   folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || m('e.invalid-folder-layout'),
+  sortByType: bool('e.name.sort-by-type'),
   subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || m('e.invalid-subtitle-choice'),
   listLayout: value => validLayout(value) || m('e.invalid-list-layout'),
   appearance: value => ['compact', 'normal'].includes(value) || m('e.invalid-appearance'),
@@ -595,7 +597,7 @@ export class DownloadQueue {
       pageHost, submissionId: sid, submissionFingerprint: fingerprint,
       headers: mediaHeaders(input),
       deepVerify: input.deepVerify === true || (input.deepVerify === undefined && this.settings.deepVerifyDefault && this.capabilities().ffmpeg), expectedSha256: expectedSha256?.toLowerCase() || null,
-      directory: layoutDirectory(this.currentDirectory(), this.settings.folderLayout, { host: pageHost || new URL(url).hostname, series: input.seriesTitle }),
+      directory: layoutDirectory(this.currentDirectory(), this.settings.folderLayout, { host: pageHost || new URL(url).hostname, series: input.seriesTitle, category: this.settings.sortByType ? (fileName ? categoryFor(fileName).id : 'video') : null }),
       smartNames: fileName ? false : this.settings.smartNames,
       releaseYear: knownYear(this.offered.get(url)?.raw),
       quality: ['best', '1080', '720', '480'].includes(input.quality) ? input.quality : 'best',
