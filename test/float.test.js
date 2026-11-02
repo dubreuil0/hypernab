@@ -7,24 +7,23 @@ const read = name => fs.readFileSync(new URL(`../extension/${name}`, import.meta
 const TOKEN = 'a'.repeat(64);
 
 // Real core.js + float.js against a fake browser and a fake app server.
-function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
-  const session = { 'tab:7': entries, 'context:7': { frames } }, local = { token: TOKEN };
-  const cookieCalls = [], requests = [], appLanguage = { value: 'tr' }, alarms = { created: [], fire: null };
+function setup({ entries = [], frames = {}, inspect, jobs = [], native, jobsAnswer, localExtra = {} } = {}) {
+  const session = { 'tab:7': entries, 'context:7': { frames } }, local = { token: TOKEN, ...localExtra };
+  const cookieCalls = [], requests = [], appLanguage = { value: 'tr' };
   let listener = null;
   const browser = {
     runtime: { id: 'ext', getManifest: () => ({ version: '9.9.9' }), onMessage: { addListener(fn) { listener = fn; } } },
-    alarms: { create: (name, info) => alarms.created.push([name, info]), onAlarm: { addListener: fn => { alarms.fire = fn; } } },
     tabs: { async get(id) { return { id, url: 'https://example.org/watch?v=1&token=SECRET-PAGE', title: 'Video başlığı' }; } },
     storage: {
       session: { async get(keys) { return Object.fromEntries([].concat(keys).map(key => [key, session[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(session, values); } },
-      local: { async get(keys) { return Object.fromEntries([].concat(keys).map(key => [key, local[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(local, values); } }
+      local: { async get(keys) { if (keys === null) return { ...local }; return Object.fromEntries([].concat(keys).map(key => [key, local[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(local, values); }, async remove(keys) { for (const key of [].concat(keys)) delete local[key]; } }
     },
     cookies: { async getAll(query) { cookieCalls.push(query.url); return [{ name: 'sid', value: 'secret', domain: 'example.org', path: '/', secure: true, hostOnly: true }]; } }
   };
   const fetcher = async (url, options) => {
     const route = new URL(url).pathname, body = options.body ? JSON.parse(options.body) : null;
     requests.push({ route, body });
-    const data = route === '/api/status' ? { extensionProtocol: 1, instanceId: 'engine-1' } : route === '/api/prefs' ? { interfaceLanguage: appLanguage.value, audioLanguage: 'player' } : ['/api/inspect', '/api/sniff'].includes(route) ? inspect(body) : route.startsWith('/api/submissions/') ? { known: false } : { id: 'job-1' };
+    const data = route === '/api/status' ? { extensionProtocol: 1, instanceId: 'engine-1' } : route === '/api/prefs' ? { interfaceLanguage: appLanguage.value, audioLanguage: 'player' } : ['/api/inspect', '/api/sniff'].includes(route) ? inspect(body) : route.startsWith('/api/submissions/') ? { known: false } : (jobsAnswer ? jobsAnswer(route, body) : { id: 'job-1' });
     return { ok: !data?.httpError, status: data?.httpError ? 422 : 200, json: async () => data?.httpError ? { error: data.httpError } : data };
   };
   const context = vm.createContext({ browser, URL, AbortSignal, JSON, Promise, Date, Math, crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' }, navigator: { userAgent: 'UA' }, setTimeout, clearTimeout, fetch: fetcher, globalThis: null });
@@ -37,26 +36,51 @@ function setup({ entries = [], frames = {}, inspect, jobs = [], native } = {}) {
     if (keep !== true) resolve(null);
   });
   const raw = (message, sender) => new Promise(resolve => { if (listener(message, sender, resolve) !== true) resolve(null); });
-  return { send, raw, cookieCalls, requests, session, local, appLanguage, alarms };
+  return { send, raw, cookieCalls, requests, session, local, appLanguage };
 }
 const info = { title: 'Video başlığı', duration: 125, defaultOptionId: 'a', sessionUsed: false, options: [
   { id: 'a', label: '1080p · MP4 · H.264', height: 1080, fps: 60, hdr: false, codec: 'H.264', ext: 'mp4', filesize: 5e7, sizeKind: 'approx', recommended: true, audio: 'merged' },
   { id: 'b', label: '1080p · WEBM · VP9', height: 1080, fps: 60, hdr: false, codec: 'VP9', ext: 'webm', filesize: 4e7, sizeKind: 'approx', recommended: false, audio: 'merged' }
 ] };
 
-test('uygulamada dil değişince eklenti yeniden yüklenmeden öğrenir: sayfa açılışı hemen, açık sayfa yoksa dakikalık alarm', async () => {
+test('the language changed in the app reaches the extension when a page of the extension opens; no timer polls the app', async () => {
   const app = setup({ inspect: () => info });
-  assert.equal(JSON.stringify(app.alarms.created), JSON.stringify([['hypernab-language', { periodInMinutes: 1 }]]));
   assert.equal((await app.raw({ type: 'hypernab:language' }, { id: 'ext' }))?.ok, true);
   assert.equal(app.local.uiLanguage, 'tr');
   app.appLanguage.value = 'en';
   assert.equal((await app.raw({ type: 'hypernab:language' }, { id: 'ext' }))?.ok, true, 'a page opening is not held back by the earlier look-up');
   assert.equal(app.local.uiLanguage, 'en');
-  app.appLanguage.value = 'tr'; app.alarms.fire({ name: 'hypernab-language' });
-  await new Promise(resolve => setTimeout(resolve, 20));
-  assert.equal(app.local.uiLanguage, 'tr', 'the alarm reads it with no page open');
   const stranger = await app.raw({ type: 'hypernab:language' }, { id: 'other-extension' });
   assert.equal(stranger, null, 'only our own pages may ask');
+  assert.equal(/alarms/.test(fs.readFileSync(new URL('../extension/float.js', import.meta.url), 'utf8')), false, 'no alarm (and no alarms permission) is needed');
+});
+
+test('privacy: the record of a download in progress never outlives the download; stale and old-format records are swept', async () => {
+  const old = Date.now() - 3600000, fresh = Date.now() - 1000;
+  const app = setup({ inspect: () => info, frames: { 0: { playerBlob: true } }, localExtra: {
+    'float-outbox:7|https://example.org/watch?v=1': null, // the old format: an address in the key, nothing in the value
+    'float-outbox:8': { at: old, tabUrl: 'https://old.example/', payload: {} }, // a download abandoned an hour ago
+    'float-outbox:5': { at: fresh, tabUrl: 'https://other.example/', payload: {} } // another tab, a moment ago
+  } });
+  assert.equal((await app.send({ type: 'hypernab:float', action: 'inspect', cookies: true })).ok, true);
+  assert.equal((await app.send({ type: 'hypernab:float', action: 'start', optionId: 'a' })).ok, true);
+  const keys = Object.keys(app.local).filter(key => key.startsWith('float-outbox:'));
+  assert.deepEqual(keys, ['float-outbox:5'], 'accepted: its own record is gone; old-format and stale ones are swept; a recent one of another tab stays');
+  assert.equal(JSON.stringify(app.local).includes('watch?v=1'), false, 'no visited address is left behind in the browser storage');
+});
+
+test('privacy: a refused download leaves no record; a lost answer keeps one (time-stamped, no address in its key) so the download is not lost', async () => {
+  const refused = setup({ inspect: () => info, frames: { 0: { playerBlob: true } }, jobsAnswer: route => route === '/api/jobs' ? { httpError: 'refused' } : { id: 'x' } });
+  await refused.send({ type: 'hypernab:float', action: 'inspect', cookies: true });
+  assert.equal((await refused.send({ type: 'hypernab:float', action: 'start', optionId: 'a' })).ok, false);
+  assert.deepEqual(Object.keys(refused.local).filter(key => key.startsWith('float-outbox:')), [], 'a definite refusal needs no recovery record');
+  const lost = setup({ inspect: () => info, frames: { 0: { playerBlob: true } }, jobsAnswer: route => { if (route === '/api/jobs') throw new Error('offline'); return { known: false }; } });
+  await lost.send({ type: 'hypernab:float', action: 'inspect', cookies: true });
+  assert.equal((await lost.send({ type: 'hypernab:float', action: 'start', optionId: 'a' })).ok, false);
+  const kept = Object.keys(lost.local).filter(key => key.startsWith('float-outbox:'));
+  assert.deepEqual(kept, ['float-outbox:7'], 'the key holds the tab number only');
+  const record = lost.local[kept[0]];
+  assert.ok(record.at > Date.now() - 60000 && record.tabUrl, 'time-stamped, tied to its page');
 });
 
 test('uzantısız HLS yerel okuyucuya gider; yanlış MP4/blob yanıtı sayfadan önce koklanır', async () => {

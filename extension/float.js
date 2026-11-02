@@ -16,6 +16,16 @@
   async function cacheRead(url, instanceId, withCookies, cookieStoreId, sourceKind) {
     try { const key = `inspect:${url}`, hit = (await api.storage.session.get(key))[key]; return hit && hit.sourceKind === sourceKind && hit.instanceId === instanceId && hit.withCookies === withCookies && hit.cookieStoreId === cookieStoreId && Date.now() - hit.at < (hit.value?.info?.inspectionPending ? 700 : hit.error ? CACHE_FAIL_MS : CACHE_OK_MS) ? hit : null; } catch { return null; }
   }
+  // The record of a download in progress (kept so a lost answer never costs the download). It holds addresses of the page, so it lives only
+  // as long as it can be useful: it is removed when the download is accepted or refused, and anything older than ten minutes is swept away.
+  const OUTBOX = 'float-outbox:', OUTBOX_MAX_AGE = 600000;
+  async function sweepOutbox() {
+    try {
+      const all = await api.storage.local.get(null);
+      const old = Object.keys(all).filter(key => key.startsWith(OUTBOX) && !(all[key]?.at > Date.now() - OUTBOX_MAX_AGE)); // also the records of older versions (no time on them)
+      if (old.length) await api.storage.local.remove(old);
+    } catch { /* the sweep is housekeeping; the next one tries again */ }
+  }
   async function cacheWrite(url, value) { try { await api.storage.session.set({ [`inspect:${url}`]: { at: Date.now(), ...value } }); } catch { /* cache is optional */ } }
 
   // Which sources of this tab are worth offering: captured streams/files first, the page itself (resolved by yt-dlp) last.
@@ -212,7 +222,7 @@
   }
   // Own qualities first; qualities of the page's other playlists join them (same label = same quality, shown once), best picture first.
   function mergedOptions(info, alts) {
-    const view = (option, id) => ({ id, label: option.label, size: H.size(option).replace(/^Yaklaşık /, '~'), recommended: option.recommended !== false, audio: option.audio, fps: option.fps, hdr: option.hdr, height: option.height || 0 });
+    const view = (option, id) => ({ id, label: option.label, size: H.size(option), recommended: option.recommended !== false, audio: option.audio, fps: option.fps, hdr: option.hdr, height: option.height || 0 });
     const options = (info.options || []).map(option => view(option, option.id)), seen = new Set(options.map(option => option.label));
     let added = false;
     for (const alt of alts || []) for (const option of alt.info?.options || []) {
@@ -290,15 +300,17 @@
       optionId = inner;
     }
     if (held.hasOptions && !held.optionIds.includes(optionId)) return { ok: false, error: T('x.the-list-was-updated-choose-a-2'), refresh: present(page.info, page.files, page.alts, page.playing) };
-    const key = `float-outbox:${tab.id}|${tab.url}`;
+    await sweepOutbox();
+    const key = `${OUTBOX}${tab.id}`;
     let record = (await api.storage.local.get(key))[key];
+    if (record && record.tabUrl !== tab.url) record = null; // a record belongs to the page it was made on
     const recovered = Boolean(record);
     const sound = typeof audioTrack === 'string' && held.info?.audioTracks?.some(track => track.id === audioTrack) ? audioTrack : null; // only a sound the app offered for this list
-    if (!record) record = { payload: { ...held.input, quality: 'best', start: mode === 'queue' ? 'queue' : 'now', ...(held.hasOptions ? { formatId: optionId } : {}), ...(held.info?.silentStream && page.companionAudio ? { audioUrl: page.companionAudio } : {}), ...(sound ? { audioTrack: sound } : {}), submissionId: intentId || globalThis.crypto.randomUUID() }, held, optionId };
+    if (!record) record = { payload: { ...held.input, quality: 'best', start: mode === 'queue' ? 'queue' : 'now', ...(held.hasOptions ? { formatId: optionId } : {}), ...(held.info?.silentStream && page.companionAudio ? { audioUrl: page.companionAudio } : {}), ...(sound ? { audioTrack: sound } : {}), submissionId: intentId || globalThis.crypto.randomUUID() }, held, optionId, tabUrl: tab.url };
     if (!recovered && !allowDuplicate) { const found = await duplicatesOf(client, record.payload); if (found.length) return duplicateAnswer(found); }
     if (!recovered) Object.assign(record.payload, await H.subtitlePayload(api, client, tab.id)); // read once, kept with the stored payload
-    const store = () => api.storage.local.set({ [key]: record });
-    const done = async () => { await api.storage.local.set({ [key]: null }); return { ok: true, queued: record.payload.start === 'queue' }; };
+    const store = () => { record.at = Date.now(); return api.storage.local.set({ [key]: record }); };
+    const done = async () => { await api.storage.local.remove(key); return { ok: true, queued: record.payload.start === 'queue' }; };
     const renew = async () => {
       const fresh = await H.reselect(client, record.held.sourceInput || record.held.input, record.held.info, record.optionId, api, tab.cookieStoreId);
       record.payload = { ...fresh.input, quality: 'best', start: record.payload.start, ...(fresh.chosen ? { formatId: fresh.chosen } : {}), ...(record.payload.audioUrl ? { audioUrl: record.payload.audioUrl } : {}), ...(record.payload.audioTrack ? { audioTrack: record.payload.audioTrack } : {}), submissionId: record.payload.submissionId, ...(await H.subtitlePayload(api, client, tab.id)) };
@@ -322,7 +334,7 @@
           return done();
         } catch (error) {
           if (attempt) throw error;
-          if (error.code === 'SELECTION_EXPIRED' || /son incelemesinde sunulmad/i.test(error.message)) { await renew(); continue; }
+          if (error.code === 'SELECTION_EXPIRED') { await renew(); continue; }
           if (error.code && !['APP_OFFLINE', 'APP_TIMEOUT', 'NATIVE_DISCONNECTED', 'NATIVE_TIMEOUT'].includes(error.code)) throw error;
           client = await connection(true);
           const receipt = await client.request(`/api/submissions/${record.payload.submissionId}`);
@@ -333,11 +345,12 @@
       }
     } catch (error) {
       if (error.code === 'QUALITY_CHANGED') {
-        await api.storage.local.set({ [key]: null });
+        await api.storage.local.remove(key);
         held = { ...record.held, info: error.info, input: error.input, instanceId: client.instanceId, optionIds: (error.info.options || []).map(option => option.id), hasOptions: Boolean(error.info.options?.length) };
         await api.storage.session.set({ [`float:${tab.id}`]: held });
         return { ok: false, error: error.message, refresh: present(error.info, page.files, page.alts, page.playing) };
       }
+      if (error.code && !H.transientError(error)) { try { await api.storage.local.remove(key); } catch { /* swept later */ } } // a definite refusal needs no recovery record
       return { ok: false, error: error.message };
     }
   }
@@ -375,11 +388,8 @@
     languageAt = Date.now();
     try { await prefsOf(await connection(false)); } catch { /* app closed: keep the last language */ }
   }
-  api.runtime.onStartup?.addListener(() => { void syncLanguage(); });
-  api.runtime.onInstalled?.addListener(() => { void syncLanguage(); });
-  // A language changed in the app reaches the extension within a minute even when no page of the extension is open (the background
-  // sleeps between events; an alarm wakes it).
-  try { api.alarms?.create?.('hypernab-language', { periodInMinutes: 1 }); api.alarms?.onAlarm?.addListener?.(alarm => { if (alarm?.name === 'hypernab-language') void syncLanguage(true); }); } catch { /* no alarms: pages still ask when they open */ }
+  api.runtime.onStartup?.addListener(() => { void syncLanguage(); void sweepOutbox(); });
+  api.runtime.onInstalled?.addListener(() => { void syncLanguage(); void sweepOutbox(); });
 
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (message?.type === 'hypernab:language') {

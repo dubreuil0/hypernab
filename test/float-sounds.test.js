@@ -16,7 +16,7 @@ function setup({ entries = [], frames = {}, inspect, activity = [], onJob, setti
     tabs: { async get(id) { return { id, url: 'https://example.org/watch?v=1', title: 'Film' }; }, async sendMessage() {} },
     storage: {
       session: { async get(keys) { return Object.fromEntries([].concat(keys).map(key => [key, session[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(session, values); } },
-      local: { async get(keys) { return Object.fromEntries([].concat(keys).map(key => [key, local[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(local, values); } }
+      local: { async get(keys) { if (keys === null) return { ...local }; return Object.fromEntries([].concat(keys).map(key => [key, local[key]]).filter(([, value]) => value !== undefined)); }, async set(values) { Object.assign(local, values); }, async remove(keys) { for (const key of [].concat(keys)) delete local[key]; } }
     },
     cookies: { async getAll() { return []; } }
   };

@@ -4,7 +4,7 @@
 
 Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
 
-**Sürüm:** uygulama 0.16.0 · eklenti 0.11.0 · Windows 10/11 (x64)
+**Sürüm:** uygulama 0.16.1 · eklenti 0.11.1 · Windows 10/11 (x64)
 
 ## Özellikler
 
@@ -63,13 +63,13 @@ Uygulama açıldıktan kısa süre sonra yeni sürüm olup olmadığına bir kez
 Tam politika [PRIVACY.tr.md](PRIVACY.tr.md) dosyasındadır.
 
 - Yerel motor yalnızca `127.0.0.1` üzerinde çalışır; her istek eşleştirme anahtarı ve kaynak denetimi gerektirir.
-- Tarayıcı çerezleri yalnızca sen sayfadaki düğmeye bastığında, yalnızca seçtiğin videonun adresi için kullanılır; diske, günlüğe veya rapora yazılmaz.
+- Tarayıcı çerezleri yalnızca sen sayfadaki düğmeye bastığında (ya da bir bağlantıda "Hypernab ile indir"i seçtiğinde), yalnızca seçtiğin adres için kullanılır. Bellekte tutulur. Medya motoru (yt-dlp) gerektirdiğinde, yalnızca o tek çalışma süresince Windows geçici klasöründe kısa ömürlü bir dosyaya yazılır ve çalışma biter bitmez silinir (artıklar bir sonraki başlangıçta süpürülür). Geçmişe, günlüğe ya da rapora hiçbir zaman yazılmaz.
 - DRM korumalı içerik ve erişim kısıtlamaları **aşılmaz**. Yalnızca indirme iznin olan içerikler için kullan.
-- Geçmiş yerel bir veritabanında tutulur; dosya adı ve durum gibi bilgileri tutar; kaynak adresi, istek başlığı ve çerez içermez.
+- İndirme listesi (`%APPDATA%\Hypernab\data` içindeki `queue.json`) her iş için dosya adını, durumu, klasörü, kaynak adresini (varsa imzalı sorgusuyla), geldiği sayfanın adresini (sorgusuz) ve User-Agent bilgisini tutar. Geçmiş başlığı, dosya adını, klasörü, site adını, boyutu ve zamanları tutar. **Çerezler ve diğer istek başlıkları hiçbir zaman kaydedilmez.** Kuyruğu temizlemek kayıtlarını listeden kaldırır; indirilen dosyalar durur. Uygulamayı kaldırınca veri klasörü kalır (yeniden kurunca kuyruğun ve ayarların bulunur); her şeyi silmek için o klasörü sil. yt-dlp'nin kendi önbelleği de o klasörde tutulur, ev klasöründe değil.
 
 ## Sınırlar
 
-- Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklentinin ayarlar sayfasındaki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir.
+- Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklentinin ayarlar sayfasındaki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir (ilgili sayfaların site adlarını ve kısaltılmış yol parçalarını içerir).
 - Yalnızca sayfada özel bir katman olarak çizilen altyazılar yakalanamaz.
 - Windows kod imzası ve kalıcı (imzalı) Firefox paketi henüz yoktur.
 

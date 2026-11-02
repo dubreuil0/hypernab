@@ -4,7 +4,7 @@
 
 A local download manager for Windows, with a media-capture extension for Firefox, Chrome, Edge, Brave and Opera. Your downloads stay on your computer; there is no account, cloud or tracking.
 
-**Version:** app 0.16.0 · extension 0.11.0 · Windows 10/11 (x64)
+**Version:** app 0.16.1 · extension 0.11.1 · Windows 10/11 (x64)
 
 ## Features
 
@@ -62,13 +62,13 @@ Shortly after it starts, the app checks once for a new version. You can also che
 The full policy is in [PRIVACY.md](PRIVACY.md).
 
 - The local engine only runs on `127.0.0.1`; every request needs the pairing key and a source check.
-- Browser cookies are used only when you press the button on the page, only for the address of the video you chose; they are not written to disk, to a log or to a report.
+- Browser cookies are used only when you press the button on the page (or choose “Download with Hypernab” on a link), only for the address you chose. They are kept in memory. When the media engine (yt-dlp) needs them, they are written to a short-lived temporary file in the Windows temp folder for the length of that one run and deleted as soon as it ends (leftovers are swept at the next start). They are never written to the history, a log or a report.
 - DRM-protected content and access restrictions are **not bypassed**. Use it only for content you are allowed to download.
-- The history is kept in a local database; it keeps information such as the file name and the state, and contains no source address, request header or cookie.
+- The download list (`queue.json` in `%APPDATA%\Hypernab\data`) keeps for each job its file name, state, folder, the source address (with any signed query it had), the address of the page it came from (without query) and the User-Agent. The history keeps title, file name, folder, site name, size and times. **Cookies and other request headers are never saved.** Clearing the queue removes its entries from the list; downloaded files stay. The data folder stays when you uninstall, so a reinstall finds your queue and settings; delete it to remove everything. yt-dlp's own cache is kept in that folder too, never in your home folder.
 
 ## Limits
 
-- It is not guaranteed to work on every site; sites change. If there is a problem, the **Copy the diagnostic report** button on the extension's settings page makes a report without cookie or query information.
+- It is not guaranteed to work on every site; sites change. If there is a problem, the **Copy the diagnostic report** button on the extension's settings page makes a report without cookie or query information (it does contain the site names and shortened path parts of the pages involved).
 - Subtitles that are only drawn as a special layer on the page cannot be captured.
 - A Windows code signature and a permanent (signed) Firefox package do not exist yet.
 

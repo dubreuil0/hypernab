@@ -176,7 +176,7 @@ browserApi.tabs.onUpdated.addListener((tabId, change) => {
     await browserApi.storage.session.remove(`tab:${tabId}`);
     await browserApi.storage.session.remove(`context:${tabId}`);
     await browserApi.storage.session.remove(`requests:${tabId}`);
-    await browserApi.storage.session.remove([`subs:${tabId}`, `subs-net:${tabId}`]);
+    await browserApi.storage.session.remove([`subs:${tabId}`, `subs-net:${tabId}`, `float:${tabId}`]);
     await browserApi.action.setBadgeText({ tabId, text: '' });
   }).catch(() => {});
 });
@@ -188,7 +188,7 @@ browserApi.tabs.onRemoved.addListener(tabId => {
     await browserApi.storage.session.remove(`tab:${tabId}`);
     await browserApi.storage.session.remove(`context:${tabId}`);
     await browserApi.storage.session.remove(`requests:${tabId}`);
-    await browserApi.storage.session.remove([`subs:${tabId}`, `subs-net:${tabId}`]);
+    await browserApi.storage.session.remove([`subs:${tabId}`, `subs-net:${tabId}`, `float:${tabId}`]);
     generations.delete(tabId);
   }).catch(() => {});
 });

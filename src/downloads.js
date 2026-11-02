@@ -1091,7 +1091,7 @@ export class DownloadQueue {
       // resolve). Only a problem that retrying cannot fix (DRM, private/removed video, full disk, unsupported) is shown as failed.
       const fatal = error instanceof RemoteResponseError || /DRM|desteklenm|geçersiz|bulunamad|Seçtiğin kalite|yetki|ENOSPC|EACCES|EPERM|private|unavailable|not available|Sign in|copyright|removed|404|değişti/i.test(`${error.code || ''} ${error.message}`);
       if (!fatal && !this.stopping && (job.autoRetries || 0) < this.settings.autoRetries) { job.autoRetries = (job.autoRetries || 0) + 1; recordRecovery(job, 'automatic-retry', { attempt: job.autoRetries }); job.status = 'queued'; job.error = null; job.speed = 0; return; }
-      job.status = 'failed'; job.error = error.message;
+      job.status = 'failed'; job.error = String(error.message).replace(/https?:\/\/[^\s]+/g, m('e.link')); // saved text carries no address
     }).finally(() => {
       job.speed = 0;
       this.meter(job).stage(jobPhase(job));
@@ -1172,7 +1172,7 @@ export class DownloadQueue {
     try {
       let seed = job.kind === 'file' ? this.probeSeeds?.get(job.url) : null; this.probeSeeds?.delete(job.url);
       if (seed && Date.now() - seed.at >= 30000) seed = null;
-      if (seed && !seed.probe) throw new RangeUnsupportedError(m('e.the-source-does-not-support-byte-range')); // the takeover already asked
+      if (seed && !seed.probe) throw new RangeUnsupportedError(m('e.the-source-does-not-support-byte-range')); // the file look already asked
       const probe = seed ? seed.probe : await this.probeSource(job.url, this.requestHeaders(job, job.url), signal);
       job.measurementKey = sourceMeasureKey([{ url: probe.url, protocol: 'https' }]);
       if (isManifest(probe.contentType, probe.url)) return this.routeManifest(job, signal);

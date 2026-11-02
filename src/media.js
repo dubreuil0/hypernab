@@ -20,9 +20,12 @@ export function mediaHeaders(input = {}) {
   return result;
 }
 
+// yt-dlp keeps a cache of its own (player scripts). It lives in Hypernab's own data folder, never in the user's home folder.
+const cacheArgs = () => process.env.HYPERNAB_DATA_DIR ? ['--cache-dir', path.join(process.env.HYPERNAB_DATA_DIR, 'ytdlp-cache')] : ['--no-cache-dir'];
+
 export function baseExtractorArgs(toolsDirectory, headers = {}, cookieFile = null) {
   const args = [
-    '--ignore-config', '--no-playlist', '--no-colors', '--encoding', 'utf-8', '--socket-timeout', '20',
+    '--ignore-config', ...cacheArgs(), '--no-playlist', '--no-colors', '--encoding', 'utf-8', '--socket-timeout', '20',
     '--js-runtimes', `node:${process.execPath}`, '--no-remote-components'
   ];
   if (fs.existsSync(path.join(toolsDirectory, 'ffmpeg.exe'))) args.push('--ffmpeg-location', toolsDirectory);

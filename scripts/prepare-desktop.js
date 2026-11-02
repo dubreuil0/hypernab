@@ -8,6 +8,7 @@ fs.mkdirSync(path.join(root, 'build/runtime'), { recursive: true });
 fs.copyFileSync(process.execPath, path.join(root, 'build/runtime/node.exe'));
 buildExtensions();
 const engine = path.join(root, 'build/engine');
+fs.rmSync(engine, { recursive: true, force: true }); // generated staging folder: it starts empty, so no file of an older version can ship in the installer
 fs.mkdirSync(engine, { recursive: true });
 for (const name of ['src', 'public', 'build/extensions']) fs.cpSync(path.join(root, name), path.join(engine, name), { recursive: true });
 for (const name of ['scripts/install-native.js', 'extension/manifest.json', 'extension/chromium-key.json', 'README.md', 'THIRD_PARTY_NOTICES.md']) {

@@ -170,7 +170,7 @@ const server = http.createServer(async (req, res) => {
     }
     return json(res, 404, { error: m('e.not-found') });
   } catch (error) {
-    return json(res, 400, { error: error.message.replace(/https?:\/\/[^\s]+/g, m('e.link')), ...(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'duplicate' ? { duplicates: error.duplicates } : {}) });
+    return json(res, 400, { error: String(error?.message ?? error).replace(/https?:\/\/[^\s]+/g, m('e.link')), ...(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR'].includes(error.code) ? { code: error.code } : {}), ...(error.code === 'duplicate' ? { duplicates: error.duplicates } : {}) });
   }
 });
 let inspections = 0;

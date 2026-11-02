@@ -103,24 +103,21 @@
       return { ...group, primary, files: group.stream ? [] : list, variantCount: group.stream ? list.length - 1 : list.length };
     });
   }
-  const bytes = n => Number.isFinite(n) && n >= 0 ? n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} KB` : n < 1073741824 ? `${(n / 1048576).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} MB` : `${(n / 1073741824).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} GB` : 'Boyut bilinmiyor';
+  // A length of time as a clock (2:05, 1:02:05): the same in every language.
   function duration(seconds) {
-    if (!Number.isFinite(seconds) || seconds < 0) return T('x.cannot-be-calculated');
+    if (!Number.isFinite(seconds) || seconds < 0) return null;
     seconds = Math.ceil(seconds);
-    return seconds < 60 ? `${seconds} sn` : seconds < 3600 ? `${Math.floor(seconds / 60)} dk ${seconds % 60} sn` : `${Math.floor(seconds / 3600)} sa ${Math.floor(seconds % 3600 / 60)} dk`;
+    const hours = Math.floor(seconds / 3600), minutes = Math.floor(seconds % 3600 / 60), two = n => String(n).padStart(2, '0');
+    return hours ? `${hours}:${two(minutes)}:${two(seconds % 60)}` : `${minutes}:${two(seconds % 60)}`;
   }
-  const size = option => option.filesize > 0 ? (option.sizeKind === 'exact' ? bytes(option.filesize) : T('app.sizeApprox', { size: bytes(option.filesize) })) : T('app.size.unknown');
-  const PHASES = ["queued","held","resolving","probing","downloading","running","checking-resume","waiting-connection","pausing","paused","waiting-resume","merging","processing","verifying","deep-verifying","publishing","disconnected","completed","failed","cancelled","interrupted"];
-  const phases = new Proxy({}, { get: (_, phase) => (PHASES.includes(phase) ? T(`x.phase.${phase}`) : undefined) }); // read when used, in the language of the moment
-  function jobView(job) {
-    const p = job.progress || { phase: job.status, received: job.received, total: job.total, speed: 0, etaSeconds: null };
-    const facts = [`${bytes(p.received || 0)} / ${p.total > 0 ? (p.sizeKind === 'approx' ? T('app.sizeApprox', { size: bytes(p.total) }) : bytes(p.total)) : T('app.size.unknown')}`];
-    if (job.status === 'running' && p.phase === 'downloading') {
-      facts.push(`${bytes(p.speed || 0)}/sn`);
-      facts.push(p.etaSeconds !== null && Number.isFinite(p.etaSeconds) ? T('app.eta.about', { time: duration(p.etaSeconds) }) : T('x.the-remaining-time-cannot-be-calculated'));
-    }
-    return { stage: phases[p.phase] || phases[job.status] || 'Durum bilinmiyor', facts: facts.join(' · ') };
-  }
+  const locale = () => globalThis.HypernabText?.language?.() || 'en'; // numbers follow the language of the extension
+  const bytes = n => {
+    if (!(Number.isFinite(n) && n >= 0)) return T('app.size.unknown');
+    const unit = (value, name) => `${value.toLocaleString(locale(), { maximumFractionDigits: 1 })} ${name}`;
+    return n < 1024 ? `${n} B` : n < 1048576 ? unit(n / 1024, 'KB') : n < 1073741824 ? unit(n / 1048576, 'MB') : unit(n / 1073741824, 'GB');
+  };
+  // An approximate size is shown with a leading "~" in every language.
+  const size = option => option.filesize > 0 ? (option.sizeKind === 'exact' ? bytes(option.filesize) : `~${bytes(option.filesize)}`) : T('app.size.unknown');
   class Client {
     constructor({ token = '', fetcher = (url, options) => globalThis.fetch(url, options), origin = API, native = null } = {}) { this.token = token; this.fetcher = fetcher; this.origin = origin; this.native = native; }
     async ready(userAction = false) {
@@ -160,7 +157,7 @@
     }
   }
   const optionIdentity = option => JSON.stringify(['height', 'fps', 'hdr', 'codec', 'ext', 'audio'].map(key => option?.[key] ?? null));
-  const transientError = error => ['APP_OFFLINE', 'APP_TIMEOUT', 'NATIVE_DISCONNECTED', 'NATIVE_TIMEOUT', 'BUSY'].includes(error?.code) || error?.status === 429 || /zaman aşım|time.?out|bağlantı|zaten çalışıyor/i.test(error?.message || '');
+  const transientError = error => ['APP_OFFLINE', 'APP_TIMEOUT', 'NATIVE_DISCONNECTED', 'NATIVE_TIMEOUT', 'BUSY'].includes(error?.code) || error?.status === 429;
   async function reselect(client, source, oldInfo, chosen, api, storeId) {
     const cookies = await sessionCookies(api, [source.url, source.pageUrl], storeId);
     const info = await client.request('/api/inspect', { method: 'POST', body: JSON.stringify(cookies.length ? { ...source, cookies } : source) });
@@ -245,5 +242,5 @@
     const site = tracks.find(track => track.default);
     return site ? { id: site.id, why: 'site-default' } : { id: tracks[0].id, why: 'first' };
   }
-  globalThis.Hypernab = { pickSound, API, subtitlePayload, gatherSubtitles, httpUrl, mediaKind, isFileKind, fileRank, segmentLike, fileSources, streamSources, rangeLimited, sourceFor, groupEntries, bytes, duration, size, jobView, sessionCookies, optionIdentity, transientError, reselect, Client };
+  globalThis.Hypernab = { pickSound, API, subtitlePayload, gatherSubtitles, httpUrl, mediaKind, isFileKind, fileRank, segmentLike, fileSources, streamSources, rangeLimited, sourceFor, groupEntries, bytes, duration, size, sessionCookies, optionIdentity, transientError, reselect, Client };
 })();

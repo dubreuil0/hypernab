@@ -58,9 +58,7 @@ Find the video or file the user wants to download in the browser and hand it to 
 | `cookies` | Reads the cookies of one file's address, only after the user presses a button for that file or chooses "Download with Hypernab" on a link, so a download that needs the user's signed-in session works. Sent only to the app on the same computer; never stored. |
 | `nativeMessaging` | Pairs the extension with the Hypernab app on the same computer (a pairing key), so only this extension can control it. |
 | `storage` | Keeps the user's extension settings (language, minimum file size, remembered choices). |
-| `activeTab` | Lets the toolbar menu inspect the current page when the user asks. |
 | `contextMenus` | The toolbar icon's right-click menu (open Hypernab, inspect this page, settings) and the **Download with Hypernab** item on links. |
-| `alarms` | Once a minute, keeps the extension language in step with the app's language setting. |
 | `http://*/*`, `https://*/*` (host access and content script) | Videos and files can be on any website, so the page button and the media detection must work on any page. The content script only looks for playable videos and subtitles and draws the user's download button; the extension sends data only to the app on the same computer (127.0.0.1). |
 
 **Remote code:** none. All code is in the package; nothing is loaded from the internet.

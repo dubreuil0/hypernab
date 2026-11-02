@@ -1,9 +1,9 @@
 {
   "name": "hypernab",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "private": true,
   "author": "Hypernab",
-  "description": "Yerel video indirme yöneticisi ve Firefox/Chrome/Edge yakalama eklentisi",
+  "description": "Local download manager for Windows with a media-capture extension for Firefox, Chrome and Edge",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {

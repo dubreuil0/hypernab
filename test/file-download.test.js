@@ -155,7 +155,7 @@ test('takeFile: a server without byte ranges still downloads on one connection a
   const [job] = queue.list(); assert.equal(job.status, 'completed', job.error); assert.equal(job.transfer.method, 'single-http'); assert.equal(job.verification.format, 'zip');
 });
 
-test('takeFile: the job reuses the takeover look at the source instead of probing it a second time', async t => {
+test('takeFile: the job reuses the first look at the source instead of probing it a second time', async t => {
   const requests = [], queue = queueFixture(t, { requests });
   await queue.takeFile({ url: 'https://files.example.org/once', fileName: 'once.zip' });
   await settled(queue);

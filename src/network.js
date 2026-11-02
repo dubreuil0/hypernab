@@ -16,7 +16,7 @@ export async function requestRemote(raw, signal, headers = {}, redirects = 0, bu
   const response = await new Promise((resolve, reject) => {
     let req;
     try { req = transport.get(url, {
-      signal, headers: { 'User-Agent': 'IDMProMax/0.3', ...headers, 'Accept-Encoding': 'identity' },
+      signal, headers: { 'User-Agent': `Hypernab/${process.env.HYPERNAB_VERSION || 'dev'}`, ...headers, 'Accept-Encoding': 'identity' },
       lookup: (_host, options, cb) => options?.all ? cb(null, records) : cb(null, records[0].address, records[0].family)
     }, res => {
       res.once('end', release); res.once('close', release); res.once('error', release); resolve(res);

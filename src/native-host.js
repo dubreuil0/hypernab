@@ -123,5 +123,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   try {
     if (process.argv[2] !== '--config' || !path.isAbsolute(process.argv[3] || '')) throw new Error('Config required.');
     runNativeHost(readNativeConfig(process.argv[3]), process.argv.slice(4));
-  } catch { process.stderr.write('Hypernab Native Messaging baslatilamadi: kimlik veya kurulum gecersiz.\n'); process.exitCode = 1; }
+  } catch { process.stderr.write('Hypernab native messaging could not start: invalid identity or installation.\n'); process.exitCode = 1; }
 }

@@ -7,6 +7,7 @@
   globalThis.HypernabText.follow?.(api, () => location.reload()); // the page is drawn again in the app's language
   Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:language' })).catch(() => {}); // ask the background to read the app's language now
   { const theme = document.createElement('style'); theme.textContent = DS.tokens('auto', 'green', ':root'); document.head.append(theme); }
+  if (document.documentElement) document.documentElement.lang = globalThis.HypernabText.language?.() || 'en';
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = T(node.dataset.t);
   $('token').placeholder = T('opt.conn.token');
   const say = (id, text, tone = '') => { const node = $(id); node.textContent = text; if (tone) node.dataset.tone = tone; else delete node.dataset.tone; };
