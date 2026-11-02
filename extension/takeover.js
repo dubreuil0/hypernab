@@ -72,12 +72,13 @@
   // The response of the file is kept waiting inside the browser's own request machinery. Taken or cancelled: the request ends and
   // the browser never shows a download. Released: the very same request simply continues as a normal browser download.
   const held = new Map(); // record id -> function that answers the waiting request
+  const inflight = new Set(), tasks = new Set(); // records the app is taking right now (their window is already gone) and those jobs
   const released = new Map(); // address -> time: the browser was told to carry on, its download must not be asked about again
   const markReleased = url => { const now = Date.now(); released.set(url, now); for (const [key, at] of released) if (now - at > 180000) released.delete(key); };
   let beat = null;
   const keepAlive = () => { // a waiting request must not let the background page fall asleep
-    if (beat || !held.size) return;
-    beat = setInterval(() => { if (!held.size) { clearInterval(beat); beat = null; return; } Promise.resolve(api.runtime.getPlatformInfo?.()).catch(() => {}); }, 15000);
+    if (beat || !(held.size || tasks.size)) return;
+    beat = setInterval(() => { if (!(held.size || tasks.size)) { clearInterval(beat); beat = null; return; } Promise.resolve(api.runtime.getPlatformInfo?.()).catch(() => {}); }, 15000);
   };
   async function releaseRecord(record, { revive = false } = {}) {
     if (record.via !== 'request') return resumeBrowser(record.id, record.url, record.name);
@@ -106,8 +107,9 @@
     return false;
   }
 
+  // Gives every waiting download back to the browser, except those the app is taking right now: they are being dealt with.
   async function releaseAll() {
-    const list = await serial(async () => { const items = await readPending(); await writePending([]); return items; });
+    const list = await serial(async () => { const items = await readPending(); await writePending(items.filter(record => inflight.has(record.id))); return items.filter(record => !inflight.has(record.id)); });
     await Promise.all(list.map(record => releaseRecord(record)));
     await api.storage.session.remove(WINDOW).catch(() => {});
   }
@@ -172,6 +174,12 @@
     try { await F.connection(false); } catch { await resumeBrowser(created.id, created.url, baseName(created.filename) || undefined); return; } // app not running: the browser keeps downloading
     let item = created;
     try { item = (await api.downloads.search({ id: created.id }))[0] || created; } catch { /* use the first information */ }
+    // Chromium browsers choose the file's real name (from the server's headers) a moment after the download starts; the window should show
+    // that name, not one guessed from the address. A short wait, never longer than a second and a half.
+    for (let waited = 0; !item.filename && waited < 1500 && item.state !== 'complete'; waited += 100) {
+      await pause(100);
+      try { item = (await api.downloads.search({ id: created.id }))[0] || item; } catch { break; }
+    }
     if (item.state === 'complete') return; // the browser was faster than the pause: nothing to take over
     if (!eligible(item, s)) { await resumeBrowser(created.id, created.url, baseName(created.filename) || undefined); return; }
     const name = baseName(item.filename) || nameFromUrl(item.url) || 'dosya';
@@ -242,7 +250,7 @@
   }
 
   async function view() {
-    const list = await readPending();
+    const list = (await readPending()).filter(record => !inflight.has(record.id));
     const record = list[0];
     if (!record) return { ok: true, empty: true };
     let duplicate = false, directory = null;
@@ -255,13 +263,31 @@
   }
 
   const busy = new Set();
+  const finishRecord = id => serial(async () => { await writePending((await readPending()).filter(item => item.id !== id)); });
+  // "Download" and "Later": the window does not wait for the app. The answer comes at once (the window shows the next file or closes) and the
+  // app takes the file in the background. Whatever goes wrong there, the browser gets its download back: a file is never lost, nobody waits.
+  async function settle(record, { choice, rememberType, allowDuplicate }) {
+    try {
+      if (record.via !== 'request') {
+        let current = null;
+        try { current = (await api.downloads.search({ id: record.id }))[0] || null; } catch { /* ask the app anyway */ }
+        if (!current || current.state === 'complete') return; // removed in the browser meanwhile, or the browser finished it itself: nothing is taken twice
+      }
+      await take(record, { start: choice === 'later' ? 'queue' : 'now', allowDuplicate: allowDuplicate === true });
+      if (rememberType && choice === 'now' && extOf(record.name)) { const s = await readSettings(); await writeSettings({ autoTypes: [...s.autoTypes, extOf(record.name)] }); }
+    } catch (error) {
+      if (error?.code === 'duplicate') { await dropRecord(record); return; } // the app already has this very file: no second copy
+      await releaseRecord(record, { revive: true }); // the browser downloads it itself
+      try { globalThis.HypernabControl?.alert?.(record.name); } catch { /* the notice is cosmetic */ }
+    } finally { await finishRecord(record.id); }
+  }
   async function decide({ id, choice, rememberType, rememberHost, allowDuplicate }) {
     if (busy.has(id)) return { ok: false, error: T('x.an-action-is-already-in-progress') };
     busy.add(id);
     try {
       const record = (await readPending()).find(item => item.id === id);
-      if (!record) return { ok: true, gone: true };
-      const finish = () => serial(async () => { await writePending((await readPending()).filter(item => item.id !== id)); });
+      if (!record || inflight.has(id)) return { ok: true, gone: true };
+      const finish = () => finishRecord(id);
       if (choice === 'browser') {
         await finish(); await releaseRecord(record, { revive: true });
         if (rememberHost && hostOf(record.url)) { const s = await readSettings(); await writeSettings({ excludedHosts: [...s.excludedHosts, hostOf(record.url)] }); }
@@ -269,24 +295,14 @@
       }
       if (choice === 'cancel') { await finish(); await dropRecord(record); return { ok: true }; }
       if (choice !== 'now' && choice !== 'later') return { ok: false, error: T('x.invalid-choice') };
-      if (record.via !== 'request') {
-        let current = null;
-        try { current = (await api.downloads.search({ id }))[0] || null; } catch { /* ask the app anyway */ }
-        if (!current) { await finish(); return { ok: true, gone: true, name: record.name }; } // removed in the browser meanwhile
-        if (current.state === 'complete') { await finish(); return { ok: true, browserDone: true, name: record.name }; } // the browser finished it itself
-      }
-      try {
-        const result = await take(record, { start: choice === 'later' ? 'queue' : 'now', allowDuplicate: allowDuplicate === true });
-        await finish();
-        if (rememberType && choice === 'now' && extOf(record.name)) { const s = await readSettings(); await writeSettings({ autoTypes: [...s.autoTypes, extOf(record.name)] }); }
-        return { ok: true, name: result?.name || record.name, queued: choice === 'later', browserCopy: result?.browserCopy === true };
-      } catch (error) {
-        // Nothing was cancelled: the browser's download is still paused and can continue.
-        return { ok: false, code: error.code || null, error: String(error.message || T('x.hypernab-could-not-take-the-file')).slice(0, 300), duplicate: error.code === 'duplicate' };
-      }
+      inflight.add(id); keepAlive();
+      const task = settle(record, { choice, rememberType, allowDuplicate }).finally(() => { inflight.delete(id); tasks.delete(task); });
+      tasks.add(task);
+      return { ok: true, accepted: true, name: record.name, queued: choice === 'later' };
     } finally { busy.delete(id); }
   }
 
+  globalThis.HypernabTakeover = { idle: () => Promise.allSettled([...tasks]) }; // lets tests wait for the background work
   const ours = sender => sender?.id === api.runtime.id;
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (!ours(sender) || typeof message?.type !== 'string' || !message.type.startsWith('hypernab:takeover:')) return false;

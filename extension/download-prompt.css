@@ -19,5 +19,5 @@ body{margin:0;padding:14px 16px 12px;background:var(--bg,Canvas);color:var(--tex
 .actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:12px}
 #queue-note{margin-inline-end:auto;font-size:11px;color:var(--muted)}
 .actions .primary{min-width:84px}
-.done{padding:22px 16px;text-align:center;color:var(--accent);font-size:14px;margin:0}
+
 [hidden]{display:none!important}

@@ -57,6 +57,7 @@ function setup({ online = true, items = {}, take, duplicates = [], receipt = { k
     setTimeout: (fn, ms) => { const timer = setTimeout(fn, ms); timer.unref?.(); return timer; }, setInterval: (fn, ms) => { const timer = setInterval(fn, ms); timer.unref?.(); return timer; }, ...(firefox ? { browser: api } : {}) });
   vm.runInContext(read('core.js'), context);
   context.HypernabFloat = { connection: async () => { if (!online) throw Object.assign(new Error('offline'), { code: 'APP_OFFLINE' }); return client; } };
+  const alerts = []; context.HypernabControl = { alert: name => alerts.push(name) }; // the toolbar icon's notice
   vm.runInContext(read('takeover.js'), context);
   const send = (message, sender = { id: 'ext' }) => new Promise(resolve => {
     for (const listener of listeners) { if (listener(message, sender, resolve) === true) return; }
@@ -66,7 +67,7 @@ function setup({ online = true, items = {}, take, duplicates = [], receipt = { k
   const created = async item => { onCreated(item); await wait(30); };
   const headers = (extra = {}) => ({ method: 'GET', statusCode: 200, tabId: 7, type: 'main_frame', incognito: false, url: 'https://files.example.org/get/a', originUrl: 'https://files.example.org/page', responseHeaders: [{ name: 'Content-Type', value: 'application/zip' }, { name: 'Content-Length', value: String(50 * 1048576) }, { name: 'Content-Disposition', value: 'attachment; filename="Veri Paketi.zip"' }], ...extra });
   const response = details => onHeaders(details);
-  return { api, log, local, session, windows, requests, cookieReads, send, download, created, close: id => onRemoved(id), items, headers, response };
+  return { alerts, idle: () => context.HypernabTakeover.idle(), api, log, local, session, windows, requests, cookieReads, send, download, created, close: id => onRemoved(id), items, headers, response };
 }
 const actions = (f, name) => f.log.filter(entry => entry[0] === name).map(entry => entry[1]);
 
@@ -78,6 +79,15 @@ test('eligible download: paused, one window, nothing cancelled and no cookie rea
   const view = await f.send({ type: 'hypernab:takeover:next' });
   assert.equal(view.name, 'f1.zip'); assert.equal(view.host, 'files.example.org'); assert.equal(view.bytes, 50 * 1048576); assert.equal(view.risk, null);
   assert.equal(view.directory, 'C:\\Downloads\\Hypernab'); assert.equal(view.duplicate, false);
+});
+
+test('Chromium names the file a moment after the download starts: the window shows the real name, not one guessed from the address', async () => {
+  const f = setup(); const item = f.download(1, { filename: '' });
+  setTimeout(() => { f.items[1].filename = 'D:\\Indirilenler\\Gercek Ad.zip'; }, 250);
+  await f.created(item); await wait(700);
+  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).name, 'Gercek Ad.zip');
+  const g = setup(); await g.created(g.download(2, { filename: '' })); await wait(1800); // a browser that never names it: the address gives the name
+  assert.equal((await g.send({ type: 'hypernab:takeover:next' })).name, 'f2.zip');
 });
 
 test('the prompt opens in the middle of the browser window the user was in (a maximized browser = the middle of its monitor)', async () => {
@@ -95,47 +105,68 @@ test('the prompt opens in the middle of the browser window the user was in (a ma
   }
 });
 
-test('"İndir": the file is sent with its own cookies, and the browser download is cancelled only after Hypernab accepted it', async () => {
-  const f = setup({ take: async body => { assert.deepEqual(actions(f, 'cancel'), [], 'not cancelled before the app answered'); return { id: 'job-1', name: body.fileName }; } });
+test('"İndir": the answer comes at once, the file is sent with its own cookies, and the browser download is cancelled only after Hypernab accepted it', async () => {
+  const f = setup({ take: async body => { await wait(120); assert.deepEqual(actions(f, 'cancel'), [], 'not cancelled before the app answered'); return { id: 'job-1', name: body.fileName }; } });
   await f.created(f.download(1));
   const answer = await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(answer.ok, true);
+  assert.equal(answer.ok, true); assert.equal(answer.accepted, true);
+  assert.deepEqual(actions(f, 'cancel'), [], 'the window did not wait for the app');
+  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).empty, true, 'nothing left to ask: the window closes');
+  await f.idle();
   const take = f.requests.find(request => request.route === '/api/files/take').body;
   assert.equal(take.url, 'https://files.example.org/f1.zip'); assert.equal(take.fileName, 'f1.zip'); assert.equal(take.start, 'now'); assert.equal(take.userAgent, 'UA/Test');
   assert.equal(take.referer, 'https://files.example.org/page'); assert.match(take.submissionId, /^[a-f0-9-]{36}$/);
   assert.equal(take.cookies[0].value, 'SECRET-COOKIE'); assert.ok(f.cookieReads.every(url => url.startsWith('https://files.example.org/')));
   assert.deepEqual(actions(f, 'cancel'), [1]); assert.deepEqual(actions(f, 'erase'), [1]); assert.deepEqual(actions(f, 'resume'), []);
   assert.ok(!JSON.stringify(f.local).includes('SECRET-COOKIE') && !JSON.stringify(f.session).includes('SECRET-COOKIE'), 'cookies are never stored by the extension');
-  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).empty, true);
+});
+
+test('several files: the window moves to the next one at once while the app is still taking the first; closing it does not hand the first back', async () => {
+  const f = setup({ take: async body => { await wait(150); return { id: 'job', name: body.fileName }; } });
+  await f.created(f.download(1)); await f.created(f.download(2));
+  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
+  const second = await f.send({ type: 'hypernab:takeover:next' });
+  assert.equal(second.id, 2, 'the next file is shown without waiting'); assert.equal(second.remaining, 0);
+  await f.close(1); await wait(20); // the window closes while the app is still busy with the first file
+  assert.deepEqual(actions(f, 'resume'), [2], 'only the file nobody decided about goes back to the browser, never the one being taken');
+  await f.idle();
+  assert.deepEqual(actions(f, 'cancel'), [1]); assert.deepEqual(actions(f, 'resume'), [2]);
+});
+
+test('the app already has that very file (a race): no second copy, the browser download is dropped, not resumed', async () => {
+  const f = setup({ take: async () => { throw Object.assign(new Error('already'), { code: 'duplicate' }); } });
+  await f.created(f.download(1));
+  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' }); await f.idle();
+  assert.deepEqual(actions(f, 'cancel'), [1]); assert.deepEqual(actions(f, 'resume'), []); assert.deepEqual(f.alerts, []);
 });
 
 test('"Sonra ekle" queues without starting', async () => {
   const f = setup(); await f.created(f.download(1));
-  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'later' });
+  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'later' }); await f.idle();
   assert.equal(f.requests.find(request => request.route === '/api/files/take').body.start, 'queue');
 });
 
-test('Hypernab refuses or fails: nothing is cancelled, the browser download stays paused and can continue', async () => {
+test('Hypernab refuses or fails: the window is not kept waiting, nothing is cancelled, the browser gets its download back and the icon says so', async () => {
   const f = setup({ take: async () => { throw Object.assign(new Error('Sunucu erişimi reddetti (giriş veya izin gerekebilir).'), { code: 'ACCESS_DENIED' }); } });
   await f.created(f.download(1));
   const answer = await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(answer.ok, false); assert.equal(answer.code, 'ACCESS_DENIED'); assert.match(answer.error, /reddetti/);
-  assert.deepEqual(actions(f, 'cancel'), []); assert.deepEqual(actions(f, 'erase'), []);
-  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).id, 1, 'still waiting for a decision');
-  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'browser' });
-  assert.deepEqual(actions(f, 'resume'), [1]);
+  assert.equal(answer.ok, true); assert.equal(answer.accepted, true);
+  assert.equal((await f.send({ type: 'hypernab:takeover:next' })).empty, true, 'the window is free at once');
+  await f.idle();
+  assert.deepEqual(actions(f, 'resume'), [1]); assert.deepEqual(actions(f, 'cancel'), []); assert.deepEqual(actions(f, 'erase'), []);
+  assert.deepEqual(f.alerts, ['f1.zip']);
 });
 
 test('lost answer after the app took the file is recognised through the submission receipt', async () => {
   const timeout = async () => { throw Object.assign(new Error('Bağlantı zaman aşımına uğradı.'), { code: 'APP_TIMEOUT' }); };
   const known = setup({ take: timeout, receipt: { known: true, id: 'job-9', listed: true } }); await known.created(known.download(1));
-  const accepted = await known.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(accepted.ok, true, 'the app has the file even though its answer was lost');
-  assert.deepEqual(actions(known, 'cancel'), [1]);
+  const accepted = await known.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' }); await known.idle();
+  assert.equal(accepted.ok, true);
+  assert.deepEqual(actions(known, 'cancel'), [1], 'the app has the file even though its answer was lost');
   const unknown = setup({ take: timeout }); await unknown.created(unknown.download(1));
-  const answer = await unknown.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(answer.ok, false, 'unknown receipt: the file stays with the browser');
-  assert.deepEqual(actions(unknown, 'cancel'), []);
+  await unknown.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' }); await unknown.idle();
+  assert.deepEqual(actions(unknown, 'cancel'), [], 'unknown receipt: the file stays with the browser');
+  assert.deepEqual(actions(unknown, 'resume'), [1], 'and the browser carries on with it');
 });
 
 test('closing the window or having no answer hands every waiting download back to the browser', async () => {
@@ -197,7 +228,7 @@ test('remembering: "always this type" skips the window next time and still falls
   let fail = false;
   const f = setup({ take: async body => { if (fail) throw new Error('boom'); return { id: 'j', name: body.fileName }; } });
   await f.created(f.download(1));
-  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now', rememberType: true });
+  await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now', rememberType: true }); await f.idle();
   assert.deepEqual(plain((await f.send({ type: 'hypernab:takeover:settings' })).settings.autoTypes), ['zip']);
   await f.created(f.download(2));
   assert.equal(actions(f, 'window').length, 1, 'no second window'); assert.deepEqual(actions(f, 'cancel'), [1, 2]);
@@ -234,22 +265,22 @@ test('browser faster than the pause or removed meanwhile: nothing is taken twice
   const f = setup(); await f.created(f.download(1));
   f.items[1].state = 'complete'; // the browser finished the file while the window was open
   const done = await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(done.ok, true); assert.equal(done.browserDone, true);
+  assert.equal(done.ok, true); await f.idle();
   assert.equal(f.requests.some(request => request.route === '/api/files/take'), false); assert.deepEqual(actions(f, 'cancel'), []);
   const g = setup(); await g.created(g.download(2)); delete g.items[2]; // the user cancelled it in the browser's own list
   const gone = await g.send({ type: 'hypernab:takeover:decide', id: 2, choice: 'now' });
-  assert.equal(gone.gone, true); assert.equal(g.requests.some(request => request.route === '/api/files/take'), false);
+  assert.equal(gone.ok, true); await g.idle(); assert.equal(g.requests.some(request => request.route === '/api/files/take'), false);
   const h = setup(); const item = h.download(3); item.state = 'complete';
   await h.created({ ...item, state: 'in_progress' });
   assert.equal(h.log.some(entry => entry[0] === 'window'), false, 'finished before we looked: leave it alone');
   assert.deepEqual(actions(h, 'cancel'), []);
 });
 
-test('if the browser still ends up with a copy after the cancel, the answer says so (the file is never deleted)', async () => {
+test('if the browser still ends up with a copy after the cancel, nothing is deleted', async () => {
   const f = setup(); await f.created(f.download(1));
   const cancel = f.api.downloads.cancel; f.api.downloads.cancel = async id => { await cancel(id); f.items[id].state = 'complete'; };
   const answer = await f.send({ type: 'hypernab:takeover:decide', id: 1, choice: 'now' });
-  assert.equal(answer.ok, true); assert.equal(answer.browserCopy, true);
+  assert.equal(answer.ok, true); await f.idle();
   assert.equal(f.log.some(entry => entry[0] === 'remove' || entry[0] === 'removeFile'), false);
 });
 
@@ -279,7 +310,7 @@ test('Firefox: a file response is held (no browser download exists) until the us
   const view = await f.send({ type: 'hypernab:takeover:next' });
   assert.equal(view.name, 'Veri Paketi.zip'); assert.equal(view.host, 'files.example.org'); assert.equal(view.bytes, 50 * 1048576);
   const answer = await f.send({ type: 'hypernab:takeover:decide', id: view.id, choice: 'now' });
-  assert.equal(answer.ok, true);
+  assert.equal(answer.ok, true); await f.idle();
   const take = f.requests.find(request => request.route === '/api/files/take').body;
   assert.equal(take.url, 'https://files.example.org/get/a'); assert.equal(take.fileName, 'Veri Paketi.zip'); assert.equal(take.referer, 'https://files.example.org/page'); assert.equal(take.cookies[0].value, 'SECRET-COOKIE');
   assert.deepEqual(plain(await held), { cancel: true }, 'the request ends only after Hypernab accepted the file');
@@ -307,9 +338,9 @@ test('Firefox: cancel ends the request; a closed window or a failure hands the r
   const failing = setup({ firefox: true, take: async () => { throw Object.assign(new Error('x'), { code: 'ACCESS_DENIED' }); } });
   const third = failing.response(failing.headers()); await wait(40); const shown = await failing.send({ type: 'hypernab:takeover:next' });
   const answer = await failing.send({ type: 'hypernab:takeover:decide', id: shown.id, choice: 'now' });
-  assert.equal(answer.ok, false); assert.equal(await settle(third), 'waiting', 'still held, the user can pick the browser');
-  await failing.send({ type: 'hypernab:takeover:decide', id: shown.id, choice: 'browser' });
-  assert.deepEqual(plain(await third), {});
+  assert.equal(answer.ok, true); assert.equal(answer.accepted, true, 'the window is free at once');
+  assert.deepEqual(plain(await third), {}, 'the app failed: the held request goes back to the browser by itself');
+  assert.deepEqual(failing.alerts, ['Veri Paketi.zip'], 'and the toolbar icon says so');
 });
 
 test('Firefox: "always this type" takes the file without a window and still falls back to the browser on any failure', async () => {

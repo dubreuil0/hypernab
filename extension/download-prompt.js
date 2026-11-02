@@ -50,7 +50,7 @@
     $('remember-type').checked = false;
     $('remember-type-text').textContent = item.ext ? T('prompt.remember.ext', { ext: item.ext }) : T('prompt.remember.type');
     $('remember').hidden = !item.ext;
-    $('card').hidden = false; $('done').hidden = true;
+    $('card').hidden = false;
     $('now').focus();
     void fit();
   }
@@ -68,18 +68,11 @@
     arm(); working(true);
     try {
       const answer = await send({ type: 'hypernab:takeover:decide', id: current.id, choice, rememberType: $('remember-type').checked, allowDuplicate: current.duplicate === true || current.allowDuplicate === true });
-      if (answer?.ok) {
-        if (choice === 'now' || choice === 'later') {
-          $('card').hidden = true;
-          show('done', answer.browserDone ? T('prompt.done.browserDone') : answer.gone ? T('prompt.done.gone') : answer.browserCopy ? T('prompt.done.browserCopy') : choice === 'later' ? T('prompt.done.later') : T('prompt.done.now'));
-          await new Promise(resolve => setTimeout(resolve, answer.browserCopy || answer.browserDone ? 2600 : 450));
-        }
-        working(false); await next(); return;
-      }
-      // Hypernab could not take the file: the browser's download is untouched and still waiting.
+      // The answer comes at once (the app takes the file in the background): the window shows the next file or closes, nobody waits.
+      if (answer?.ok) { working(false); await next(); return; }
+      // The choice could not even be recorded: the browser's download is untouched and still waiting; the way out is the browser itself.
       show('message', answer?.error || T('prompt.failed'));
-      if (answer?.duplicate) { current.allowDuplicate = true; $('now').textContent = T('prompt.again'); }
-      else $('browser').hidden = false; // the way out when Hypernab cannot take it: the browser downloads it itself
+      $('browser').hidden = false;
     } catch (error) {
       show('message', T('prompt.noConnection'));
       $('browser').hidden = false;

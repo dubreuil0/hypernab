@@ -61,7 +61,7 @@ async function run(name, downloadDirectory, open) {
     };
     const pending = async () => (await ev(`${API}.storage.session.get('takeover:pending').then(v => v['takeover:pending'] || [])`)) || [];
     const downloadsList = () => ev(`${API}.downloads.search({}).then(list => list.map(d => ({ id: d.id, state: d.state, paused: d.paused, name: (d.filename || '').split(/[\\\\/]/).pop(), url: d.url })))`);
-    const inDirectory = () => fs.readdirSync(downloadDirectory).filter(file => !file.endsWith('.crdownload') && !file.endsWith('.part'));
+    const inDirectory = () => fs.readdirSync(downloadDirectory).filter(file => !/\.(?:crdownload|part|tmp)$/.test(file)); // a browser's own partial/temporary files are not downloaded files
     const previous = new Set((await call('/api/jobs')).map(job => job.id)); // jobs of an earlier browser in this run do not count
     const clearDirectory = () => { for (const entry of fs.readdirSync(downloadDirectory)) fs.rmSync(path.join(downloadDirectory, entry), { force: true }); };
     // Done = the browser reports every download complete (a file that is still being written does not count).
@@ -77,7 +77,7 @@ async function run(name, downloadDirectory, open) {
     // Firefox holds the response itself: the browser has no download at all. Chrome/Edge cannot, so theirs is paused (and hidden).
     const held = name === 'firefox';
     check(name, held ? 'Firefox: dosya tarayıcıya hiç düşmedi (indirme listesi boş), onay penceresi açık' : 'tarayıcı indirmesi duraklatıldı ve onay penceresi açıldı', held ? list1.length === 0 && await promptWindow() : list1.length === 1 && (list1[0].paused === true || list1[0].state === 'interrupted') && await promptWindow(), JSON.stringify(list1.map(d => ({ paused: d.paused, state: d.state }))));
-    check(name, 'karar verilene kadar uygulamada iş yok, dosya yok', (await ownJobs()).length === 0 && inDirectory().length === 0);
+    check(name, 'karar verilene kadar uygulamada iş yok, dosya yok', (await ownJobs()).length === 0 && inDirectory().length === 0, JSON.stringify({ jobs: (await ownJobs()).map(j => [j.status, j.title]), files: inDirectory() }));
     // The prompt window opens in the middle of the browser window (a maximized browser: the middle of its monitor).
     await wait(900); // the window may still be settling its height around its own centre
     const wins = await browser.eval(hub, `${API}.windows.getAll().then(list => list.map(w => ({ type: w.type, left: w.left, top: w.top, width: w.width, height: w.height })))`);
@@ -93,6 +93,11 @@ async function run(name, downloadDirectory, open) {
     // 1b. İndir
     const clicked = Date.now();
     await browser.eval(view, `document.getElementById('now').click(), true`);
+    // The window does not wait for the app: nothing is left to ask a moment after the click (the app is still taking the file).
+    let freed = null;
+    await browserUntil(async () => { const next = await message({ type: 'hypernab:takeover:next' }); if (next?.empty && freed === null) freed = Date.now() - clicked; return next?.empty; }, 5000, 50);
+    console.log(`SÜRE [${name}] tıklamadan pencerenin boşalmasına ${freed} ms`);
+    check(name, 'İndir: pencere sonucu beklemeden hemen boşalır / kapanır', freed !== null && freed < 1500, `(${freed} ms)`);
     // Time from the click until the first byte of the file is in (or the job is registered at all).
     let registered = null, firstByte = null;
     await browserUntil(async () => {
@@ -129,6 +134,7 @@ async function run(name, downloadDirectory, open) {
     await ev(`${API}.storage.session.get('takeover:window').then(v => ${API}.windows.remove(v['takeover:window'])).then(() => true)`).catch(() => {});
     await browserFinished();
     check(name, 'Pencere kapatılınca indirme tarayıcıda kaldığı yerden bitti (bekleyen istek iptal olsa da yeniden istenir)', inDirectory().includes(NAME), JSON.stringify({ files: inDirectory(), browser: await downloadsList(), pending: (await pending()).length }));
+    await wait(3000); // a browser may still be finishing the files of this step (Edge renames its temporary file late)
     clearDirectory(); await ev(`${API}.downloads.erase({}).then(() => true)`);
 
     // 5. Sonra ekle (aynı bağlantı listede olduğu için "yine de" ile)

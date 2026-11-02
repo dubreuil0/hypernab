@@ -4,17 +4,19 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   // The toolbar tooltip and the right-click menu are the browser's own surface, shared with other extensions: always English, whatever the app's language.
-  const T = key => globalThis.HypernabText?.TEXTS?.en?.[key] ?? key;
+  const T = (key, vars) => (globalThis.HypernabText?.TEXTS?.en?.[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => String(vars?.[name] ?? ''));
   const control = { on: true };
+  let notice = null; // a file Hypernab could not take (the browser downloaded it itself): a "!" on the icon for a couple of minutes
   globalThis.HypernabControl = control;
   const MENU = ['open-app', 'inspect-page', 'capture', 'takeover', 'settings'];
 
   const paint = async () => {
     try {
-      await api.action.setTitle({ title: T(control.on ? 'ctl.title.on' : 'ctl.title.off') });
+      await api.action.setTitle({ title: notice ? T('ctl.title.failed', { name: notice }) : T(control.on ? 'ctl.title.on' : 'ctl.title.off') });
       // Off is seen at a glance: the icon turns grey and faded with a red slash across it (icons/icon-off-*.png). On: the normal icon.
       await api.action.setIcon({ path: control.on ? { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' } : { 16: 'icons/icon-off-16.png', 32: 'icons/icon-off-32.png' } });
-      await api.action.setBadgeText({ text: '' });
+      await api.action.setBadgeText({ text: notice ? '!' : '' });
+      if (notice) { try { await api.action.setBadgeBackgroundColor({ color: '#c0392b' }); } catch { /* no colour: the mark is still there */ } }
       if (!control.on) { // a count of captured items left on a tab belongs to the time capture was on
         for (const tab of await api.tabs.query({})) { try { await api.action.setBadgeText({ tabId: tab.id, text: '' }); } catch { /* tab went away */ } }
       }
@@ -25,6 +27,8 @@
     await paint();
   };
   control.ready = load();
+  let noticeTimer = null;
+  control.alert = async name => { notice = String(name || '').slice(0, 80) || 'file'; clearTimeout(noticeTimer); noticeTimer = setTimeout(() => { notice = null; void paint(); }, 120000); await paint(); };
   control.set = async on => { control.on = Boolean(on); await api.storage.local.set({ captureEnabled: control.on }); await paint(); await menus(); };
   api.storage.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;

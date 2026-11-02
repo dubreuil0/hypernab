@@ -40,6 +40,15 @@ test('capture is on by default; a click on the icon switches it, remembers it an
   for (const size of [16, 32]) assert.ok(fs.existsSync(new URL(`../extension/icons/icon-off-${size}.png`, import.meta.url)), 'the off icons ship with the extension');
 });
 
+test('a file Hypernab could not take (the browser downloads it itself) shows a "!" and an English tooltip on the icon, nothing else changes', async () => {
+  const app = setup(); await flush();
+  await app.control().alert('Setup.exe'); await flush();
+  assert.equal(app.calls.badge.at(-1).text, '!');
+  assert.match(app.calls.title.at(-1), /could not take .Setup\.exe./);
+  assert.equal(app.control().on, true, 'capture itself is untouched');
+  assert.deepEqual(JSON.parse(JSON.stringify(app.calls.icon.at(-1))), { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' });
+});
+
 test('a saved "off" is respected after a restart', async () => {
   const app = setup({ stored: { captureEnabled: false } }); await flush();
   assert.equal(app.control().on, false);
