@@ -10,7 +10,9 @@ export function panelCssScript() {
   const css = ['public/ds.css', 'extension/panel.css'].map(file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')).join('\n').replace(/\s*\n\s*/g, '\n').trim();
   return `globalThis.HypernabPanelCss = ${JSON.stringify(css)};\n`;
 }
-export function buildExtensions(outDir = path.join(root, 'build', 'extensions'), { nativeHost } = {}) {
+// store: the packages sent to the Chrome Web Store / Firefox add-ons site. The development key is left out of the Chromium one: the store
+// gives the item its own key (shown in its dashboard), which then replaces the development key so the extension id stays the same.
+export function buildExtensions(outDir = path.join(root, 'build', 'extensions'), { nativeHost, store = false } = {}) {
   if (nativeHost !== undefined && !/^[a-z0-9_]+(?:\.[a-z0-9_]+)+$/.test(nativeHost)) throw new Error('Geçersiz Native host adı.');
   const base = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'manifest.json'), 'utf8'));
   const outputs = {};
@@ -30,7 +32,7 @@ export function buildExtensions(outDir = path.join(root, 'build', 'extensions'),
       manifest.permissions = [...manifest.permissions, 'downloads.ui'];
       manifest.background = { service_worker: 'background.js' };
       manifest.minimum_chrome_version = '121';
-      manifest.key = JSON.parse(fs.readFileSync(path.join(root, 'extension/chromium-key.json'), 'utf8')).key;
+      if (!store) manifest.key = JSON.parse(fs.readFileSync(path.join(root, 'extension/chromium-key.json'), 'utf8')).key;
       delete manifest.browser_specific_settings;
     }
     for (const asset of assets) fs.copyFileSync(path.join(root, 'extension', asset), path.join(dir, asset));

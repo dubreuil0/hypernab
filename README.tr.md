@@ -63,6 +63,8 @@ Uygulama açıldıktan kısa süre sonra yeni sürüm olup olmadığına bir kez
 
 ## Gizlilik ve güvenlik
 
+Tam politika [PRIVACY.tr.md](PRIVACY.tr.md) dosyasındadır.
+
 - Yerel motor yalnızca `127.0.0.1` üzerinde çalışır; her istek eşleştirme anahtarı ve kaynak denetimi gerektirir.
 - Tarayıcı çerezleri yalnızca sen sayfadaki düğmeye bastığında, yalnızca seçtiğin videonun adresi için kullanılır; diske, günlüğe veya rapora yazılmaz.
 - DRM korumalı içerik ve erişim kısıtlamaları **aşılmaz**. Yalnızca indirme iznin olan içerikler için kullan.

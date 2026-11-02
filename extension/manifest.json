@@ -47,8 +47,11 @@
   ],
   "browser_specific_settings": {
     "gecko": {
-      "id": "hypernab@local.invalid",
-      "strict_min_version": "128.0"
+      "id": "{ff631763-ed2a-4f74-ab15-ad73b115a8ee}",
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "icons": {

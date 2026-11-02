@@ -62,6 +62,8 @@ Shortly after it starts, the app checks once for a new version. You can also che
 
 ## Privacy and security
 
+The full policy is in [PRIVACY.md](PRIVACY.md).
+
 - The local engine only runs on `127.0.0.1`; every request needs the pairing key and a source check.
 - Browser cookies are used only when you press the button on the page, only for the address of the video you chose; they are not written to disk, to a log or to a report.
 - DRM-protected content and access restrictions are **not bypassed**. Use it only for content you are allowed to download.
