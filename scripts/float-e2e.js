@@ -93,6 +93,22 @@ async function run(name, open) {
       const evidence = await browser.eval(setup, `(async()=>{const api=globalThis.browser||globalThis.chrome;const t=(await api.tabs.query({})).find(t=>t.url===${JSON.stringify(pageUrl)});const s=await api.storage.session.get(['tab:'+t.id,'float:'+t.id]);return {unknown:(s['tab:'+t.id]||[]).filter(e=>e.kind==='UNKNOWN').length,engine:s['float:'+t.id]?.sourceInput?.engine,url:s['float:'+t.id]?.sourceInput?.url};})()`);
       check(name, 'gerçek ağdan sekiz bilinmeyen yanıt içinde oynatılan MP4 doğrudan seçildi', evidence.unknown >= 4 && evidence.engine === 'direct' && evidence.url === VIDEO, `(${evidence.unknown} UNKNOWN, ${evidence.engine})`);
     }
+    // The app's language changes while the extension runs: a page opened afterwards still gets its button and its panel, in that language.
+    for (const code of ['tr', 'en']) {
+      await browser.eval(setup, `(globalThis.browser||globalThis.chrome).storage.local.set({ uiLanguage: ${JSON.stringify(code)} }).then(() => true)`);
+      await wait(1500);
+      const again = await browser.create(pageUrl);
+      const ready = await browserUntil(async () => Boolean(await browser.eval(again, barBox)), 30000).catch(() => false);
+      check(name, `dil ${code} olunca yeni sayfada indirme dugmesi gelir`, Boolean(ready));
+      if (ready) {
+        await wait(4000);
+        const bar = await browser.eval(again, barBox);
+        await browser.click(again, bar.l + 18, Math.round((bar.t + bar.b) / 2));
+        const grown = await browserUntil(async () => { const box = await browser.eval(again, barBox); return box && box.b - box.t > 90 && box; }, 45000).catch(() => null);
+        check(name, `dil ${code} olunca panel acilir ve icerik gelir`, Boolean(grown), grown ? `(${grown.b - grown.t}px)` : '');
+      }
+      await browser.closeTab(again).catch(() => {}); await wait(500);
+    }
     const shot = path.join(dir, `float-${name}.png`); await browser.screenshot(tab, shot); console.log(`     ekran görüntüsü: ${shot}`);
     // Scrolling over the panel (list or not) must never scroll the page behind it, not even at the ends of the list.
     const wheelY = Math.round((closed.b + opened.b) / 2), wheelX = opened.r - 160;

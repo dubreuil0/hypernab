@@ -34,7 +34,7 @@ test('capture is on by default; a click on the icon switches it, remembers it an
   app.handlers.click(); await flush();
   assert.equal(app.control().on, false); assert.equal(app.local.captureEnabled, false, 'saved, so it survives a restart');
   assert.deepEqual(icon(), { 16: 'icons/icon-off-16.png', 32: 'icons/icon-off-32.png' }, 'off: grey icon with a red slash, seen at a glance');
-  assert.match(app.calls.title.at(-1), /kapalı/);
+  assert.match(app.calls.title.at(-1), /capture is off/); // the toolbar tooltip is always English
   app.handlers.click(); await flush();
   assert.equal(app.control().on, true); assert.deepEqual(icon(), { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png' });
   for (const size of [16, 32]) assert.ok(fs.existsSync(new URL(`../extension/icons/icon-off-${size}.png`, import.meta.url)), 'the off icons ship with the extension');

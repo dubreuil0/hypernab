@@ -3,7 +3,8 @@
 // survives restarts, and content scripts follow it through storage.onChanged without any message.
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
-  const T = key => globalThis.HypernabText?.t(key) ?? key;
+  // The toolbar tooltip and the right-click menu are the browser's own surface, shared with other extensions: always English, whatever the app's language.
+  const T = key => globalThis.HypernabText?.TEXTS?.en?.[key] ?? key;
   const control = { on: true };
   globalThis.HypernabControl = control;
   const MENU = ['open-app', 'inspect-page', 'capture', 'takeover', 'settings'];
@@ -24,7 +25,6 @@
     await paint();
   };
   control.ready = load();
-  globalThis.HypernabText?.follow?.(api, () => { paint(); menus(); }); // the menu and the tooltip change language with the app
   control.set = async on => { control.on = Boolean(on); await api.storage.local.set({ captureEnabled: control.on }); await paint(); await menus(); };
   api.storage.onChanged?.addListener((changes, area) => {
     if (area !== 'local') return;
