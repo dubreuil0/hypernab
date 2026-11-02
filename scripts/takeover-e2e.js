@@ -90,7 +90,8 @@ async function run(name, downloadDirectory, open) {
     const ui = await browser.eval(view, `({ name: document.getElementById('name').textContent, meta: document.getElementById('meta').textContent, dir: document.getElementById('directory').textContent, now: document.getElementById('now').textContent, buttons: ['now','later','cancel'].every(id => !document.getElementById(id).disabled), height: window.innerHeight })`);
     check(name, 'onay penceresi ad, kaynak, boyut ve kayıt yerini gösterir', ui.name === NAME && ui.meta.includes('github.com') && ui.meta.length > 12 && ui.dir.includes('app-downloads') && ui.buttons, JSON.stringify(ui));
     await browser.screenshot(view, path.join(dir, `prompt-${name}.png`));
-    // 1b. İndir
+    // 1b. İndir. A person takes a moment to decide: a small file finishes inside the browser meanwhile (Chrome-family browsers cannot hold it).
+    await wait(Number(process.env.HD_THINK_MS ?? 6000));
     const clicked = Date.now();
     await browser.eval(view, `document.getElementById('now').click(), true`);
     // The window does not wait for the app: nothing is left to ask a moment after the click (the app is still taking the file).
@@ -111,6 +112,8 @@ async function run(name, downloadDirectory, open) {
     const job = (await ownJobs())[0], taken = job?.file && path.join(dir, 'app-downloads', job.file);
     check(name, 'İndir: Hypernab dosyayı gerçek adıyla indirip doğruladı', job?.status === 'completed' && new RegExp(`^${NAME.replace(/[.]/g, '\\.')}$|^${NAME.replace(/\.zip$/, '')} \\(\\d+\\)\\.zip$`).test(job.file || '') && job.verification?.status === 'passed' && job.verification?.format === 'zip' && job.kind === 'file', `(${job?.status} ${job?.file} ${job?.error || ''})`);
     check(name, 'indirilen dosya "internetten indirildi" işaretli ve boş değil', Boolean(taken) && fs.existsSync(taken) && fs.statSync(taken).size > 0 && /ZoneId=3/.test(fs.readFileSync(`${taken}:Zone.Identifier`, 'utf8')), taken ? `(${fs.statSync(taken).size} bayt)` : '');
+    // the browser's own copy (if it got one while the user decided) is removed once the app has the file for good
+    await browserUntil(async () => inDirectory().length === 0 && (await downloadsList()).length === 0, 15000).catch(() => {});
     const after1 = await downloadsList();
     check(name, 'İndir sonrası tarayıcıda yinelenen indirme/dosya kalmadı', after1.length === 0 && inDirectory().length === 0, JSON.stringify(after1));
     await browserUntil(async () => !(await pending()).length, 10000);
@@ -124,8 +127,10 @@ async function run(name, downloadDirectory, open) {
 
     // 3. İptal
     await trigger(); await browserUntil(async () => (await pending()).length === 1, 40000);
+    await wait(Number(process.env.HD_THINK_MS ?? 6000)); // the browser has the whole small file by now (see step 1)
     await message({ type: 'hypernab:takeover:decide', id: (await pending())[0].id, choice: 'cancel' });
-    await wait(2500);
+    await wait(500); // the cancel needs no answer; the browser's copy, if any, is removed in the background
+    await browserUntil(async () => inDirectory().length === 0 && (await downloadsList()).filter(d => d.state !== 'interrupted').length === 0, 15000).catch(() => {});
     check(name, 'İptal: ne dosya ne iş ne tarayıcı kaydı kaldı', inDirectory().length === 0 && (await ownJobs()).length === 1 && (await downloadsList()).filter(d => d.state !== 'interrupted').length === 0, JSON.stringify(await downloadsList()));
 
     // 4. Pencere kapatılırsa tarayıcı devam eder
@@ -141,8 +146,10 @@ async function run(name, downloadDirectory, open) {
     await trigger(); await browserUntil(async () => (await pending()).length === 1, 40000);
     const dupView = await message({ type: 'hypernab:takeover:next' });
     check(name, 'aynı bağlantı listede varsa pencere bunu bildirir', dupView?.duplicate === true);
+    await wait(Number(process.env.HD_THINK_MS ?? 6000)); // see step 1: the browser has the whole small file by now
     await message({ type: 'hypernab:takeover:decide', id: dupView.id, choice: 'later', allowDuplicate: true });
     await browserUntil(async () => (await ownJobs()).length === 2, 20000).catch(() => {});
+    await browserUntil(async () => inDirectory().length === 0 && (await downloadsList()).length === 0, 15000).catch(() => {}); // the browser's own copy goes right after
     const jobs = await ownJobs();
     check(name, 'Sonra ekle: iş bekliyor, dosya henüz inmedi, tarayıcı kaydı silindi', jobs.length === 2 && jobs[1].status === 'held' && !jobs[1].file && (await downloadsList()).length === 0 && inDirectory().length === 0, JSON.stringify({ jobs: jobs.map(item => [item.status, item.file]), browser: await downloadsList(), files: inDirectory().map(file => [file, fs.statSync(path.join(downloadDirectory, file)).size, Math.round((Date.now() - fs.statSync(path.join(downloadDirectory, file)).mtimeMs) / 1000) + 's önce']) }));
     await call('/api/queue/start', {});

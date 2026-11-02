@@ -42,13 +42,23 @@
     return true;
   }
 
-  // Cancels the browser's own download. Returns true when the browser nevertheless finished a copy (nothing is ever deleted).
+  // Ends the browser's own download. Chrome-family browsers cannot truly hold a download: a small file keeps arriving while it is "paused"
+  // and soon sits in the browser's folder under its final name (a cancelled download's file cannot be removed through the API, and
+  // cancelling at that moment leaves the file behind). So when every byte is already in, the browser is let finish first.
+  // Returns true when the browser holds a finished copy: its list entry then stays, so the copy can still be removed (removeCopy).
   async function dropBrowserDownload(id) {
+    const look = async () => { try { return (await api.downloads.search({ id }))[0] || null; } catch { return null; } };
+    let item = await look();
+    for (let waited = 0; item?.state === 'in_progress' && item.totalBytes > 0 && item.bytesReceived >= item.totalBytes && waited < 8000; waited += 100) { await pause(100); item = await look(); }
+    if (item?.state === 'complete') return true;
     try { await api.downloads.cancel(id); } catch { /* already gone */ }
-    let copy = false;
-    try { copy = (await api.downloads.search({ id }))[0]?.state === 'complete'; } catch { /* unknown: assume no copy */ }
     try { await api.downloads.erase({ id }); } catch { /* list entry already gone */ }
-    return copy;
+    return false;
+  }
+  // Removes the file the browser itself downloaded for this very download (never anything else) and its list entry.
+  async function removeCopy(id) {
+    try { await api.downloads.removeFile(id); } catch { /* already gone, or the browser cannot: the copy then simply stays */ }
+    try { await api.downloads.erase({ id }); } catch { /* list entry already gone */ }
   }
   // Gives the download back to the browser. Some browsers (Firefox) cannot resume a download that was stopped before any data
   // arrived; then the browser is simply asked to download the same address again, so the user never has to click twice.
@@ -100,8 +110,8 @@
   async function redownload(record) {
     try { await api.downloads.download({ url: record.url, ...(record.name && !/[\\/:*?"<>|]/.test(record.name) ? { filename: record.name } : {}), conflictAction: 'uniquify' }); } catch { /* the page's own link still works */ }
   }
-  async function dropRecord(record) {
-    if (record.via !== 'request') return dropBrowserDownload(record.id);
+  async function dropRecord(record, { removeCopyNow = false } = {}) {
+    if (record.via !== 'request') { const copy = await dropBrowserDownload(record.id); if (copy && removeCopyNow) await removeCopy(record.id); return copy; }
     const answer = held.get(record.id); held.delete(record.id);
     if (answer) answer({ cancel: true });
     return false;
@@ -149,7 +159,22 @@
       if (!result) throw error;
     }
     const browserCopy = await dropRecord(record); // only now: the app has the file
+    if (browserCopy) trackCopy(record.id, result?.id, start, client);
     return { ...result, browserCopy };
+  }
+  const background = work => { const task = work.catch(() => {}).finally(() => tasks.delete(task)); tasks.add(task); keepAlive(); return task; };
+  // The browser kept a finished copy of the file. The file should exist once: the copy goes as soon as the app has the file for good.
+  // Until then it stays, so an app that fails can never cost the file. A queued file ("Later") has no download yet: its copy goes at once.
+  function trackCopy(id, jobId, start, client) {
+    background((async () => {
+      if (start !== 'now' || !jobId) { await removeCopy(id); return; }
+      for (let waited = 0; waited < 1200000; waited += waited < 30000 ? 1000 : 3000) {
+        await pause(waited < 30000 ? 1000 : 3000);
+        let job; try { job = (await client.request('/api/jobs')).find(item => item.id === jobId); } catch { continue; }
+        if (!job || job.status === 'failed' || job.status === 'cancelled') return; // the app does not have it: the browser's copy stays
+        if (job.status === 'completed') { await removeCopy(id); return; }
+      }
+    })());
   }
 
   // Chrome and Edge cannot hold a request, so their download list still sees the file for a moment. Their download bubble is hidden
@@ -271,7 +296,9 @@
       if (record.via !== 'request') {
         let current = null;
         try { current = (await api.downloads.search({ id: record.id }))[0] || null; } catch { /* ask the app anyway */ }
-        if (!current || current.state === 'complete') return; // removed in the browser meanwhile, or the browser finished it itself: nothing is taken twice
+        // Removed in the browser meanwhile: nothing to take. A file the browser already finished (a small one keeps arriving while "paused")
+        // is still taken: the user chose Hypernab, and the browser's copy is removed once the app has the file.
+        if (!current) return;
       }
       await take(record, { start: choice === 'later' ? 'queue' : 'now', allowDuplicate: allowDuplicate === true });
       if (rememberType && choice === 'now' && extOf(record.name)) { const s = await readSettings(); await writeSettings({ autoTypes: [...s.autoTypes, extOf(record.name)] }); }
@@ -293,7 +320,7 @@
         if (rememberHost && hostOf(record.url)) { const s = await readSettings(); await writeSettings({ excludedHosts: [...s.excludedHosts, hostOf(record.url)] }); }
         return { ok: true };
       }
-      if (choice === 'cancel') { await finish(); await dropRecord(record); return { ok: true }; }
+      if (choice === 'cancel') { await finish(); background(dropRecord(record, { removeCopyNow: true })); return { ok: true }; } // the user said no: the browser's copy goes too
       if (choice !== 'now' && choice !== 'later') return { ok: false, error: T('x.invalid-choice') };
       inflight.add(id); keepAlive();
       const task = settle(record, { choice, rememberType, allowDuplicate }).finally(() => { inflight.delete(id); tasks.delete(task); });
@@ -302,7 +329,7 @@
     } finally { busy.delete(id); }
   }
 
-  globalThis.HypernabTakeover = { idle: () => Promise.allSettled([...tasks]) }; // lets tests wait for the background work
+  globalThis.HypernabTakeover = { idle: async () => { while (tasks.size) await Promise.allSettled([...tasks]); } }; // lets tests wait for the background work
   const ours = sender => sender?.id === api.runtime.id;
   api.runtime.onMessage.addListener((message, sender, respond) => {
     if (!ours(sender) || typeof message?.type !== 'string' || !message.type.startsWith('hypernab:takeover:')) return false;
