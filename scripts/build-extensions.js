@@ -22,6 +22,8 @@ export function buildExtensions(outDir = path.join(root, 'build', 'extensions'),
     // .hyperdown-build: the same generated folder from before the product was renamed.
     if (fs.existsSync(dir) && !fs.existsSync(marker) && !fs.existsSync(path.join(dir, '.hyperdown-build'))) throw new Error(`Hedef klasör Hypernab tarafından üretilmemiş: ${dir}`);
     fs.rmSync(path.join(dir, '.hyperdown-build'), { force: true });
+    // This folder is ours (the marker says so, checked above): start empty, so no file of an older version can ever ride along into a package.
+    if (fs.existsSync(dir)) for (const entry of fs.readdirSync(dir)) fs.rmSync(path.join(dir, entry), { recursive: true, force: true });
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(marker, 'Generated development extension; do not keep personal files here.\n');
     const manifest = structuredClone(base);

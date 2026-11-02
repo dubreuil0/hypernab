@@ -6,6 +6,22 @@ import os from 'node:os';
 import { packageExtensions } from '../scripts/package-extensions.js';
 import { buildExtensions } from '../scripts/build-extensions.js';
 
+test('a rebuild never carries a file of an older version into the package', () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-stale-'));
+  try {
+    buildExtensions(base);
+    for (const family of ['chromium', 'firefox']) { fs.writeFileSync(path.join(base, family, 'takeover.js'), 'old'); fs.mkdirSync(path.join(base, family, 'old-dir')); fs.writeFileSync(path.join(base, family, 'old-dir', 'popup.html'), 'old'); }
+    buildExtensions(base);
+    const listing = family => fs.readdirSync(path.join(base, family), { recursive: true }).map(name => name.replaceAll('\\', '/')).filter(name => fs.statSync(path.join(base, family, name)).isFile());
+    for (const family of ['chromium', 'firefox']) {
+      const files = listing(family);
+      assert.equal(files.some(name => /takeover|popup|preview|download-prompt|old-dir/.test(name)), false, `${family}: ${files.join(', ')}`);
+      // every file shipped is one the manifest or the page code can use: exactly the build's own list
+      for (const must of ['manifest.json', 'background.js', 'link-download.js', 'options.html', '_locales/en/messages.json']) assert.ok(files.includes(must), `${family}: ${must}`);
+    }
+  } finally { fs.rmSync(base, { recursive: true, force: true }); }
+});
+
 test('store packages: no development key for Chrome, a neutral permanent id and a "no data collected" declaration for Firefox', () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-store-'));
   try {
