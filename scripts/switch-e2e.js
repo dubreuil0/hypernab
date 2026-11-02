@@ -69,19 +69,13 @@ async function run(name, launch) {
 
     // the settings page
     await browser.navigate(options, optionsUrl); await sleep(1200);
-    const ui = await browser.eval(options, `(() => ({ nativeSelects: document.querySelectorAll('select').length, dsLists: document.querySelectorAll('.hd-select').length, switches: document.querySelectorAll('.hd-switch').length, unresolved: [...document.querySelectorAll('[data-t]')].filter(n => !n.textContent || /^(opt|ctl|panel)\\./.test(n.textContent)).length, title: document.querySelector('h1').textContent, conn: document.getElementById('conn-state').textContent, remembered: document.getElementById('remembered').textContent }))()`);
-    check(name, 'settings page: design-system lists and switches, no native <select>, every text resolved', ui.nativeSelects === 0 && ui.dsLists === 2 && ui.switches === 2 && ui.unresolved === 0, JSON.stringify(ui));
+    const ui = await browser.eval(options, `(() => ({ nativeSelects: document.querySelectorAll('select').length, dsLists: document.querySelectorAll('.hd-select').length, switches: document.querySelectorAll('.hd-switch').length, unresolved: [...document.querySelectorAll('[data-t]')].filter(n => !n.textContent || /^(opt|ctl|panel)\\./.test(n.textContent)).length, title: document.querySelector('h1').textContent, conn: document.getElementById('conn-state').textContent }))()`);
+    check(name, 'settings page: design-system lists and switches, no native <select>, every text resolved', ui.nativeSelects === 0 && ui.dsLists === 1 && ui.switches === 1 && ui.unresolved === 0, JSON.stringify(ui));
     check(name, 'settings page: it says what the connection to the app is', ui.conn.length > 5);
     await browser.eval(options, `document.querySelectorAll('.hd-switch')[0].click()`); await sleep(400);
     check(name, 'the capture switch on the page writes the same stored value', (await stored('captureEnabled')) === false);
     await browser.eval(options, `document.querySelectorAll('.hd-switch')[0].click()`); await sleep(400);
     check(name, '...and flips back', (await stored('captureEnabled')) === true);
-    await browser.eval(options, `document.querySelectorAll('.hd-switch')[1].click()`); await sleep(600);
-    check(name, 'the file-download switch stores the takeover setting', (await stored('takeover'))?.enabled === false, JSON.stringify(await stored('takeover')));
-    await browser.eval(options, `document.querySelectorAll('.hd-switch')[1].click()`); await sleep(400);
-    await browser.eval(options, `document.querySelectorAll('.hd-select-btn')[0].click()`); await sleep(200);
-    await browser.eval(options, `[...document.querySelectorAll('.hd-select[data-open="true"] .hd-opt')].find(o => /10 MB/.test(o.textContent)).click()`); await sleep(600);
-    check(name, 'choosing a smallest size stores it', (await stored('takeover'))?.minBytes === 10485760, JSON.stringify(await stored('takeover')));
     await browser.screenshot(options, path.join(shots, `options-${name}.png`));
   } catch (error) { check(name, 'run', false, error.message); }
   finally { await browser?.close(); }

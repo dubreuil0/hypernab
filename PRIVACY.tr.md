@@ -13,11 +13,11 @@ Eklenti, ziyaret ettiğin sayfalara yalnızca tek işi için erişir: istediğin
 | Ne | Neden | Nereye gider |
 |---|---|---|
 | Açtığın sayfalardaki medya isteklerinin adresleri ve yanıt başlıkları | Oynayan videoyu veya yayını fark edip **İndir** düğmesini göstermek | Yalnızca bilgisayarındaki Hypernab uygulamasına (`127.0.0.1`), sen indirmek istediğinde |
-| Tarayıcının indirmeye başladığı dosyanın adresi, adı, boyutu ve türü | Hypernab'ın alıp almayacağını sormak | Yalnızca bilgisayarındaki Hypernab uygulamasına, sen **İndir** ya da **Sonra ekle** dediğinde |
-| Tarayıcı çerezleri | Bazı dosya ve videolar, giriş yaptığın oturumla alınabilir | **Yalnızca o dosya için bir düğmeye bastıktan sonra** okunur, yalnızca o dosyanın adresi için, yalnızca bilgisayarındaki uygulamaya gider; diske, günlüğe veya rapora yazılmaz |
+| Sağ tıklayıp **Hypernab ile indir** dediğin bağlantının adresi (ve bulunduğu sayfa) | O tek dosyayı Hypernab'a vermek | Yalnızca bilgisayarındaki Hypernab uygulamasına, yalnızca o tıklamada |
+| Tarayıcı çerezleri | Bazı dosya ve videolar, giriş yaptığın oturumla alınabilir | **Yalnızca o dosya için bir düğmeye bastığında ya da bir bağlantıda "Hypernab ile indir"i seçtiğinde** okunur, yalnızca o dosyanın adresi için, yalnızca bilgisayarındaki uygulamaya gider; diske, günlüğe veya rapora yazılmaz |
 | Eklenti ayarların (örneğin dil ve dosya boyutu sınırı) | Seçimlerini hatırlamak | Bilgisayarında tarayıcının kendi eklenti deposunda durur |
 
-Eklenti, oynatabildiğin video ve altyazıları bulmanın ötesinde sayfa içeriğini okumaz, yazdıklarını kaydetmez, gezinti geçmişini izlemez ve **kendi bilgisayarındaki Hypernab uygulaması dışında hiçbir sunucuya ağ isteği yapmaz.** İnternetten yüklenen kod çalıştırmaz. Gizli (incognito) pencerelerde başlayan dosya indirmeleri hiç devralınmaz; tarayıcılar da eklentileri gizli pencerede ancak sen izin verirsen çalıştırır.
+Eklenti, oynatabildiğin video ve altyazıları bulmanın ötesinde sayfa içeriğini okumaz, yazdıklarını kaydetmez, gezinti geçmişini izlemez ve **kendi bilgisayarındaki Hypernab uygulaması dışında hiçbir sunucuya ağ isteği yapmaz.** İnternetten yüklenen kod çalıştırmaz. Eklenti tarayıcının kendi indirmelerini izlemez ya da devralmaz. Tarayıcılar eklentileri gizli (incognito) pencerede ancak sen izin verirsen çalıştırır; gizli pencerede normal oturumun çerezleri hiç kullanılmaz.
 
 ## Hypernab uygulaması ne yapar
 

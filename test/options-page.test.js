@@ -24,12 +24,12 @@ class El {
 const flush = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
 const json = data => ({ ok: true, status: 200, async json() { return data; } });
 
-function setup({ stored = {}, nativeHandler, fetchHandler, takeover = { enabled: true, minBytes: 1048576, autoTypes: ['zip'], excludedHosts: ['example.org'] }, tabs = [] } = {}) {
+function setup({ stored = {}, nativeHandler, fetchHandler, tabs = [] } = {}) {
   const nodes = new Map(), calls = { fetch: [], native: [], sent: [] }, local = { ...stored };
   const byId = id => { if (!nodes.has(id)) nodes.set(id, new El('node')); return nodes.get(id); };
   const document = { getElementById: byId, createElement: tag => new El(tag), createElementNS: (_ns, tag) => new El(tag), querySelectorAll: () => [], addEventListener() {}, head: new El('head'), defaultView: null };
   const browser = {
-    runtime: { connectNative() {}, async sendMessage(message) { calls.sent.push(JSON.parse(JSON.stringify(message))); if (message.type === 'hypernab:takeover:settings') return { ok: true, settings: { ...takeover, ...(message.patch || {}) } }; return { ok: true }; } },
+    runtime: { connectNative() {}, async sendMessage(message) { calls.sent.push(JSON.parse(JSON.stringify(message))); return { ok: true }; } },
     storage: { local: { async get(key) { return Array.isArray(key) ? Object.fromEntries(key.filter(k => k in local).map(k => [k, local[k]])) : key in local ? { [key]: local[key] } : {}; }, async set(values) { Object.assign(local, JSON.parse(JSON.stringify(values))); } }, onChanged: { addListener() {} } },
     tabs: { async query() { return tabs; } },
   };
@@ -83,16 +83,12 @@ test('pairing with a key: a malformed key is refused, a good one is checked agai
   assert.equal(old.local.token, undefined, 'an app too old for the extension is not paired with');
 });
 
-test('capture and file-download switches, smallest size and "forget" reach the right place', async () => {
-  const app = setup({ nativeHandler: async () => { throw new Error('no native'); } });
+test('the capture switch reaches the stored value; the page no longer has a file-download section', async () => {
+  const app = setup({ nativeHandler: async () => { throw new Error('no native') } });
   await flush();
-  assert.match(app.text('remembered'), /\.zip/); assert.match(app.text('remembered'), /example\.org/, 'shows what was remembered');
   const capture = app.input('capture-slot'); capture.checked = false; capture.change(); await flush();
   assert.equal(app.local.captureEnabled, false);
-  const files = app.input('files-slot'); files.checked = false; files.change(); await flush();
-  assert.deepEqual(app.calls.sent.filter(message => message.patch).at(-1), { type: 'hypernab:takeover:settings', patch: { enabled: false } });
-  app.nodes.get('reset-remembered').click(); await flush();
-  assert.deepEqual(app.calls.sent.filter(message => message.patch).at(-1), { type: 'hypernab:takeover:settings', patch: { autoTypes: [], excludedHosts: [] } });
+  assert.equal(app.calls.sent.some(message => /takeover/.test(message.type || '')), false, 'nothing asks a file-capture feature that no longer exists');
 });
 
 test('diagnostics: a page tab is chosen, the request watch and the report ask the background for exactly that tab', async () => {

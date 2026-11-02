@@ -18,6 +18,12 @@ test('store packages: no development key for Chrome, a neutral permanent id and 
     assert.match(firefox.browser_specific_settings.gecko.id, /^\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}$/, 'an id with no name or address in it');
     assert.deepEqual(firefox.browser_specific_settings.gecko.data_collection_permissions, { required: ['none'] });
     assert.equal(chrome.version, firefox.version);
+    // the sensitive permissions of the old automatic file capture are gone for good (they make store review harder and nothing needs them)
+    for (const manifest of [chrome, firefox]) for (const gone of ['downloads', 'downloads.ui', 'webRequestBlocking']) assert.equal(manifest.permissions.includes(gone), false, `${gone} is not asked`);
+    for (const family of ['chromium', 'firefox']) {
+      assert.ok(fs.existsSync(path.join(base, 'work', family, 'link-download.js')), 'the link menu ships');
+      for (const old of ['takeover.js', 'download-prompt.html']) assert.equal(fs.existsSync(path.join(base, 'work', family, old)), false, `${old} is not shipped`);
+    }
     // the development build still carries the key, so unpacked copies keep their id
     buildExtensions(path.join(base, 'dev'));
     assert.match(JSON.parse(fs.readFileSync(path.join(base, 'dev/chromium/manifest.json'), 'utf8')).key, /^[A-Za-z0-9+/=]{100,}$/);

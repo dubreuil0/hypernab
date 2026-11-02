@@ -9,7 +9,6 @@
     "activeTab",
     "nativeMessaging",
     "cookies",
-    "downloads",
     "contextMenus",
     "alarms"
   ],
@@ -26,7 +25,7 @@
       "control.js",
       "background.js",
       "float.js",
-      "takeover.js"
+      "link-download.js"
     ]
   },
   "content_scripts": [

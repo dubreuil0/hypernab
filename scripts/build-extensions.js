@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const assets = ['background.js', 'native-config.js', 'native.js', 'core.js', 'float.js', 'takeover.js', 'download-prompt.html', 'download-prompt.js', 'download-prompt.css', 'content.js', 'control.js', 'options.html', 'options.js', 'options.css'];
+const assets = ['background.js', 'native-config.js', 'native.js', 'core.js', 'float.js', 'link-download.js', 'content.js', 'control.js', 'options.html', 'options.js', 'options.css'];
 const sharedAssets = ['ds.css', 'ds.js', 'strings.js'];
 // The page panel lives in a closed shadow root and cannot load a stylesheet file: its CSS (design system + panel) travels as a script.
 export function panelCssScript() {
@@ -25,11 +25,7 @@ export function buildExtensions(outDir = path.join(root, 'build', 'extensions'),
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(marker, 'Generated development extension; do not keep personal files here.\n');
     const manifest = structuredClone(base);
-    // Firefox can hold a file's response until the user decides (nothing ever lands in the browser's download list);
-    // Chrome and Edge can only hide the download bubble for the moment the file is handed over.
-    if (family === 'firefox') manifest.permissions = [...manifest.permissions, 'webRequestBlocking'];
     if (family === 'chromium') {
-      manifest.permissions = [...manifest.permissions, 'downloads.ui'];
       manifest.background = { service_worker: 'background.js' };
       manifest.minimum_chrome_version = '121';
       if (!store) manifest.key = JSON.parse(fs.readFileSync(path.join(root, 'extension/chromium-key.json'), 'utf8')).key;

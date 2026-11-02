@@ -417,5 +417,5 @@
     work.then(respond, error => respond({ ok: false, error: error.message }));
     return true;
   });
-  globalThis.HypernabFloat = { connection }; // the download takeover (takeover.js) uses the same app connection
+  globalThis.HypernabFloat = { connection }; // the link menu (link-download.js) uses the same app connection
 })();

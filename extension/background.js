@@ -1,5 +1,5 @@
 // Only media URLs/metadata are kept in session storage. The background never reads cookies; the popup does, per user action.
-if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'float.js', 'takeover.js'); // float.js: on-page download panel backend; takeover.js: browser file downloads
+if (!globalThis.Hypernab && typeof importScripts === 'function') importScripts('native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'float.js', 'link-download.js'); // float.js: on-page download panel backend; link-download.js: "Download with Hypernab" on a link
 const browserApi = globalThis.browser ?? globalThis.chrome;
 let writes = Promise.resolve();
 const generations = new Map();

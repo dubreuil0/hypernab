@@ -6,7 +6,7 @@ import { webcrypto } from 'node:crypto';
 
 test('kaynak manifest Firefox event page ve ortak core kullanır; Chromium paketi ayrı üretilir', () => {
   const manifest = JSON.parse(fs.readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'));
-  assert.deepEqual(manifest.background.scripts, ['native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'background.js', 'float.js', 'takeover.js']);
+  assert.deepEqual(manifest.background.scripts, ['native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'background.js', 'float.js', 'link-download.js']);
   assert.equal(manifest.background.service_worker, undefined);
   assert.equal(manifest.browser_specific_settings.gecko.strict_min_version, '128.0');
   assert.ok(manifest.browser_specific_settings.gecko.id);

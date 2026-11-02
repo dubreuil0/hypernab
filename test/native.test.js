@@ -52,6 +52,17 @@ test('Native köprü yerel anahtarı kendisi okur; kimlik dışarı verilmez, y�
   assert.equal(request.url, 'http://127.0.0.1:17850/api/status'); assert.equal(request.options.redirect, 'error');
   assert.equal(request.options.headers.Authorization, `Bearer ${'a'.repeat(64)}`);
 });
+test('Native köprü uygulamanın bilinen hata nedenlerini eklentiye iletir, bilinmeyenleri APP_ERROR yapar (zaten listede, web sayfası...)', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-native-test-')); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(root, 'pairing-token'), 'a'.repeat(64));
+  const answer = (status, body) => new Response(JSON.stringify(body), { status });
+  for (const [code, expected] of [['duplicate', 'duplicate'], ['NOT_A_FILE', 'NOT_A_FILE'], ['ACCESS_DENIED', 'ACCESS_DENIED'], ['HTTP_ERROR', 'HTTP_ERROR'], ['SELECTION_EXPIRED', 'SELECTION_EXPIRED'], ['SOMETHING_ELSE', 'APP_ERROR']]) {
+    const gateway = new NativeGateway({ port: 17850, dataDirectory: root }, { fetcher: async () => answer(400, { error: 'reason', code }) });
+    await assert.rejects(() => gateway.request({ route: '/api/files/take', method: 'POST', body: {} }), error => error.code === expected && error.message === 'reason', code);
+  }
+  const unauthorized = new NativeGateway({ port: 17850, dataDirectory: root }, { fetcher: async () => answer(401, { error: 'no', code: 'duplicate' }) });
+  await assert.rejects(() => unauthorized.request({ route: '/api/status', method: 'GET' }), error => error.code === 'APP_AUTH');
+});
 test('Native kayıtları yalnızca HKCU ve açık kimlikler içindir; paket kimliği sabittir', () => {
   const key = JSON.parse(fs.readFileSync(new URL('../extension/chromium-key.json', import.meta.url), 'utf8')).key;
   assert.equal(chromiumExtensionId(key), 'eggmbijjnndjfnakmgjobdmjkabagbli');

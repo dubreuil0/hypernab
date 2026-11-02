@@ -9,8 +9,8 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera
 ## Özellikler
 
 - **Hızlı indirme:** parçalı ve uyarlanabilir bağlantı sayısıyla indirme, kaldığı yerden devam, hız sınırı (çalışan indirmeye de anında uygulanır).
-- **Genel dosya indirme:** tarayıcının dosya indirmelerini (zip, pdf, iso, program, belge...) Hypernab alabilir. İndirme başlayınca küçük bir pencere sorar: **İndir**, **Sonra** veya **İptal**; "bir daha sorma" kutusuyla bu tür dosyaları sormadan alabilirsin. Dosya gerçek adıyla iner, parçalı hızlandırılır, boyutu ve dosya yapısı (zip, pdf, program, resim...) doğrulanır, Windows'un "internetten indirildi" işareti eklenir.
-- **Tarayıcıdan yakalama:** eklenti, oynattığın videoyu algılar ve sayfada "Hypernab ile indir" düğmesi gösterir. Kalite listesinden seçersin; seçmediğin kaliteye sessizce düşülmez. Sitede birden fazla ses varsa (ör. dublaj ve orijinal) panelde **Ses** seçilir; oynatıcıda çalan ses otomatik seçili gelir. Sayfa değiştiğinde **Yenile** düğmesi videoyu baştan tarar.
+- **İstediğin her dosya:** tarayıcıda bir bağlantıya sağ tıkla ve **Hypernab ile indir**'i seç, ya da bağlantıları uygulamaya yapıştır (**Birden çok bağlantı ekle**, ya da isteğe bağlı pano önerisi). Dosya gerçek adıyla kaydedilir, parçalara bölünerek hızlandırılır, boyutu ve yapısı (zip, pdf, program, resim...) doğrulanır ve Windows'un "internetten indirildi" işareti eklenir. Hypernab tarayıcının kendi indirmelerini arkandan devralmaz.
+
 - **Kuyruk:** adlandırılmış kuyruklar, zamanlama, sürükleyerek sıralama, genel eşzamanlılık sınırı, "Sonra ekle".
 - **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir. HLS indirmelerinde duraklatma, yeniden başlatma ve yeniden deneme bitmiş parçaları korur; yalnızca eksikler indirilir.
 - **Akışlar:** HLS ve ayrı görüntü/ses akışları FFmpeg ile birleştirilir; sonuç ffprobe ile doğrulanır.
@@ -31,14 +31,11 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera
 2. Kurulum henüz **kod imzalı değildir**; Windows "bilinmeyen yayıncı" uyarısı gösterebilir.
 3. Kurulum Node.js, yt-dlp ve FFmpeg'i kendi içinde getirir; ayrıca bir şey kurman gerekmez.
 
-### Dosya indirmelerini yakalama
+### İstediğin her dosyayı indirme
 
-Dosya indirmesi başlarken küçük bir pencere sorar. **Firefox**'ta dosya tarayıcıya hiç düşmez: yanıt, sen karar verene kadar bekletilir; Hypernab alırsa tarayıcıda indirme kaydı oluşmaz. **Chrome, Edge ve Brave** bekletmeye izin vermez; orada indirme kısa süre duraklatılır, indirme balonu gizlenir ve Hypernab dosyayı alınca kayıt hemen silinir. **Dosya hiçbir durumda kaybolmaz:** tarayıcı ancak Hypernab dosyayı kabul ettikten sonra bırakılır. Uygulama kapalıysa, hata olursa, pencereyi kapatırsan veya üç dakika yanıt vermezsen tarayıcı indirmeyi kendisi sürdürür. Çerezler yalnızca sen bir düğmeye bastığında, yalnızca o dosyanın adresi için kullanılır; hiçbir yere kaydedilmez.
+Bir sayfadaki bağlantıya sağ tıkla ve **Hypernab ile indir**'i seç. Bu kadar: tarayıcıda hiçbir şey duraklatılmaz, bekletilmez ya da izlenmez; bu yüzden her tarayıcıda aynı çalışır. O tek adresin çerezleri yalnızca o tıklamada, yalnızca o adres için okunur, yalnızca bilgisayarındaki uygulamaya gider ve hiç kaydedilmez. Sonuç araç çubuğu simgesinde kısa süre görünür ("OK" ya da "!" ve nedeni ipucunda); uygulama kapalıysa video düğmesindeki gibi açılır. Yakalama kapalıyken öğe gizlenir.
 
-- Eklentinin **ayarlar sayfasındaki** (araç çubuğu simgesine sağ tıkla → *Ayarlar ve teşhis*) **Dosya indirmeleri** bölümünden kapatabilir, en küçük dosya boyutunu seçebilir ve hatırlanan seçimleri sıfırlayabilirsin (varsayılan: 1 MB üstü ve boyutu bilinmeyenler).
-- "Bu türü bir daha sorma" dersen o tür dosyalar sormadan Hypernab ile iner; bir sorun olursa yine tarayıcıya geri verilir.
-- Normal (https) adresten gelen program dosyaları için pencerede sakin bir "Program dosyası" etiketi, komut/makro dosyaları (`ps1`, `docm` ...) ve şifrelenmemiş (http) adresten gelen programlar için uyarı gösterilir. Gizli pencerede (incognito) yakalama yapılmaz.
-- Eklenti `downloads` iznini ister (Firefox'ta ayrıca yanıtı bekletmek için `webRequestBlocking`, Chromium'da indirme balonunu gizlemek için `downloads.ui`); güncellerken tarayıcı onay isteyebilir.
+Eklenti `downloads` izni istemez. Dosya yerine bir web sayfasına giden bağlantı açık bir nedenle reddedilir.
 
 ### Eklenti
 
@@ -51,7 +48,7 @@ Uygulamanın **Ayarlar > Tarayıcı eklentisi** bölümü bu adımları kopyalan
 
 Masaüstü uygulamasında aynı bölüm, bilgisayarda bulunan her desteklenen tarayıcı için bir **<tarayıcı> için kur** düğmesiyle başlar: o tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, seçilecek yolu panoya kopyalar; onay her zaman tarayıcının kendisinden gelir, arkandan hiçbir şey kurulmaz. Eklenti uygulamaya ulaşınca yeşil bir işaret çıkar.
 
-**Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simge gri olur ve üstünde kırmızı çapraz çizgi görünür; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Dosya indirmelerini yakala*, *Ayarlar ve teşhis*. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
+**Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simge gri olur ve üstünde kırmızı çapraz çizgi görünür; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Ayarlar ve teşhis*. Bir bağlantıda sağ tık *Hypernab ile indir* gösterir. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
 
 ## Güncelleme
 

@@ -9,7 +9,7 @@ A local download manager for Windows, with a media-capture extension for Firefox
 ## Features
 
 - **Fast downloads:** segmented download with an adaptive number of connections, resume from where it stopped, and a speed limit (applied to a running download at once).
-- **General file downloads:** Hypernab can take over the browser's file downloads (zip, pdf, iso, programs, documents...). When a download starts, a small window asks: **Download**, **Later** or **Cancel**; with “don't ask again” such files are taken without asking. The file is saved under its real name, accelerated in segments, its size and structure (zip, pdf, program, image...) are verified, and Windows' “downloaded from the internet” mark is added.
+- **Any file, on request:** right-click a link in the browser and choose **Download with Hypernab**, or paste links into the app (**Add several links**, or the optional clipboard offer). The file is saved under its real name, accelerated in segments, its size and structure (zip, pdf, program, image...) are verified, and Windows' “downloaded from the internet” mark is added. Hypernab never takes over the browser's own downloads behind your back.
 - **Capture from the browser:** the extension detects the video you play and shows a “Download with Hypernab” button on the page. You choose from the quality list; it never silently falls back to a quality you did not choose. When a site has several sounds (e.g. dubbed and original) you pick the **Sound** in the panel; the sound playing in the player is preselected. When the page changes, **Refresh** scans the video again.
 - **Queue:** named queues, scheduling, drag-and-drop ordering, a global concurrency limit, “Add for later”.
 - **Automatic recovery:** limited, cancellable retries after temporary server errors, drops and missing data; only the damaged part is downloaded again. For HLS downloads, pausing, restarting and retrying keep the finished segments; only the missing ones are downloaded.
@@ -30,14 +30,11 @@ A local download manager for Windows, with a media-capture extension for Firefox
 2. The installer is **not yet code-signed**; Windows may show an “unknown publisher” warning.
 3. The installer brings Node.js, yt-dlp and FFmpeg with it; you do not need to install anything else.
 
-### Capturing file downloads
+### Downloading any file
 
-A small window asks when a file download starts. In **Firefox** the file never reaches the browser: the response is held until you decide; if Hypernab takes it, no download record appears in the browser. **Chrome, Edge and Brave** do not allow holding; there the download is paused for a moment, the download bubble is hidden and the record is removed as soon as Hypernab has the file. **The file is never lost:** the browser is only let go after Hypernab has accepted the file. If the app is closed, something fails, you close the window or you do not answer for three minutes, the browser carries on with the download itself. Cookies are used only when you press a button, only for the address of that file, and are never saved.
+Right-click a link on a page and choose **Download with Hypernab**. That is all: nothing is paused, held or watched in the browser, so it works the same in every browser. The cookies of that one address are read only at that click, only for that address, are sent only to the app on your computer and are never saved. The result shows on the toolbar icon for a moment (“OK”, or “!” with the reason in the tooltip); if the app is closed it is started, like the video button does. The item is hidden while capture is off.
 
-- In the extension's **settings page** (right-click the toolbar icon → *Settings and diagnostics*), in the **File downloads** section, you can turn this off, choose the smallest file size and reset the remembered choices (default: files over 1 MB and files of unknown size).
-- If you choose “don't ask again for this type”, files of that type are taken by Hypernab without asking; if anything goes wrong they are given back to the browser.
-- A quiet “Program file” tag is shown for programs from a normal (https) address; a warning is shown for scripts and macros (`ps1`, `docm`...) and for programs fetched over an unencrypted (http) address. Nothing is captured in private windows.
-- The extension asks for the `downloads` permission (in Firefox also `webRequestBlocking` to hold the response, in Chromium `downloads.ui` to hide the download bubble); the browser may ask for approval when updating.
+The extension asks for no `downloads` permission. A link to a web page (instead of a file) is refused with a clear reason.
 
 ### Extension
 
@@ -50,7 +47,7 @@ The app's **Settings > Browser extension** section shows these steps with copyab
 
 In the desktop app the same section starts with a **Set up in <browser>** button for every supported browser found on the computer: it opens that browser's extensions page and the extension folder and copies the path to pick; the browser itself always asks you to confirm, nothing is installed behind your back. A green mark shows when the extension has reached the app.
 
-**Use:** there is no pop-up. **Clicking** the Hypernab icon in the toolbar **turns capture on or off** (when off, the icon turns grey with a red slash; no button or panel appears on pages and nothing is captured). **Right-clicking** opens a menu: *Open Hypernab*, *Inspect this page*, *Capture videos*, *Capture file downloads*, *Settings and diagnostics*. The **Download** button that appears on the page when a video plays is the main place to download.
+**Use:** there is no pop-up. **Clicking** the Hypernab icon in the toolbar **turns capture on or off** (when off, the icon turns grey with a red slash; no button or panel appears on pages and nothing is captured). **Right-clicking** opens a menu: *Open Hypernab*, *Inspect this page*, *Capture videos*, *Settings and diagnostics*. On a link, right-click shows *Download with Hypernab*. The **Download** button that appears on the page when a video plays is the main place to download.
 
 ## Updates
 

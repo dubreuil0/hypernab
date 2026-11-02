@@ -28,7 +28,7 @@ test('Firefox/Chromium paketleri aynı kodu, farklı doğru arka plan manifestle
   const builds = buildExtensions(root);
   const firefox = JSON.parse(fs.readFileSync(path.join(builds.firefox, 'manifest.json'), 'utf8'));
   const chromium = JSON.parse(fs.readFileSync(path.join(builds.chromium, 'manifest.json'), 'utf8'));
-  assert.deepEqual(firefox.background.scripts, ['native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'background.js', 'float.js', 'takeover.js']); assert.equal(firefox.background.service_worker, undefined);
+  assert.deepEqual(firefox.background.scripts, ['native-config.js', 'native.js', 'core.js', 'strings.js', 'control.js', 'background.js', 'float.js', 'link-download.js']); assert.equal(firefox.background.service_worker, undefined);
   assert.deepEqual(chromium.background, { service_worker: 'background.js' }); assert.equal(chromium.browser_specific_settings, undefined); assert.equal(chromium.minimum_chrome_version, '121');
   assert.equal(firefox.content_scripts[0].all_frames, true); assert.equal(chromium.content_scripts[0].all_frames, true);
   // No popup: a click on the icon switches capture; the rest is in the right-click menu and the settings page.

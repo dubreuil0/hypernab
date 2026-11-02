@@ -8,6 +8,7 @@ import { NativeDecoder, nativeFrame, validateNativeCaller, validateNativeRequest
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fail = (code, message) => Object.assign(new Error(message), { code });
+const KNOWN_CODES = new Set(['SELECTION_EXPIRED', 'duplicate', 'NOT_A_FILE', 'ACCESS_DENIED', 'HTTP_ERROR']);
 export function readNativeConfig(file) {
   const config = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (config.version !== 1 || !Number.isInteger(config.port) || config.port < 1024 || config.port > 65535 ||
@@ -33,7 +34,8 @@ export class NativeGateway {
     for await (const chunk of response.body) { length += chunk.length; if (length > 880000) { await response.body.cancel?.().catch(() => {}); throw fail('RESPONSE_TOO_LARGE', m('e.the-queue-response-is-too-large')); } parts.push(chunk); }
     let result;
     try { result = JSON.parse(Buffer.concat(parts).toString('utf8')); } catch { throw fail('APP_PROTOCOL', m('e.the-app-response-could-not-be')); }
-    if (!response.ok) throw fail(response.status === 401 ? 'APP_AUTH' : result.code === 'SELECTION_EXPIRED' ? result.code : 'APP_ERROR', result.error || 'Uygulama komutu reddetti.');
+    // The app's own reasons travel on (the extension acts on them: a file already in the list, a link that is a web page...); anything else is a plain app error.
+    if (!response.ok) throw fail(response.status === 401 ? 'APP_AUTH' : KNOWN_CODES.has(result.code) ? result.code : 'APP_ERROR', result.error || 'Uygulama komutu reddetti.');
     return result;
   }
   async spawnLauncher(show = false) {

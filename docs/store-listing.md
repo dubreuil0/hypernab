@@ -6,7 +6,7 @@ Privacy policy address (both stores): `https://github.com/dubreuil0/hypernab/blo
 ## Name, summary, category
 
 - **Name:** Hypernab - Video Catcher
-- **Summary (max 132 characters):** Sends the DRM-free videos that play, and the files your browser downloads, to the Hypernab download manager on your PC.
+- **Summary (max 132 characters):** Sends the DRM-free videos that play, and any link you right-click, to the Hypernab download manager on your PC.
 - **Category:** Productivity (Chrome) / Download Management (Firefox)
 - **Language:** English (Turkish listing: below)
 
@@ -18,7 +18,8 @@ Hypernab - Video Catcher is the browser part of **Hypernab**, a free download ma
 
 What it does
 - Notices the video you are playing (DRM-free files, HLS and DASH streams) and shows a **Download with Hypernab** button on the page. You choose the quality and, when a video has several, the sound and subtitle. It never silently falls back to a quality you did not choose.
-- Optionally takes over the browser's own file downloads (zip, pdf, iso, programs...). A small window asks: **Download**, **Later** or **Cancel**. The file is never lost: if the app is closed or anything fails, the browser carries on with its own download.
+- Any file: right-click a link and choose **Download with Hypernab**. Only that file is handed over; nothing else in the browser is touched.
+
 - Click the toolbar icon to turn capture on or off. Right-click for the menu and settings.
 - English and Turkish.
 
@@ -35,7 +36,8 @@ Hypernab - Video Yakalayıcı, Windows için ücretsiz indirme yöneticisi **Hyp
 
 Ne yapar
 - Oynattığın videoyu (DRM'siz dosyalar, HLS ve DASH yayınları) fark eder ve sayfada **Hypernab ile indir** düğmesi gösterir. Kaliteyi, bir videoda birden çok varsa sesi ve altyazıyı sen seçersin. Seçmediğin bir kaliteye sessizce düşmez.
-- İsteğe bağlı olarak tarayıcının kendi dosya indirmelerini (zip, pdf, iso, programlar...) devralır. Küçük bir pencere sorar: **İndir**, **Sonra ekle** ya da **İptal**. Dosya asla kaybolmaz: uygulama kapalıysa ya da bir şey ters giderse tarayıcı kendi indirmesine devam eder.
+- Herhangi bir dosya: bağlantıya sağ tıkla ve **Hypernab ile indir**'i seç. Yalnızca o dosya verilir; tarayıcıda başka hiçbir şeye dokunulmaz.
+
 - Araç çubuğundaki simgeye tıklayarak yakalamayı açıp kapatırsın. Sağ tık menüsü ve ayarlar da orada.
 - İngilizce ve Türkçe.
 
@@ -52,14 +54,12 @@ Find the video or file the user wants to download in the browser and hand it to 
 
 | Permission | Why it is needed |
 |---|---|
-| `webRequest` | Observes the response headers of media requests (type, size, address) to notice a playing video or stream. In Firefox, with `webRequestBlocking`, it holds a file download's response only while the user decides whether Hypernab should take it. Nothing is modified or blocked otherwise. |
-| `downloads` | Pauses the browser's own file download while the user chooses, cancels it only after Hypernab has accepted the file, and gives it back to the browser if anything fails. |
-| `downloads.ui` (Chromium) | Hides the browser's download bubble for the moment a download is handed to Hypernab. |
-| `cookies` | Reads the cookies of one file's address, only after the user presses a button for that file, so a download that needs the user's signed-in session works. Sent only to the app on the same computer; never stored. |
+| `webRequest` | Observes the response headers of media requests (type, size, address) to notice a playing video or stream. Nothing is modified or blocked. |
+| `cookies` | Reads the cookies of one file's address, only after the user presses a button for that file or chooses "Download with Hypernab" on a link, so a download that needs the user's signed-in session works. Sent only to the app on the same computer; never stored. |
 | `nativeMessaging` | Pairs the extension with the Hypernab app on the same computer (a pairing key), so only this extension can control it. |
 | `storage` | Keeps the user's extension settings (language, minimum file size, remembered choices). |
 | `activeTab` | Lets the toolbar menu inspect the current page when the user asks. |
-| `contextMenus` | The toolbar icon's right-click menu (open Hypernab, inspect this page, settings). |
+| `contextMenus` | The toolbar icon's right-click menu (open Hypernab, inspect this page, settings) and the **Download with Hypernab** item on links. |
 | `alarms` | Once a minute, keeps the extension language in step with the app's language setting. |
 | `http://*/*`, `https://*/*` (host access and content script) | Videos and files can be on any website, so the page button and the media detection must work on any page. The content script only looks for playable videos and subtitles and draws the user's download button; the extension sends data only to the app on the same computer (127.0.0.1). |
 
@@ -67,7 +67,7 @@ Find the video or file the user wants to download in the browser and hand it to 
 
 ## Privacy practices tab (Chrome)
 
-- The extension handles web addresses of media requests, file download information and (on user action) cookies. All of it stays on the user's computer: it is sent only to the Hypernab app on the same computer, never to the developer or a third party.
+- The extension handles web addresses of media requests and of links the user chooses, and (on user action) cookies. All of it stays on the user's computer: it is sent only to the Hypernab app on the same computer, never to the developer or a third party.
 - Be conservative when ticking the data types: tick *Authentication information* (cookies), *Web history* (addresses) and *Website content* (videos, subtitles found on pages) and explain they are handled locally only.
 - Tick all three statements: no sale of data, no use unrelated to the single purpose, no use for credit or lending.
 
@@ -76,7 +76,7 @@ Find the video or file the user wants to download in the browser and hand it to 
 The extension is the browser part of a Windows desktop download manager and only works when that app is running (the app listens on 127.0.0.1 only). To test:
 1. Install the app from https://github.com/dubreuil0/hypernab/releases (Hypernab-Setup-x.y.z.exe, Windows 10/11; the installer is not yet code-signed, so Windows may show an "unknown publisher" notice). Start it.
 2. Open the extension's settings page (right-click the toolbar icon, *Settings and diagnostics*): the connection shows as connected.
-3. Open any page with a plain video file; the **Download with Hypernab** button appears on the page. Or start a file download (a zip over 1 MB): a small window asks Download / Later / Cancel.
+3. Open any page with a plain video file; the **Download with Hypernab** button appears on the page. Or right-click any link to a file and choose **Download with Hypernab**: the job appears in the app.
 The extension makes no network request except to 127.0.0.1. Source code (not minified, no obfuscation): https://github.com/dubreuil0/hypernab ; the package is produced by `npm run package:extensions` (it copies the files in `extension/` and `public/` and writes one generated file, `panel-css.js`, from `public/ds.css` and `extension/panel.css`).
 
 ## Firefox add-ons (AMO) notes
@@ -89,8 +89,8 @@ The extension makes no network request except to 127.0.0.1. Source code (not min
 ## Screenshots (Chrome 1280x800, at least 1; up to 5)
 
 1. The **Download with Hypernab** panel on a video page (quality, sound, subtitle).
-2. The small file-download window (Download / Later / Cancel).
+2. The right-click menu on a link ("Download with Hypernab").
 3. The Hypernab app with a running download and the queue.
-4. The extension's settings page (connection, file downloads).
+4. The extension's settings page (connection, capture switch).
 
 Screenshots must not show real accounts, personal files, user names or paths. Use a neutral test page.

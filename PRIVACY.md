@@ -13,11 +13,11 @@ The extension needs access to the pages you visit only to do its single job: fin
 | What | Why | Where it goes |
 |---|---|---|
 | Addresses and response headers of media requests on the pages you open | To notice a playing video or stream and show the **Download** button | Only to the Hypernab app on your computer (`127.0.0.1`), when you ask to download |
-| Address, name, size and type of a file the browser starts to download | To ask whether Hypernab should take it | Only to the Hypernab app on your computer, when you choose **Download** or **Later** |
-| Browser cookies | Some files and videos need your signed-in session to be fetched | Read **only after you press a button for that one file**, only for that file's address, sent only to the app on your computer, and never written to disk, a log or a report |
+| The address of a link you right-click and choose **Download with Hypernab** (and the page it is on) | To hand that one file to Hypernab | Only to the Hypernab app on your computer, only at that click |
+| Browser cookies | Some files and videos need your signed-in session to be fetched | Read **only when you press a button for that one file or choose "Download with Hypernab" on a link**, only for that file's address, sent only to the app on your computer, and never written to disk, a log or a report |
 | Your extension settings (for example the language and the file-size limit) | To remember your choices | Kept in the browser's own extension storage on your computer |
 
-The extension does not read the content of pages beyond finding videos and subtitles you can play, does not record what you type, does not track your browsing history, and makes **no network request to any server other than the Hypernab app on your own computer.** It does not run code loaded from the internet. File downloads started in private (incognito) windows are never taken over, and browsers run extensions in private windows only if you allow it.
+The extension does not read the content of pages beyond finding videos and subtitles you can play, does not record what you type, does not track your browsing history, and makes **no network request to any server other than the Hypernab app on your own computer.** It does not run code loaded from the internet. The extension does not watch or take over the browser's own downloads. Browsers run extensions in private (incognito) windows only if you allow it; in a private window the normal session's cookies are never used.
 
 ## What the Hypernab app does
 

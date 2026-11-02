@@ -1,4 +1,4 @@
-// The extension's settings page: capture on/off, the link to the app, file-download capture and diagnostics. All texts come from
+// The extension's settings page: capture on/off, the link to the app and diagnostics. All texts come from
 // strings.js keys; the controls are the design system's (ds.js). What used to live in the toolbar popup lives here now.
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
@@ -57,25 +57,6 @@
       say('conn-state', T('opt.conn.paired'), 'ok');
     } catch (error) { say('conn-state', error.message || T('opt.conn.fail'), 'error'); }
   });
-
-  // ---- file downloads (the work itself runs in takeover.js)
-  const ask = patch => Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:takeover:settings', ...(patch ? { patch } : {}) }));
-  const MB = 1048576;
-  const sizes = [[0, 'opt.files.min.all'], [MB, null], [10 * MB, null], [100 * MB, null]];
-  const files = DS.toggle(document, { text: '', checked: true, onChange: on => ask({ enabled: on }).then(paint) });
-  files.input.setAttribute('aria-label', T('opt.files.enable')); $('files-slot').append(files.el);
-  const min = DS.select(document, { label: T('opt.files.min'), value: String(MB), options: sizes.map(([bytes, key]) => ({ value: String(bytes), label: key ? T(key) : `${bytes / MB} MB` })), onChange: value => ask({ minBytes: Number(value) }).then(paint) });
-  $('min-slot').append(min.el);
-  function paint(answer) {
-    const s = answer?.settings; if (!s) return;
-    files.input.checked = s.enabled !== false;
-    if (!sizes.some(([bytes]) => String(bytes) === String(s.minBytes))) min.setOptions([...sizes.map(([bytes, key]) => ({ value: String(bytes), label: key ? T(key) : `${bytes / MB} MB` })), { value: String(s.minBytes), label: `${Math.round(s.minBytes / MB)} MB` }], String(s.minBytes));
-    else min.setValue(String(s.minBytes));
-    const parts = [s.autoTypes?.length ? T('opt.files.types', { list: s.autoTypes.map(item => '.' + item).join(' ') }) : '', s.excludedHosts?.length ? T('opt.files.hosts', { list: s.excludedHosts.join(', ') }) : ''].filter(Boolean);
-    say('remembered', parts.join(' · ') || T('opt.files.none'));
-  }
-  ask().then(paint).catch(() => {});
-  $('reset-remembered').addEventListener('click', () => ask({ autoTypes: [], excludedHosts: [] }).then(paint));
 
   // ---- diagnostics: which page tab, watch its requests, copy the report
   let tabs = [], chosen = null;
