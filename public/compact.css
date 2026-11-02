@@ -151,3 +151,5 @@ html[data-appearance="compact"] .unit-input>span { top:7px; }
 .job-note { display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;height:28px;border-radius:6px;color:var(--muted);cursor:help; }
 .job-note:hover,.job-note:focus-visible { color:var(--text); }
 .job-note .ic { width:16px;height:16px; }
+#bulk-text { width:100%;min-height:9rem;resize:vertical;font-family:inherit; }
+#bulk-dialog { width:min(34rem,92vw); }

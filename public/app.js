@@ -65,7 +65,7 @@ function render(force = false) {
   const focusedAction = document.activeElement?.dataset?.jobAction;
   $('stat-active').textContent = String(jobs.filter(j => j.status === 'running').length);
   const speed = fmt(jobs.reduce((n, j) => n + (j.status === 'running' ? j.speed || 0 : 0), 0)).split(' ');
-  $('stat-speed').replaceChildren(document.createTextNode(`${speed[0]} `), el('small', '', `${speed[1]}/sn`));
+  $('stat-speed').replaceChildren(document.createTextNode(`${speed[0]} `), el('small', '', T('app.speedPer', { size: speed[1] })));
   $('stat-complete').textContent = jobs.filter(j => j.status === 'completed').length;
   $('nav-count').textContent = jobs.length;
   const visible = shownJobs();
@@ -560,7 +560,7 @@ function openRowMenu(id, x, y) {
     button.append(icon(name), el('span', '', label)); button.addEventListener('click', () => { closeRowMenu(); void run(); }); menu.append(button);
   };
   if (globalThis.hypernabDesktop) item('folder', T('app.openLocation'), async () => { try { await globalThis.hypernabDesktop.action('job-location', id); } catch { queueMessage(T('app.openLocation.failed'), true); } });
-  if (globalThis.hypernabDesktop && canPlayFile(job)) item('play', 'Oynat', async () => { try { await globalThis.hypernabDesktop.action('job-play', id); } catch (error) { queueMessage(error.message, true); } });
+  if (globalThis.hypernabDesktop && canPlayFile(job)) item('play', T('app.play'), async () => { try { await globalThis.hypernabDesktop.action('job-play', id); } catch (error) { queueMessage(error.message, true); } });
   item('copy', T('app.copyName'), () => copyText(title, 'app.copied.name'));
   if (job.file) item('copy', T('app.copyPath'), () => copyText(job.directory ? `${job.directory}\\${job.file}` : job.file, 'app.copied.path'));
   if (job.status === 'held') item('bolt', T('app.startNow'), () => runQueueCommand({ type: 'single', action: 'start-now', id }), queueBusy);
@@ -605,6 +605,31 @@ $('duplicate-show').addEventListener('click', () => {
   if (row) { row.scrollIntoView({ block: 'center' }); row.classList.add('job-new'); setTimeout(() => row.classList.remove('job-new'), 2500); }
 });
 $('duplicate-accept').addEventListener('click', () => { const mode = duplicateAsk?.mode; duplicateAsk = null; $('duplicate-dialog').close(); if (mode) void submitPending(mode, true); });
+// ---- Several links at once (a dialog; the engine does the work and says what it added, skipped and could not add) ----
+const MAX_LINKS = 100;
+const linksIn = text => [...new Set((String(text).match(/https?:\/\/[^\s<>"'`]+/gi) || []).map(link => link.replace(/[),.;]+$/, '')))];
+function bulkState() {
+  const count = linksIn($('bulk-text').value).length, tooMany = count > MAX_LINKS;
+  $('bulk-count').textContent = tooMany ? T('app.bulk.tooMany', { max: MAX_LINKS }) : count ? TN('app.bulk.count', count) : T('app.bulk.none');
+  for (const id of ['bulk-now', 'bulk-later']) $(id).disabled = !count || tooMany;
+}
+function openBulk(text = '') { $('bulk-text').value = text; bulkState(); $('bulk-dialog').showModal(); $('bulk-text').focus(); }
+$('open-bulk').addEventListener('click', () => openBulk());
+$('bulk-text').addEventListener('input', bulkState);
+$('bulk-cancel').addEventListener('click', () => $('bulk-dialog').close());
+async function submitBulk(mode) {
+  const urls = linksIn($('bulk-text').value); if (!urls.length || urls.length > MAX_LINKS) return;
+  for (const id of ['bulk-now', 'bulk-later']) $(id).disabled = true;
+  message(T('app.bulk.working')); $('bulk-dialog').close();
+  try {
+    const result = await api('/api/links/add', { method: 'POST', body: JSON.stringify({ urls, start: mode }), signal: AbortSignal.timeout(300000) });
+    const parts = [result.added ? TN('app.bulk.added', result.added) : T('app.bulk.nothingAdded'), result.skipped ? T('app.playlist.skippedPart', { n: result.skipped }) : '', result.failed ? T('app.playlist.failedPart', { n: result.failed }) : '', result.full ? T('app.playlist.fullPart') : ''];
+    message(`${parts.join('')}${result.added && mode === 'queue' ? T('app.playlist.afterAdd') : '.'}${result.errors?.[0] ? ` ${result.errors[0]}` : ''}`, result.full || (!result.added && result.failed > 0));
+    await refresh();
+  } catch (error) { message(error.message, true); }
+}
+$('bulk-now').addEventListener('click', () => void submitBulk('now'));
+$('bulk-later').addEventListener('click', () => void submitBulk('queue'));
 async function refresh() {
   jobs = await api('/api/jobs');
   const known = new Set(jobs.map(job => job.id));

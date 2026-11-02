@@ -30,6 +30,7 @@ import { downloadHls } from './hls-download.js';
 import { recoverRead, RemoteResponseError, recordRecovery } from './recovery.js';
 import { hlsTotalEstimate, sourceSize } from './hls-size.js';
 import { listPlaylist, episodeName, MAX_PLAYLIST } from './playlist.js';
+const MAX_LINKS = 100; // links added at once
 import { resolveLanguage, interfaceLanguage, validInterfaceLanguage, validSubtitleLanguage, validAudioLanguage } from './language.js';
 import { decodeText } from './text-decode.js';
 import { pickLead, classifySubtitle, parseSubtitle, toVtt, signature, languageInfo, guessLanguage, languageFromAddress, embedSubtitles, writeSidecars, canEmbed, MAX_SUBTITLE_BYTES, MAX_SUBTITLE_TRACKS } from './subtitles.js';
@@ -560,7 +561,7 @@ export class DownloadQueue {
     const receipt = this.findSubmission(sid, fingerprint);
     if (receipt?.abandoned) throw new Error(m('e.this-submission-was-dropped-by-the'));
     if (receipt) { this.pump(); return receipt.id; }
-    if (this.jobs.length >= 500) throw new Error(m('e.the-queue-limit-is-500-entries'));
+    if (this.jobs.length >= 500) throw Object.assign(new Error(m('e.the-queue-limit-is-500-entries')), { code: 'QUEUE_FULL' });
     let formatId = null, formatLabel = null, formatSlot = null;
     if (input.formatId !== undefined && input.formatId !== null && input.formatId !== '') {
       if (engine !== 'extractor') throw new Error(m('e.quality-selection-is-only-available-with'));
@@ -773,9 +774,40 @@ export class DownloadQueue {
         const url = parseRemoteUrl(entry?.url).href;
         if (input.allowDuplicates !== true && this.findDuplicates({ url }).length) { skipped++; continue; }
         ids.push(this.add({ url, engine: 'extractor', start: 'queue', quality: 'best', seriesTitle: series, title: episodeName(series, String(entry.title || ''), Number(entry.index) || at + 1, listSize), referer: typeof input.url === 'string' ? input.url : undefined, pageUrl: typeof input.url === 'string' ? input.url : undefined }));
-      } catch (error) { failed++; if (/sınırı/.test(error.message)) { full = true; break; } }
+      } catch (error) { failed++; if (error.code === 'QUEUE_FULL') { full = true; break; } }
     }
     return { added: ids.length, skipped, failed, full, ids };
+  }
+
+  // ---- Several links pasted at once (one per line): a file is taken like a browser download (name, size and structure checked),
+  // a page goes to the media engine at its best quality. Nothing is added twice; a few are looked at at the same time. ----
+  async addLinks(input = {}) {
+    const raw = Array.isArray(input.urls) ? input.urls : [];
+    if (!raw.length || raw.length > MAX_LINKS) throw new Error(m('e.add-1-max-links-at-once', { max: MAX_LINKS }));
+    const start = input.start === 'queue' ? 'queue' : 'now';
+    const urls = [], seen = new Set(); let invalid = 0;
+    for (const item of raw) {
+      try { const href = parseRemoteUrl(String(item).slice(0, 2048)).href; if (!seen.has(href)) { seen.add(href); urls.push(href); } } catch { invalid++; }
+    }
+    const result = { added: 0, skipped: 0, failed: invalid, full: false, errors: [] };
+    let at = 0;
+    const work = async () => {
+      while (at < urls.length && !result.full) {
+        const url = urls[at++];
+        try {
+          if (this.findDuplicates({ url }).length) { result.skipped++; continue; }
+          try { await this.takeFile({ url, start }); }
+          catch (error) { if (error.code !== 'NOT_A_FILE') throw error; this.add({ url, engine: 'extractor', start, quality: 'best' }); }
+          result.added++;
+        } catch (error) {
+          if (error.code === 'QUEUE_FULL') result.full = true;
+          else if (error.code === 'duplicate') result.skipped++;
+          else { result.failed++; if (result.errors.length < 3 && !result.errors.includes(error.message)) result.errors.push(error.message); }
+        }
+      }
+    };
+    await Promise.all([work(), work(), work()]);
+    return result;
   }
 
   // ---- Files taken over from the browser's own download ----

@@ -140,6 +140,7 @@ const server = http.createServer(async (req, res) => {
       inspections++;
       try { return json(res, 200, await queue.playlist(input)); } finally { inspections--; }
     }
+    if (req.method === 'POST' && url.pathname === '/api/links/add') return json(res, 200, await queue.addLinks(await body(req, 262144)));
     if (req.method === 'POST' && url.pathname === '/api/playlist/add') return json(res, 200, queue.addPlaylist(await body(req, 786432)));
     if (req.method === 'POST' && url.pathname === '/api/subtitles') return json(res, 200, queue.receiveSubtitle(await body(req)));
     if (req.method === 'POST' && url.pathname === '/api/duplicates') return json(res, 200, { duplicates: queue.findDuplicates(await body(req)) });
