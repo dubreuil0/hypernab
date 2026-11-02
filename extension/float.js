@@ -367,7 +367,23 @@
     };
   }
 
+  // The extension speaks the app's language: read it from the app now and then (browser start, install, our own pages opening) so the
+  // pages follow a language change without waiting for a video panel. The app being closed is fine; the last known language stays.
+  let languageAt = 0;
+  async function syncLanguage() {
+    if (Date.now() - languageAt < 15000) return;
+    languageAt = Date.now();
+    try { await prefsOf(await connection(false)); } catch { /* app closed: keep the last language */ }
+  }
+  api.runtime.onStartup?.addListener(() => { void syncLanguage(); });
+  api.runtime.onInstalled?.addListener(() => { void syncLanguage(); });
+
   api.runtime.onMessage.addListener((message, sender, respond) => {
+    if (message?.type === 'hypernab:language') {
+      if (sender.id !== api.runtime?.id) return false;
+      syncLanguage().then(() => respond({ ok: true }), () => respond({ ok: false }));
+      return true;
+    }
     if (message?.type === 'hypernab:diagnose') {
       if (sender.id !== api.runtime?.id || sender.tab || !Number.isInteger(message.tabId)) { respond({ ok: false, error: T('x.invalid-request') }); return false; }
       api.tabs.get(message.tabId).then(tab => diagnose(tab)).then(data => respond({ ok: true, data }), error => respond({ ok: false, error: error.message }));
