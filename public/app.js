@@ -628,6 +628,16 @@ async function submitBulk(mode) {
     await refresh();
   } catch (error) { message(error.message, true); }
 }
+// Links the desktop app found in the clipboard (only when the user turned that on): a quiet strip; "Add" opens the same dialog, filled in.
+let clipLinks = [];
+const hostOf = link => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
+function showClipboard(links) {
+  if (!links.length || $('bulk-dialog').open) return;
+  clipLinks = links; $('clip-text').textContent = TN('app.clip.found', links.length, { host: hostOf(links[0]) }); $('clip-banner').hidden = false;
+}
+globalThis.hypernabDesktop?.onClipboard?.(showClipboard);
+$('clip-dismiss').addEventListener('click', () => { $('clip-banner').hidden = true; });
+$('clip-add').addEventListener('click', () => { $('clip-banner').hidden = true; openBulk(clipLinks.join('\n')); });
 $('bulk-now').addEventListener('click', () => void submitBulk('now'));
 $('bulk-later').addEventListener('click', () => void submitBulk('queue'));
 async function refresh() {

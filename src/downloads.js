@@ -71,6 +71,7 @@ const SETTING_DEFAULTS = {
   subtitleContainer: 'keep', // video with subtitles: 'keep' its format (mp4) or 'mkv' (lossless copy; VLC then opens the default subtitle by itself)
   smartNames: true,         // new jobs only; existing jobs retain their naming policy
   folderLayout: 'flat',     // flat, site, series or site-series
+  watchClipboard: false,    // desktop app: offer to add links found in the clipboard when the window gets focus (off by default)
   sortByType: false,        // true = files go into Video / Music / Images... folders (new downloads only); false = one folder, like Windows
   downloadDirectory: null,  // null = the default folder; changing it affects new downloads only
   maxQuality: 'best',       // pre-selected quality cap: 'best' or a picture height
@@ -99,6 +100,7 @@ const SETTING_CHECKS = {
   smartNames: bool('e.name.smart-names'),
   folderLayout: value => ['flat', 'site', 'series', 'site-series'].includes(value) || m('e.invalid-folder-layout'),
   sortByType: bool('e.name.sort-by-type'),
+  watchClipboard: bool('e.name.watch-clipboard'),
   subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || m('e.invalid-subtitle-choice'),
   listLayout: value => validLayout(value) || m('e.invalid-list-layout'),
   appearance: value => ['compact', 'normal'].includes(value) || m('e.invalid-appearance'),

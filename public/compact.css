@@ -153,3 +153,5 @@ html[data-appearance="compact"] .unit-input>span { top:7px; }
 .job-note .ic { width:16px;height:16px; }
 #bulk-text { width:100%;min-height:9rem;resize:vertical;font-family:inherit; }
 #bulk-dialog { width:min(34rem,92vw); }
+.clip-banner { display:flex;align-items:center;gap:10px;padding:6px 10px;margin-bottom:10px;border:1px solid var(--border);border-radius:9px;background:var(--panel);color:var(--muted); }
+.clip-banner span { flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }

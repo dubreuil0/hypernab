@@ -14,7 +14,7 @@ export function setupAdvanced(api, refreshStatus) {
   $('open-settings').onclick = () => { $('view-downloads').hidden = true; $('view-history').hidden = true; $('open-history').setAttribute('aria-pressed', 'false'); $('view-settings').hidden = false; $('tabs').hidden = true; $('open-settings').setAttribute('aria-pressed', 'true'); };
   $('close-settings').onclick = () => { $('view-downloads').hidden = false; $('view-settings').hidden = true; $('tabs').hidden = false; $('open-settings').setAttribute('aria-pressed', 'false'); };
   for (let n = 1; n <= 16; n++) $('set-maxConnections').add(new Option(String(n), String(n)));
-  const keys = ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'sortByType', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized'];
+  const keys = ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'sortByType', 'watchClipboard', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized'];
   for (const key of keys) {
     const node = $(`set-${key}`);
     node.onchange = run(async () => {

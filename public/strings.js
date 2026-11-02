@@ -1011,6 +1011,12 @@
       'app.bulk.nothingAdded': 'Nothing was added',
       'app.bulk.working': 'Looking at the links… (a few seconds)',
       'app.play': 'Play',
+      'app.watchClipboard': 'Offer links from the clipboard',
+      'app.watchClipboard.hint': 'When the window gets focus and the clipboard holds a link, a quiet strip offers to add it. The clipboard is only read while this is on; nothing is stored or sent.',
+      'app.clip.found.one': 'Link in the clipboard: {host}',
+      'app.clip.found.other': '{n} links in the clipboard, the first from {host}',
+      'app.clip.dismiss': 'Not now',
+      'e.name.watch-clipboard': 'Clipboard offer',
     },
     tr: {
       'lang.subtitle.title': 'Varsayılan altyazı dili',
@@ -2020,6 +2026,12 @@
       'app.bulk.nothingAdded': 'Hiçbir şey eklenmedi',
       'app.bulk.working': 'Bağlantılara bakılıyor… (birkaç saniye)',
       'app.play': 'Oynat',
+      'app.watchClipboard': 'Panodaki bağlantıları öner',
+      'app.watchClipboard.hint': 'Pencere öne gelince panoda bağlantı varsa sakin bir şerit eklemeyi önerir. Pano yalnızca bu açıkken okunur; hiçbir şey saklanmaz veya gönderilmez.',
+      'app.clip.found.one': 'Panoda bağlantı var: {host}',
+      'app.clip.found.other': 'Panoda {n} bağlantı var, ilki {host} sitesinden',
+      'app.clip.dismiss': 'Şimdi değil',
+      'e.name.watch-clipboard': 'Pano önerisi',
     },
   };
   // The interface language: the browser's/Windows' own when the app has it, else English. The app window and the extension then

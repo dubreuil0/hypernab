@@ -158,6 +158,28 @@ try {
   await evaluate(`document.querySelector('#close-history').click()`);
   await mainEval('globalThis.__locationCalls.splice(1)');
   console.log('OK completed queue and history play use real renderer -> IPC -> engine lookup; OS launch stubbed only');
+  // Optional clipboard offer (off by default): real clipboard, real window focus event, real renderer strip and dialog.
+  const focusWindow = () => mainEval(`(()=>{const w=${electron}.BrowserWindow.getAllWindows().find(x=>!x.webContents.getURL().endsWith('/tray.html'));w.emit('focus');return true})()`);
+  const strip = () => evaluate(`(()=>{const b=document.getElementById('clip-banner');return b.hidden?null:document.getElementById('clip-text').textContent})()`);
+  assert.equal((await call('/api/settings')).watchClipboard, false, 'the clipboard offer is off by default');
+  await mainEval(`${electron}.clipboard.writeText('Bak: https://example.org/clip-a')`); await focusWindow(); await new Promise(resolve => setTimeout(resolve, 700));
+  assert.equal(await strip(), null, 'off: the clipboard is not looked at, nothing is offered');
+  await evaluate(`document.querySelector('#set-watchClipboard').click()`);
+  await browserUntil(async () => (await call('/api/settings')).watchClipboard === true);
+  await browserUntil(() => mainEval('globalThis.__hypernabTestWatching()')); // the desktop shell has taken the new setting
+  await focusWindow();
+  await browserUntil(async () => Boolean(await strip())).catch(async error => { throw new Error(`no strip: offered=${JSON.stringify(await mainEval('globalThis.__hypernabTestOffered()'))} bridge=${await evaluate('typeof globalThis.hypernabDesktop?.onClipboard')} clip=${JSON.stringify(await mainEval('Promise.resolve(' + electron + '.clipboard.readText()).then(String)'))}`); });
+  assert.match(await strip(), /example\.org/, 'on: one link in the clipboard is offered with its site');
+  await evaluate(`document.querySelector('#clip-dismiss').click()`); await focusWindow(); await new Promise(resolve => setTimeout(resolve, 700));
+  assert.equal(await strip(), null, 'the same clipboard text is not offered again');
+  await mainEval(`${electron}.clipboard.writeText('https://example.org/one\\nhttps://example.net/two')`); await focusWindow(); await browserUntil(async () => Boolean(await strip()));
+  assert.match(await strip(), /2/, 'two links: the strip says how many');
+  await evaluate(`document.querySelector('#clip-add').click()`);
+  assert.equal(await evaluate(`document.getElementById('bulk-dialog').open && document.getElementById('bulk-text').value`), 'https://example.org/one\nhttps://example.net/two', 'Add opens the several-links dialog, filled in');
+  await evaluate(`document.querySelector('#bulk-cancel').click()`);
+  await evaluate(`document.querySelector('#set-watchClipboard').click()`); await browserUntil(async () => (await call('/api/settings')).watchClipboard === false);
+  await mainEval(`${electron}.clipboard.writeText('')`);
+  console.log('OK clipboard offer: off by default, strip on focus with the link\'s site, once per text, Add fills the several-links dialog');
   // Real pointer input, not a synthetic reorder API call: hold the handle across a poll cycle and drop it.
   await call('/api/settings', { queueLimit: 1, speedLimitKiB: 16 });
   const ids = [];

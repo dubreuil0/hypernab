@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain, clipboard } = require('electron');
+const { offerFor } = require('./clipboard-links.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
@@ -12,7 +13,7 @@ app.setAppUserModelId('com.hypernab.desktop'); // Windows shows the app's own na
 const port = Number(process.env.HYPERNAB_PORT || 17846);
 const origin = `http://127.0.0.1:${port}`;
 let window, tray, trayPanel, updater, engine, quitting = false, owned = false, token, instanceId;
-let settings = { closeToTray: true, startMinimized: false, notifyOnFinish: true }; // refreshed from the engine's Settings
+let settings = { closeToTray: true, startMinimized: false, notifyOnFinish: true, watchClipboard: false }; // refreshed from the engine's Settings
 const root = app.isPackaged ? path.join(process.resourcesPath, 'engine') : path.resolve(__dirname, '..');
 const data = process.env.HYPERNAB_DATA_DIR || (app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(root, 'data'));
 const downloads = process.env.HYPERNAB_DOWNLOAD_DIR || (app.isPackaged ? path.join(app.getPath('downloads'), 'Hypernab') : path.join(root, 'downloads'));
@@ -42,6 +43,17 @@ async function startEngine() {
     await new Promise(resolve => setTimeout(resolve, 150));
   }
   throw new Error(t('desk.err.engineLate'));
+}
+// Optional (Settings, off by default): when the window gets focus and the clipboard holds link(s) not offered before, the window shows a quiet
+// "add them?" strip. The clipboard is read only then and only while the setting is on; the text stays in memory and is never stored or sent.
+let lastOffered = '';
+async function offerClipboard() {
+  if (!settings.watchClipboard || !window || window.isDestroyed()) return;
+  let text = ''; try { text = await clipboard.readText(); } catch { return; } // newer Electron versions read it asynchronously
+  if (typeof text !== 'string' || !settings.watchClipboard || !window || window.isDestroyed()) return;
+  const links = offerFor(text, lastOffered); if (!links) return;
+  lastOffered = text;
+  window.webContents.send('desktop:clipboard', links);
 }
 function show() { clearTimeout(trayClickTimer); trayPanel?.close(); if (window) { window.show(); if (window.isMinimized()) window.restore(); window.focus(); } }
 async function quit(finish) {
@@ -136,6 +148,7 @@ else {
     let saveTimer = null;
     const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveWindowState(window), 400); };
     for (const name of ['resize', 'move', 'maximize', 'unmaximize']) window.on(name, remember);
+    window.on('focus', offerClipboard);
     window.on('close', event => {
       clearTimeout(saveTimer); saveWindowState(window);
       if (quitting) return;
@@ -195,7 +208,7 @@ else {
     });
     tray.on('double-click', () => { lastTrayDoubleClick = Date.now(); show(); });
     // Automated acceptance uses only this isolated instance's native tray event.
-    if (process.env.HD_DESKTOP_TEST === '1') globalThis.__hypernabTestTray = tray;
+    if (process.env.HD_DESKTOP_TEST === '1') { globalThis.__hypernabTestTray = tray; globalThis.__hypernabTestWatching = () => settings.watchClipboard === true; globalThis.__hypernabTestOffered = () => lastOffered; }
     rebuildMenu = () => {
       if (!tray) return;
       tray.setContextMenu(Menu.buildFromTemplate([{ label: t('desk.menu.quick'), click: quickPanel }, { label: t('desk.menu.open'), click: show }, { label: t('app.dir'), click: async () => shell.openPath(await currentDownloads()) }, { type: 'separator' },
