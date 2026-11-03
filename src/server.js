@@ -152,7 +152,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/api/files/take') return json(res, 200, await queue.takeFile(await body(req, 131072))); // cookies of the one file travel with it
     // The extension may read only the two language preferences and the look (theme, accent), never the other settings.
     if (req.method === 'GET' && url.pathname === '/api/prefs') return json(res, 200, { interfaceLanguage: queue.interfaceLanguage(), subtitleLanguage: queue.settings.subtitleLanguage, audioLanguage: queue.settings.audioLanguage, theme: queue.settings.theme, accent: queue.settings.accent });
-    if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, { ...queue.settings, interfaceLanguageResolved: queue.interfaceLanguage(), queue: queue.queueInfo() });
+    if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, { ...queue.settings, defaults: queue.settingDefaults(), interfaceLanguageResolved: queue.interfaceLanguage(), queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/settings') return json(res, 200, { ...queue.setSettings(await body(req)), interfaceLanguageResolved: queue.interfaceLanguage(), queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/queue/start') return json(res, 200, queue.startQueue());
     if (req.method === 'POST' && url.pathname === '/api/queue/stop') return json(res, 200, queue.stopQueue());

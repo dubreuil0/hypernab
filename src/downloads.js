@@ -200,6 +200,7 @@ export class DownloadQueue {
     // nothing starts by itself until the user presses "Start queue".
     this.settingsFile = `${stateFile}.settings.json`;
     this.locale = locale ?? process.env.HYPERNAB_LOCALE ?? ''; // the language of Windows, which 'auto' interface language follows; tests pass their own
+    this.defaultAutoRetries = autoRetries;
     this.settings = { queueLimit: 'all', queueNames: ['Genel'], selectedQueue: 'Genel', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
     try {
       const saved = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
@@ -219,6 +220,9 @@ export class DownloadQueue {
     this.limiters = new Map();
     for (const job of this.jobs) if (job.status === 'cancelled') this.discardPartial(job); // pieces left by versions that kept them
   }
+
+  // The value every preference starts with: the Settings page's "Reset to defaults" buttons read it from here.
+  settingDefaults() { return { ...SETTING_DEFAULTS, speedLimitKiB: 0, autoRetries: this.defaultAutoRetries }; }
 
   capabilities() {
     return {

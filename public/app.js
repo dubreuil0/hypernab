@@ -39,7 +39,7 @@ function icon(name) {
   const use = document.createElementNS(svg.namespaceURI, 'use'); use.setAttribute('href', `#i-${name}`); svg.append(use); return svg;
 }
 // Every action uses the shared SVG sprite, including text buttons in settings and confirmation dialogs.
-const buttonIcons = { 'add-button': 'download', 'close-preview': 'x', 'deselect-all': 'x', 'cancel-power': 'x', 'open-downloads': 'folder', 'dir-reset': 'reset', 'reset-confirms': 'reset', 'save-speed': 'check', 'new-queue': 'plus', 'cancel-schedule': 'x', 'queue-confirm-cancel': 'x', 'queue-confirm-accept': 'check' };
+const buttonIcons = { 'add-button': 'download', 'close-preview': 'x', 'deselect-all': 'x', 'cancel-power': 'x', 'open-downloads': 'folder', 'dir-reset': 'reset', 'reset-confirms': 'reset', 'save-speed': 'check', 'new-queue': 'plus', 'cancel-schedule': 'x', 'queue-confirm-cancel': 'x', 'queue-confirm-accept': 'check', 'reset-confirm-cancel': 'x', 'reset-confirm-accept': 'check' };
 for (const button of document.querySelectorAll('button.btn')) {
   const text = button.textContent.trim();
   if (text && !button.getAttribute('aria-label')) button.setAttribute('aria-label', text);

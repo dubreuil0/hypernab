@@ -73,7 +73,35 @@ export function setupAdvanced(api, refreshStatus) {
     icon.setAttribute('class', 'ic sm'); use.setAttribute('href', '#i-info'); icon.append(use); button.append(icon);
     button.onclick = () => { const open = row.classList.toggle('hint-open'); button.setAttribute('aria-expanded', String(open)); };
     row.classList.add('has-help'); title.after(button);
-  }  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
+  }  // "Reset to defaults" beside a section heading: the preferences of that section go back to the values the app starts with.
+  // Downloads, history and files are never touched; the page asks first.
+  const SECTION_KEYS = {
+    general: ['interfaceLanguage', 'appearance', 'theme', 'accent', 'textSize'],
+    download: ['downloadDirectory', 'maxQuality', 'preferCompatible', 'speedLimitKiB', 'subtitleMode', 'subtitleLanguage', 'audioLanguage', 'subtitleContainer', 'maxConnections', 'autoRetries', 'smartNames', 'sortByType', 'folderLayout', 'deepVerifyDefault'],
+    desktop: ['closeToTray', 'startMinimized', 'watchClipboard', 'notifyOnFinish']
+  };
+  let resetting = null;
+  for (const button of document.querySelectorAll('[data-reset]')) {
+    button.onclick = () => {
+      resetting = button.dataset.reset;
+      $('reset-confirm-title').textContent = T.t('app.reset.title', { section: button.closest('.group').querySelector('h2').textContent });
+      $('reset-confirm-text').textContent = T.t('app.reset.text');
+      $('reset-confirm').showModal(); $('reset-confirm-cancel').focus();
+    };
+  }
+  $('reset-confirm-cancel').onclick = () => { resetting = null; $('reset-confirm').close(); };
+  $('reset-confirm-accept').onclick = async () => {
+    const section = resetting; resetting = null; $('reset-confirm').close();
+    if (!SECTION_KEYS[section]) return;
+    try {
+      const { defaults } = await api('/api/settings'), body = {};
+      for (const key of SECTION_KEYS[section]) body[key] = defaults[key];
+      await save(body);
+      if (section === 'desktop' && desktop) { await desktop.action('startup', false); $('desktop-startup').checked = false; }
+      await refreshStatus(); show(T.t('app.reset.done'));
+    } catch (error) { show(error.message, true); }
+  };
+  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
   upgradeSelects(); // every drop-down of the app window becomes the design system's list
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);
