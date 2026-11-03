@@ -1,4 +1,7 @@
 {
-  "description": "Public development key only; stable unpacked Chromium id. No private key is stored.",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ShN59MQkiSiwvrUYfLWe+77/U1UZRcQmJjSNEcBva0OlddZjrJkxrPVHp9ZOO0YC7dD3YYXSis2fMrusgVNV3VGh1Q1PFwtMxwE1QXI7fM6J0Ei7igiaWP+ZfucGQ7Xc93xureRKF2EogsOnxKZQMyr/dks+Vk0j9FtbaZSMKNS659TpG1Pc2aRRt2hnxH+W3I0QpaDw1cWUI55/x5E0sxP2rnkyz2x4P88t5ZPt99lBMway4zVTh4qQmYmWY8j/5YB/MoV8EkJCtun5xv5orZ3iOMNLHC1LNzPytdHcPKLsWAuCJ8TKX8+5XjUhI1CgOkWpa5p2CgWkKJsTRLJQwIDAQAB"
+  "description": "Public keys only; no private key is stored. \"key\" is the key of the Chrome Web Store item (it fixes the extension id for the store and for the unpacked package); \"previousKeys\" are earlier ids that stay allowed to talk to the app.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1CWlOMW/CccnJ/vHHBH8n/M/ii9ode8X3cHDha+o5oNb3nYG88AxP01kjKH1Doeg2uSGEvcEZSTlFCvhn2QobkckwhLeRU3y9ZdthzxOL9vtqHisU6bRz+kqornH+pJ5rGaJ/3i4sPDjnT3k+x215ORHdK8UcMjeUa+FXMvCY9qYYdpsM8NRWr9t036WpuHew41tmSTZk+1RJ+PkU9SnjPOqGjr4NU+5JgN6aJ7sxQ3vAxJtqD23nclrh1tza/13wqsxsAGeLYpeSRGdHoIlTxVyk8lZJDdObATVhE/v4/9RXtQM4JKgn3fyjJyJ5br9wNxjnRpthXJPdsT/MXLfZQIDAQAB",
+  "previousKeys": [
+    "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1ShN59MQkiSiwvrUYfLWe+77/U1UZRcQmJjSNEcBva0OlddZjrJkxrPVHp9ZOO0YC7dD3YYXSis2fMrusgVNV3VGh1Q1PFwtMxwE1QXI7fM6J0Ei7igiaWP+ZfucGQ7Xc93xureRKF2EogsOnxKZQMyr/dks+Vk0j9FtbaZSMKNS659TpG1Pc2aRRt2hnxH+W3I0QpaDw1cWUI55/x5E0sxP2rnkyz2x4P88t5ZPt99lBMway4zVTh4qQmYmWY8j/5YB/MoV8EkJCtun5xv5orZ3iOMNLHC1LNzPytdHcPKLsWAuCJ8TKX8+5XjUhI1CgOkWpa5p2CgWkKJsTRLJQwIDAQAB"
+  ]
 }

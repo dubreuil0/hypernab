@@ -65,7 +65,9 @@ test('Native köprü uygulamanın bilinen hata nedenlerini eklentiye iletir, bil
 });
 test('Native kayıtları yalnızca HKCU ve açık kimlikler içindir; paket kimliği sabittir', () => {
   const key = JSON.parse(fs.readFileSync(new URL('../extension/chromium-key.json', import.meta.url), 'utf8')).key;
-  assert.equal(chromiumExtensionId(key), 'eggmbijjnndjfnakmgjobdmjkabagbli');
+  const keys = JSON.parse(fs.readFileSync(new URL('../extension/chromium-key.json', import.meta.url), 'utf8'));
+  assert.equal(chromiumExtensionId(key), 'decnigdaajpbapbcaieefjnjapeombpb', 'the id of the Chrome Web Store item');
+  assert.deepEqual(keys.previousKeys.map(chromiumExtensionId), ['eggmbijjnndjfnakmgjobdmjkabagbli'], 'the earlier development id stays known');
   assert.ok(nativeRegistryKeys('com.hypernab.app').every(entry => entry.key.startsWith('HKCU\\Software\\')));
   assert.throws(() => nativeRegistryKeys('../bad'));
 });

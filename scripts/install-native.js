@@ -25,8 +25,8 @@ export function installNative({ directory = path.join(process.env.LOCALAPPDATA |
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Geçersiz uygulama portu.');
   const marker = path.join(directory, '.hypernab-native');
   if (fs.existsSync(directory) && !fs.existsSync(marker)) throw new Error('Kurulum klasörü Hypernab tarafından oluşturulmamış; üzerine yazılmadı.');
-  const chromiumKey = JSON.parse(fs.readFileSync(path.join(rootDirectory, 'extension/chromium-key.json'), 'utf8')).key;
-  const chromiumId = chromiumExtensionId(chromiumKey);
+  const keys_ = JSON.parse(fs.readFileSync(path.join(rootDirectory, 'extension/chromium-key.json'), 'utf8'));
+  const chromiumIds = [...new Set([keys_.key, ...(keys_.previousKeys || [])].map(chromiumExtensionId))]; // the store id first, earlier ids stay allowed
   const firefoxId = JSON.parse(fs.readFileSync(path.join(rootDirectory, 'extension/manifest.json'), 'utf8')).browser_specific_settings.gecko.id;
   const manifests = { firefox: path.join(directory, 'firefox.json'), chromium: path.join(directory, 'chromium.json') };
   // Refuse to overwrite a registration belonging to another installation.
@@ -45,17 +45,17 @@ export function installNative({ directory = path.join(process.env.LOCALAPPDATA |
     const compiled = spawnSync(compiler, ['/nologo', '/target:exe', '/optimize+', `/out:${exe}`, '/reference:System.Web.Extensions.dll', launcherSource], { windowsHide: true, encoding: 'utf8' });
     if (compiled.status !== 0) throw new Error(`Native başlatıcı derlenemedi: ${compiled.stdout || compiled.stderr}`);
   }
-  fs.writeFileSync(configFile, JSON.stringify({ version: 1, host, port, dataDirectory, downloadDirectory, launcher: exe, firefoxManifest: manifests.firefox, firefoxIds: [firefoxId], chromiumIds: [chromiumId] }, null, 2));
+  fs.writeFileSync(configFile, JSON.stringify({ version: 1, host, port, dataDirectory, downloadDirectory, launcher: exe, firefoxManifest: manifests.firefox, firefoxIds: [firefoxId], chromiumIds }, null, 2));
   fs.writeFileSync(path.join(directory, 'launcher.json'), JSON.stringify({ node: nodePath, host: path.join(rootDirectory, 'src/native-host.js'), server: path.join(rootDirectory, 'src/server.js'), config: configFile, desktop: desktopExecutable }, null, 2));
   const base = { name: host, description: 'Hypernab local download manager', path: exe, type: 'stdio' };
   fs.writeFileSync(manifests.firefox, JSON.stringify({ ...base, allowed_extensions: [firefoxId] }, null, 2));
-  fs.writeFileSync(manifests.chromium, JSON.stringify({ ...base, allowed_origins: [`chrome-extension://${chromiumId}/`] }, null, 2));
+  fs.writeFileSync(manifests.chromium, JSON.stringify({ ...base, allowed_origins: chromiumIds.map(id => `chrome-extension://${id}/`) }, null, 2));
   if (register) for (const item of keys) for (const view of ['32', '64']) {
     const result = reg(['add', item.key, '/ve', '/t', 'REG_SZ', '/d', manifests[item.family], '/f', `/reg:${view}`]);
     if (result.status !== 0) throw new Error(`Kullanıcı Native kaydı yazılamadı: ${item.key}`);
   }
-  fs.writeFileSync(path.join(directory, 'installation.json'), JSON.stringify({ host, keys, manifests, registered: register, chromiumId, firefoxId, launcher: path.basename(exe) }, null, 2));
-  return { host, directory, exe, configFile, chromiumId, firefoxId, registered: register };
+  fs.writeFileSync(path.join(directory, 'installation.json'), JSON.stringify({ host, keys, manifests, registered: register, chromiumId: chromiumIds[0], chromiumIds, firefoxId, launcher: path.basename(exe) }, null, 2));
+  return { host, directory, exe, configFile, chromiumId: chromiumIds[0], chromiumIds, firefoxId, registered: register };
 }
 export function uninstallNative(directory, { removeFiles = false } = {}) {
   const installation = JSON.parse(fs.readFileSync(path.join(directory, 'installation.json'), 'utf8'));
