@@ -4,7 +4,7 @@
 
 Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
 
-**Sürüm:** uygulama 0.16.4 · eklenti 0.11.1 · Windows 10/11 (x64)
+**Sürüm:** uygulama 0.16.5 · eklenti 0.11.1 · Windows 10/11 (x64)
 
 ## Özellikler
 
