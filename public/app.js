@@ -353,7 +353,7 @@ const skipKey = kind => `hypernab-skip-confirm-${kind}`;
 const skipping = kind => { try { return localStorage.getItem(skipKey(kind)) === '1'; } catch { return false; } };
 // One-time carry-over of the choice saved under the product's former name (HyperDown).
 try { for (const kind of ['cancel', 'clear']) { const old = `hyperdown-skip-confirm-${kind}`; if (localStorage.getItem(old) === '1' && localStorage.getItem(skipKey(kind)) === null) localStorage.setItem(skipKey(kind), '1'); localStorage.removeItem(old); } } catch { /* storage unavailable */ }
-function showResetConfirms() { $('reset-confirms').hidden = !(skipping('cancel') || skipping('clear')); }
+function showResetConfirms() { const any = skipping('cancel') || skipping('clear'); $('reset-confirms').hidden = !any; $('reset-confirms').closest('.setting').hidden = !any; } // nothing to ask again: the whole row goes
 function confirmQueue(command, title, text) {
   if (queueBusy || $('queue-confirm').open) return;
   if (skipping(confirmKind(command))) { runQueueCommand(command); return; }

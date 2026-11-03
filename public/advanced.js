@@ -63,7 +63,17 @@ export function setupAdvanced(api, refreshStatus) {
     for (const [id, action] of [['open-downloads', 'downloads'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = globalThis.HypernabText.t(node.dataset.t);
-  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
+  // Every setting keeps its explanation behind a small "?" button instead of a paragraph under it (the text itself is unchanged).
+  for (const row of document.querySelectorAll('#view-settings .setting:not(.ext-card)')) { // the browser-extension cards keep their own texts (steps, connection state)
+    const copy = row.firstElementChild, title = copy?.querySelector('strong'), hint = copy?.querySelector('.hint');
+    if (!hint || !title || row.querySelector('.help')) continue;
+    const button = document.createElement('button'), icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    button.type = 'button'; button.className = 'btn icon-only ghost sm help'; button.setAttribute('aria-expanded', 'false');
+    button.title = button.ariaLabel = `${T.t('app.help')}: ${title.textContent}`;
+    icon.setAttribute('class', 'ic sm'); use.setAttribute('href', '#i-info'); icon.append(use); button.append(icon);
+    button.onclick = () => { const open = row.classList.toggle('hint-open'); button.setAttribute('aria-expanded', String(open)); };
+    row.classList.add('has-help'); title.after(button);
+  }  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
   upgradeSelects(); // every drop-down of the app window becomes the design system's list
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);

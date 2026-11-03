@@ -45,3 +45,31 @@ html[data-appearance="compact"] #view-history { flex:1;min-height:0;overflow:aut
 .history-row .hint { margin:4px 0 0; }
 .history-actions,.history-pager { display:flex;gap:4px;flex:none; }
 .history-pager { justify-content:flex-end;margin:12px 0; }
+
+/* Settings page: one tight row per setting. The explanation of a setting hides behind a small "?" button (settings help in advanced.js),
+   rarely used settings sit in the closed "More settings" block, and a wide window shows two columns. Flat colours only, no blur or shadow. */
+.setting { padding:11px 0;gap:16px; }
+.setting.has-help .hint { display:none;margin-top:4px; }
+.setting.has-help.hint-open .hint { display:block; }
+.setting .btn.icon-only.help { width:22px;height:22px;padding:3px;margin-left:6px;vertical-align:middle;border-radius:50%; }
+.setting .btn.icon-only.help .ic { width:14px;height:14px; }
+.setting .btn.icon-only.help[aria-expanded="true"] { color:var(--accent); }
+.group { padding:6px 18px 8px;margin-bottom:14px; }
+.group>h2 { margin:10px 0 2px; }
+#language-settings { display:contents; }
+.settings-more { margin-top:4px;border-top:1px solid var(--border); }
+.settings-more>summary { display:flex;align-items:center;gap:8px;width:auto;padding:11px 0;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;list-style:none; }
+.settings-more>summary::-webkit-details-marker { display:none; }
+.settings-more>summary::before { content:none; }
+.settings-more>summary .ic { transform:rotate(-90deg); }
+.settings-more[open]>summary .ic { transform:none; }
+.settings-more>summary:hover { color:var(--accent); }
+.more-body>.setting:last-child { border-bottom:0; }
+html[data-appearance="compact"] .setting { padding:7px 0;gap:12px; }
+html[data-appearance="compact"] .group { padding:4px 14px 6px;margin-bottom:10px; }
+html[data-appearance="compact"] .settings-more>summary { padding:8px 0; }
+@media (min-width:1180px) {
+  .group, .more-body { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:36px; }
+  .group>h2, .group>details, .group>p, .group>#extension-help, .setting.wide { grid-column:1/-1; }
+  .group .setting-control .hd-select, .more-body .setting-control .hd-select { width:15em; }
+}
