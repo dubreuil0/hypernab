@@ -296,7 +296,7 @@ test('native motor başarılı doğrulamadan sonra yayınlar ve parça bütçesi
   let slots;
   const budget = new ConnectionBudget({ total: 1, perHost: 1 });
   const queue = fixture(t, { budget, infoExtractor: async () => ({ ...info('cdn.example.org'), protocol: 'http_dash_segments' }), processSpawner: fakeNative((_file, args) => {
-    slots = args[args.indexOf('--concurrent-fragments') + 1]; assert.ok(args.includes('--no-continue')); assert.equal(budget.active, 1);
+    slots = args[args.indexOf('--concurrent-fragments') + 1]; assert.ok(args.includes('--continue') && !args.includes('--no-continue')); assert.equal(budget.active, 1);
   }) });
   queue.add({ url: 'https://example.org/watch', engine: 'extractor' }); await settled(queue);
   assert.equal(queue.jobs[0].status, 'completed', queue.jobs[0].error); assert.equal(slots, '1'); assert.equal(queue.jobs[0].verification.status, 'passed');
@@ -337,4 +337,52 @@ test('ses akışı yalnızca yt-dlp ve ffmpeg ile, geçerli adresle ve extractor
   const queue = fixture(t, {});
   assert.throws(() => queue.add({ url: 'https://example.org/v.mp4', audioUrl: 'https://example.org/a.m3u8', engine: 'direct' }), /ses akışı/i);
   assert.throws(() => queue.add({ url: 'https://example.org/v.m3u8', audioUrl: 'file:///C:/secret', engine: 'extractor' }));
+});
+
+// The media engine carries on from its own half-written files, but only for the very same source.
+function resumeFixture(t, sizeOf) {
+  const seen = []; let run = 0;
+  const spawner = (_command, args) => {
+    const child = new EventEmitter(); child.stdout = new PassThrough(); child.stderr = new PassThrough(); const index = run++;
+    setImmediate(() => {
+      const stage = path.dirname(args[args.indexOf('-o') + 1]), part = path.join(stage, 'payload.f137.mp4.part');
+      seen.push({ args, kept: fs.existsSync(part) ? fs.readFileSync(part, 'utf8') : null, files: fs.readdirSync(stage).sort() });
+      if (index === 0) { fs.writeFileSync(part, 'half-written'); child.stderr.end('ERROR: Video unavailable'); setImmediate(() => child.emit('close', 1)); return; } // a source that stops (not retried by itself)
+      const output = path.join(stage, 'payload.mp4'); fs.writeFileSync(output, 'native-video-bytes'); fs.rmSync(part, { force: true });
+      child.stdout.end(`HYPERNAB_FILE:${JSON.stringify(output)}\n`); child.stderr.end(); setImmediate(() => child.emit('close', 0));
+    });
+    return child;
+  };
+  const queue = fixture(t, { autoRetries: 0, infoExtractor: async () => ({ ...info('cdn.example.org'), protocol: 'http_dash_segments', requested_formats: [{ format_id: '137', filesize: sizeOf(), url: 'https://cdn.example.org/v' }] }), processSpawner: spawner });
+  return { queue, seen };
+}
+test('yt-dlp indirmesi duraklatilip/kesilip yeniden baslatilinca kaldigi yerden devam eder (ayni kaynak)', async t => {
+  const { queue, seen } = resumeFixture(t, () => 1000);
+  const id = queue.add({ url: 'https://example.org/watch', engine: 'extractor' }); await settled(queue);
+  assert.equal(queue.jobs[0].status, 'failed'); queue.retry(id); await settled(queue);
+  const job = queue.jobs[0]; assert.equal(job.status, 'completed', job.error);
+  assert.ok(seen[1].args.includes('--continue') && !seen[1].args.includes('--no-continue'));
+  assert.equal(seen[1].kept, 'half-written', 'the half-written file was still there when the engine started again');
+  assert.equal(job.transfer.resumedFromPartial, true);
+  assert.equal(fs.readdirSync(queue.directory).some(name => name.includes('.previous-')), false, 'no copy of the earlier data is set aside any more');
+  assert.equal(fs.readFileSync(path.join(queue.directory, job.file), 'utf8'), 'native-video-bytes');
+  assert.equal(fs.readdirSync(queue.directory).filter(name => name.includes('native-stage')).length, 0, 'the work folder is gone when the file is published');
+});
+test('yt-dlp: kaynak degistiyse (boyut farkli) yarim veri kullanilmaz, guvenle bastan baslar', async t => {
+  let size = 1000;
+  const { queue, seen } = resumeFixture(t, () => size);
+  const id = queue.add({ url: 'https://example.org/watch', engine: 'extractor' }); await settled(queue);
+  size = 2000; queue.retry(id); await settled(queue);
+  const job = queue.jobs[0]; assert.equal(job.status, 'completed', job.error);
+  assert.equal(seen[1].kept, null, 'a changed source never inherits the old half-written file');
+  assert.equal(job.transfer.resumedFromPartial, false);
+});
+test('yt-dlp: eski surumun kimliksiz calisma klasoru guvenilmez, bastan baslanir ve ayrilmis kopyalar temizlenir', async t => {
+  const { queue, seen } = resumeFixture(t, () => 1000);
+  const id = queue.add({ url: 'https://example.org/watch', engine: 'extractor' }); await settled(queue);
+  const stage = path.join(queue.directory, `${id}.native-stage`); fs.rmSync(path.join(stage, 'resume.json'), { force: true }); // what an earlier version left
+  fs.mkdirSync(`${stage}.previous-old`); fs.writeFileSync(path.join(`${stage}.previous-old`, 'x.part'), 'old');
+  queue.retry(id); await settled(queue);
+  assert.equal(queue.jobs[0].status, 'completed', queue.jobs[0].error); assert.equal(seen[1].kept, null);
+  assert.equal(fs.existsSync(`${stage}.previous-old`), false);
 });

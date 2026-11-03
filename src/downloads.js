@@ -1515,14 +1515,22 @@ export class DownloadQueue {
     const staging = path.join(this.dirOf(job), `${job.id}.native-stage`);
     let stagedOutput = null;
     signal.throwIfAborted();
-    // Native resumability cannot be independently proven for all manifests.
-    // Preserve old stages rather than trusting an expired/changed source.
+    // A paused or interrupted download keeps its work folder, and the media engine carries on from its own half-written files. That is only
+    // trusted when the folder was made for the very same source: the same chosen format(s), exact sizes and length. Anything else (an old folder
+    // of an earlier version, a changed source) cannot be continued safely and is replaced by a fresh start, so a wrong piece never gets into a file.
+    const selector = selectedFormat || formatSelector(job.quality, caps.ffmpeg);
+    const sources = info.requested_formats?.length ? info.requested_formats : [info];
+    const identity = { version: 1, selector, audio: Boolean(job.audioUrl), duration: Number.isFinite(info.duration) ? Math.round(info.duration) : null,
+      formats: sources.map(source => ({ id: source.format_id ?? null, size: Number.isSafeInteger(source.filesize) ? source.filesize : null })) };
+    const identityFile = path.join(staging, 'resume.json');
+    let resumed = false;
+    for (const name of fs.readdirSync(this.dirOf(job))) if (name.startsWith(`${job.id}.native-stage.previous-`)) fs.rmSync(path.join(this.dirOf(job), name), { recursive: true, force: true }); // copies an older version set aside
     if (fs.existsSync(staging)) {
-      fs.renameSync(staging, `${staging}.previous-${randomUUID()}`);
-      job.notice = [job.notice, m('e.safe-resume-could-not-be-verified')].filter(Boolean).join(' ');
+      try { resumed = JSON.stringify(JSON.parse(fs.readFileSync(identityFile, 'utf8'))) === JSON.stringify(identity); } catch { resumed = false; }
+      if (!resumed) fs.rmSync(staging, { recursive: true, force: true });
     }
-    fs.mkdirSync(staging);
-    job.transfer = { method: 'yt-dlp', phase: 'downloading', connections: slots, resumeSupported: false };
+    if (!resumed) { fs.mkdirSync(staging); fs.writeFileSync(identityFile, JSON.stringify(identity)); }
+    job.transfer = { method: 'yt-dlp', phase: 'downloading', connections: slots, resumeSupported: true, resumedFromPartial: resumed };
     this.phase(job, 'downloading');
     const nativeProgress = new NativeProgress(info);
     Object.assign(job, nativeProgress.update(info.requested_formats?.[0]?.format_id ?? info.format_id, {}));
@@ -1530,12 +1538,12 @@ export class DownloadQueue {
     const jar = this.jarFor(job);
     const args = [
       ...baseExtractorArgs(this.toolsDirectory, job.headers, jar),
-      '--no-overwrites', '--no-continue', '--abort-on-unavailable-fragments', '--newline', '--progress', '--retries', '3', '--fragment-retries', '3', '--concurrent-fragments', String(slots), '--windows-filenames', '--no-mtime',
+      '--no-overwrites', '--continue', '--abort-on-unavailable-fragments', '--newline', '--progress', '--retries', '3', '--fragment-retries', '3', '--concurrent-fragments', String(slots), '--windows-filenames', '--no-mtime',
       '--progress-template', 'download:HYPERNAB_PROGRESS:{"formatId":%(info.format_id)j,"progress":%(progress)j}',
       '--progress-template', 'postprocess:HYPERNAB_POSTPROCESS:%(progress)j',
       '--print', 'before_dl:HYPERNAB_TITLE:%(title)j',
       '--print', 'after_move:HYPERNAB_FILE:%(filepath)j', '--no-simulate',
-      '-f', selectedFormat || formatSelector(job.quality, caps.ffmpeg),
+      '-f', selector,
       '-o', path.join(staging, 'payload.%(ext)s')
     ];
     if (job.speedLimitKiB) args.push('--limit-rate', String(job.speedLimitKiB * 1024));
@@ -1601,7 +1609,7 @@ export class DownloadQueue {
     const filename = `${job.id}-${safeTitle(job.title)}.${extension}`;
     await publishFile(stagedOutput, path.join(this.dirOf(job), filename), signal);
     job.file = filename; job.transfer.phase = 'completed';
-    try { fs.rmdirSync(staging); } catch { /* Preserve any remaining native partials. */ }
+    try { fs.rmSync(path.join(staging, 'resume.json'), { force: true }); fs.rmdirSync(staging); } catch { /* Preserve any remaining native partials. */ }
   }
 
   // The sound playlist the page loaded next to a silent video playlist. Same guarded extractor, own output file, then a stream copy join.
@@ -1611,7 +1619,7 @@ export class DownloadQueue {
     await this.remoteResolver(job.audioUrl);
     const args = [
       ...baseExtractorArgs(this.toolsDirectory, job.headers, null),
-      '--no-overwrites', '--no-continue', '--abort-on-unavailable-fragments', '--newline', '--retries', '3', '--fragment-retries', '3', '--concurrent-fragments', '2', '--windows-filenames', '--no-mtime',
+      '--no-overwrites', '--continue', '--abort-on-unavailable-fragments', '--newline', '--retries', '3', '--fragment-retries', '3', '--concurrent-fragments', '2', '--windows-filenames', '--no-mtime',
       '--print', 'after_move:HYPERNAB_FILE:%(filepath)j', '--no-simulate', '-f', 'best', '-o', path.join(staging, 'audio.%(ext)s')
     ];
     if (job.speedLimitKiB) args.push('--limit-rate', String(job.speedLimitKiB * 1024));
