@@ -42,7 +42,7 @@ test('liste kaydı kaldırılsa da gönderim günlüğü ikinci iş oluşturmaz;
   assert.equal(queue.jobs.length, 0); assert.equal(queue.add(input), id); assert.equal(queue.jobs.length, 0);
   assert.deepEqual(queue.submissionStatus(input.submissionId), { known: true, id, listed: false });
   assert.equal(create().add(input), id);
-  assert.equal(fs.readFileSync(path.join(queue.directory, `${id}.parallel.part`), 'utf8'), 'half');
+  assert.equal(fs.existsSync(path.join(queue.directory, `${id}.parallel.part`)), false, 'cancelling discarded the half-written pieces');
 });
 test('iş kaydedilip yan günlük kaydedilmeden kapanılırsa işten toparlanır', t => {
   const { queue, input, create } = fixture(t); const id = queue.add(input);

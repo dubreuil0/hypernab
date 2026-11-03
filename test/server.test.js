@@ -111,7 +111,7 @@ test('yerel API: anahtar, Origin/Host, eşleştirme ve kuyruk', async t => {
   assert.equal(fs.readFileSync(path.join(temp, 'downloads', `${doneId}-video.mp4`), 'utf8'), 'complete');
   const remaining = await (await fetch(`${base}/api/jobs`, { headers })).json();
   assert.deepEqual(remaining.map(j => j.id), [pausedId]); assert.ok(remaining.every(j => !j.canClear));
-  assert.equal(fs.readFileSync(path.join(temp, 'downloads', `${halfId}-video.mp4.part`), 'utf8'), 'half');
+  assert.equal(fs.existsSync(path.join(temp, 'downloads', `${halfId}-video.mp4.part`)), false, 'the pieces of a cancelled download are removed when the app starts');
   const pauseAll = await post('/api/queue/bulk', { action: 'pause', all: true });
   assert.equal((await pauseAll.json()).queuePaused, undefined, 'kalıcı genel duraklatma modu olmamalı');
   const submissionId = randomUUID();
