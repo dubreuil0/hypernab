@@ -64,7 +64,7 @@ const SETTING_DEFAULTS = {
   theme: 'dark',            // 'dark', 'light' or 'system' (follows Windows)
   accent: 'green',          // accent colour: green, blue, orange or violet
   listLayout: { widths: {}, hidden: [], focus: false }, // visual only: column widths (px), hidden columns, focus view
-  subtitleMode: 'both',     // subtitles found for a video: 'both' (into the file + the leading track as .srt next to it), 'embed' only, 'sidecar' .srt only, or 'off'
+  subtitleMode: 'off',      // subtitles found for a video: 'off' (default: a plain video), 'both' (into the file + the leading track as .srt next to it), 'embed' only, or 'sidecar' .srt only
   subtitleLanguage: 'auto', // default subtitle when the page names none: 'auto' (system language), 'off', or a language code such as 'de'
   audioLanguage: 'player',  // sound: 'player' (what the page's player plays), 'original', or a language code
   interfaceLanguage: 'auto', // the language of the app: 'auto' (Windows, when the app has it) or a code
@@ -209,8 +209,10 @@ export class DownloadQueue {
       if (Array.isArray(saved.queueNames) && saved.queueNames.length && saved.queueNames.length <= 20 && saved.queueNames.every(name => typeof name === 'string' && name.trim() && name.length <= 40)) this.settings.queueNames = [...new Set(['Genel', ...saved.queueNames])];
       if (this.settings.queueNames.includes(saved.selectedQueue)) this.settings.selectedQueue = saved.selectedQueue;
       if (Number.isInteger(saved.speedLimitKiB) && saved.speedLimitKiB >= 0 && saved.speedLimitKiB <= 1048576) this.settings.speedLimitKiB = saved.speedLimitKiB;
-      // The first version saved "embed only" as the default; the default is now "embed + side .srt": a file still holding the old value moves over once.
-      if (saved.settingsVersion !== 2 && this.settings.subtitleMode === 'embed') this.settings.subtitleMode = 'both';
+      // Subtitles are off by default now (a plain video stays a plain video). Files still holding an old default (embed only, or embed + side .srt)
+      // move over once; a later deliberate choice is kept.
+      const settingsVersion = saved.settingsVersion || 1;
+      if (settingsVersion < 3 && (this.settings.subtitleMode === 'both' || (settingsVersion < 2 && this.settings.subtitleMode === 'embed'))) this.settings.subtitleMode = 'off';
     } catch { /* defaults: one at a time */ }
     setMessageLanguage(this.interfaceLanguage());
     this.queueRunning = false;
@@ -1016,7 +1018,7 @@ export class DownloadQueue {
     this.settings = next;
     setMessageLanguage(this.interfaceLanguage()); // messages made from now on are in the new language
     fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
-    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: 2 }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
+    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: 3 }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
     if (input.speedLimitKiB !== undefined) this.applySpeedLimit();
     if (!Object.keys(input).length || !Object.keys(input).every(key => VISUAL_SETTINGS.includes(key))) this.pump();
     return { ...next };

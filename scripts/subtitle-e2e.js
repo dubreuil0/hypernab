@@ -25,6 +25,8 @@ const VTT = 'WEBVTT\n\n00:00:00.500 --> 00:00:04.000\nBeni çözün, sizi ona g�
 
 const port = await freePort(), origin = `http://127.0.0.1:${port}`, nativeHost = `com.hypernab.subs_${Date.now()}`;
 const registration = installNative({ directory: path.join(dir, 'native'), host: nativeHost, port, dataDirectory: path.join(dir, 'data'), downloadDirectory: path.join(dir, 'downloads') });
+// Subtitles are off by default; these checks are about putting them in, so the isolated app starts with them on.
+fs.mkdirSync(path.join(dir, 'data'), { recursive: true }); fs.writeFileSync(path.join(dir, 'data', 'queue.json.settings.json'), JSON.stringify({ subtitleMode: 'both', settingsVersion: 3 }));
 // Three ways a player may carry subtitles; the extension must not care which one a site uses.
 const players = {
   // 1. a normal <track> element (shown by default)
