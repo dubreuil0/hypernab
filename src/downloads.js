@@ -217,6 +217,7 @@ export class DownloadQueue {
     this.queueRunning = false;
     this.runningQueue = null;
     this.limiters = new Map();
+    for (const job of this.jobs) if (job.status === 'cancelled') this.discardPartial(job); // pieces left by versions that kept them
   }
 
   capabilities() {
@@ -295,10 +296,24 @@ export class DownloadQueue {
     job.speed = meter.snapshot(job, phase).speed;
   }
 
+  // A download the user cancelled is finished with: the half-written files it left (named after its id) are removed, so no unnamed leftovers fill the disk.
+  // A finished file (job.file) is never touched, and a paused or failed job keeps its pieces: only an explicit cancel discards them. Best effort, never throws.
+  discardPartial(job) {
+    if (job.status !== 'cancelled' || this.active.has(job.id)) return;
+    try {
+      const directory = this.dirOf(job), id = job.id.toLowerCase();
+      if (!path.isAbsolute(directory) || !fs.existsSync(directory)) return;
+      for (const name of fs.readdirSync(directory)) {
+        const lower = name.toLowerCase();
+        if (!(lower.startsWith(`${id}-`) || lower.startsWith(`${id}.`)) || name === job.file) continue;
+        try { fs.rmSync(path.join(directory, name), { recursive: true, force: true }); } catch { /* a file still in use is removed at the next start */ }
+      }
+    } catch { /* best effort */ }
+  }
+
   canClear(job, files) {
     if (this.active.has(job.id) || !['completed', 'failed', 'cancelled'].includes(job.status)) return false;
-    // Explicit cancellation ends the job, not ownership of its files. Its row
-    // can be removed once the worker exits, without deleting any partial data.
+    // Clearing the list never deletes a file; a cancelled job's pieces were already discarded when it was cancelled.
     if (['completed', 'cancelled'].includes(job.status)) return true;
     // Failed work with partial data remains protected until explicitly cancelled.
     const id = job.id.toLowerCase();
@@ -341,7 +356,8 @@ export class DownloadQueue {
     if (action === 'cancel' && ['running', 'queued', 'held', 'paused', 'interrupted', 'failed'].includes(job.status)) {
       job.status = 'cancelled'; job.resumeRequested = false; job.speed = 0; this.dropSession(job);
       this.meter(job).stage('cancelled');
-      this.active.get(job.id)?.abort(); return true;
+      if (this.active.has(job.id)) this.active.get(job.id).abort(); else this.discardPartial(job); // a running worker discards when it has stopped
+      return true;
     }
     return false;
   }
@@ -1098,6 +1114,7 @@ export class DownloadQueue {
       this.meter(job).stage(jobPhase(job));
       this.active.delete(job.id);
       this.limiters.delete(job.id);
+      if (job.status === 'cancelled') this.discardPartial(job);
       if (job.status === 'paused' && job.resumeRequested && !this.stopping) {
         job.resumeRequested = false; job.status = 'queued';
       }

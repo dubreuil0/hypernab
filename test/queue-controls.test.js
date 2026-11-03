@@ -210,3 +210,38 @@ test('tümünü devam ettir duraklatılmış işleri çalıştırır; iş yoksa 
   assert.equal(result.changed, 2);
   assert.ok(queue.jobs.every(j => j.status === 'completed'));
 });
+
+test('a cancelled download discards its half-written files; a paused one keeps them; a finished file is never touched', async t => {
+  const queue = fixture(t), dir = queue.directory; fs.mkdirSync(dir, { recursive: true });
+  const pieces = id => [`${id}-Film.mp4.parallel.part`, `${id}-Film.mp4.ranges.json`, `${id}.f137.mp4.part`];
+  const write = id => { for (const name of pieces(id)) fs.writeFileSync(path.join(dir, name), 'half'); fs.mkdirSync(path.join(dir, `${id}.native-stage`)); fs.writeFileSync(path.join(dir, `${id}.native-stage`, 'a.ts'), 'half'); };
+  const unrelated = path.join(dir, 'Holiday.mp4'); fs.writeFileSync(unrelated, 'mine');
+  const paused = job('paused', { received: 50 }), cancelledPaused = job('paused', { received: 50 }), cancelledFailed = job('failed', { received: 5 });
+  const finished = job('paused', { received: 9 }); finished.file = `${finished.id}-Done.mp4`; // a complete file that carries the job id
+  for (const j of [paused, cancelledPaused, cancelledFailed, finished]) write(j.id);
+  fs.writeFileSync(path.join(dir, finished.file), 'complete');
+  queue.jobs = [paused, cancelledPaused, cancelledFailed, finished];
+  queue.cancel(cancelledPaused.id); queue.cancel(cancelledFailed.id); queue.cancel(finished.id);
+  for (const j of [cancelledPaused, cancelledFailed, finished]) { for (const name of pieces(j.id)) assert.equal(fs.existsSync(path.join(dir, name)), false, name); assert.equal(fs.existsSync(path.join(dir, `${j.id}.native-stage`)), false); }
+  assert.equal(fs.readFileSync(path.join(dir, finished.file), 'utf8'), 'complete', 'a finished file is never touched');
+  for (const name of pieces(paused.id)) assert.equal(fs.existsSync(path.join(dir, name)), true, `paused keeps ${name}`);
+  assert.equal(fs.existsSync(path.join(dir, `${paused.id}.native-stage`)), true);
+  assert.equal(fs.readFileSync(unrelated, 'utf8'), 'mine', 'files of other downloads are never touched');
+});
+
+test('cancelling a running download discards its pieces once the worker has stopped', async t => {
+  const queue = fixture(t), dir = queue.directory; fs.mkdirSync(dir, { recursive: true });
+  queue.run = blocked; const running = job('queued'); queue.jobs = [running]; queue.launch(running);
+  const piece = path.join(dir, `${running.id}-Film.mp4.parallel.part`); fs.writeFileSync(piece, 'half');
+  queue.cancel(running.id); await settled(queue);
+  assert.equal(running.status, 'cancelled'); assert.equal(fs.existsSync(piece), false);
+});
+
+test('pieces left by an older version for an already cancelled download are removed at the next start', t => {
+  const queue = fixture(t), dir = queue.directory; fs.mkdirSync(dir, { recursive: true });
+  const old = job('cancelled', { received: 7 }), piece = path.join(dir, `${old.id}-Film.mp4.parallel.part`); fs.writeFileSync(piece, 'half');
+  queue.jobs = [old]; queue.save(); queue.stop();
+  const next = new DownloadQueue({ directory: dir, stateFile: queue.stateFile, toolsDirectory: path.dirname(dir) });
+  t.after(() => next.stop());
+  assert.equal(fs.existsSync(piece), false);
+});
