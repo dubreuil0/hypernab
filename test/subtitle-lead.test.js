@@ -96,7 +96,7 @@ test('settings saved by the first version ("embed" as the untouched default) mov
   const stateFile = path.join(root, 'queue.json');
   fs.writeFileSync(`${stateFile}.settings.json`, JSON.stringify({ subtitleMode: 'embed', theme: 'dark' }));
   const first = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools });
-  assert.equal(first.settings.subtitleMode, 'off', 'the old default moved over to off');
+  assert.equal(first.settings.subtitleMode, 'embed', 'embed only stays embed only');
   first.setSettings({ subtitleMode: 'embed' }); first.stop();
   const second = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools });
   assert.equal(second.settings.subtitleMode, 'embed', 'a choice made after the move is kept'); second.stop();
@@ -153,7 +153,7 @@ test('default ("keep"): the file stays an mp4', { skip: !haveTools }, async t =>
   assert.equal(job.file, 'p-Film.mp4'); assert.ok(!fs.existsSync(path.join(directory, 'p-Film.mkv')));
 });
 
-test('subtitles are off by default; an old default moves to off once, a deliberate choice is kept', t => {
+test('subtitles are embedded by default (no extra file); the old embed + side file default moves over once, a deliberate choice is kept', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-subdef-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const open = (name, saved) => {
@@ -161,9 +161,9 @@ test('subtitles are off by default; an old default moves to off once, a delibera
     if (saved) fs.writeFileSync(`${stateFile}.settings.json`, JSON.stringify(saved));
     const queue = new DownloadQueue({ directory: path.join(root, 'd'), stateFile, toolsDirectory: tools }); const mode = queue.settings.subtitleMode; queue.stop(); return mode;
   };
-  assert.equal(open('fresh'), 'off', 'a new install writes no subtitle by itself');
-  assert.equal(open('v2-both', { subtitleMode: 'both', settingsVersion: 2 }), 'off', 'the old default (embed + side file) moves over');
-  assert.equal(open('v2-embed', { subtitleMode: 'embed', settingsVersion: 2 }), 'embed', 'a deliberate choice is kept');
-  assert.equal(open('v2-side', { subtitleMode: 'sidecar', settingsVersion: 2 }), 'sidecar');
+  assert.equal(open('fresh'), 'embed', 'a new install writes no extra file; the track is inside the video');
+  assert.equal(open('v2-both', { subtitleMode: 'both', settingsVersion: 2 }), 'embed', 'the old default (embed + side file) moves over');
+  assert.equal(open('v2-off', { subtitleMode: 'off', settingsVersion: 2 }), 'off', 'a deliberate choice is kept');
+    assert.equal(open('v2-side', { subtitleMode: 'sidecar', settingsVersion: 2 }), 'sidecar');
   assert.equal(open('v3-both', { subtitleMode: 'both', settingsVersion: 3 }), 'both', 'chosen after the move: kept');
 });

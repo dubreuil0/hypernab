@@ -64,7 +64,7 @@ const SETTING_DEFAULTS = {
   theme: 'dark',            // 'dark', 'light' or 'system' (follows Windows)
   accent: 'green',          // accent colour: green, blue, orange or violet
   listLayout: { widths: {}, hidden: [], focus: false }, // visual only: column widths (px), hidden columns, focus view
-  subtitleMode: 'off',      // subtitles found for a video: 'off' (default: a plain video), 'both' (into the file + the leading track as .srt next to it), 'embed' only, or 'sidecar' .srt only
+  subtitleMode: 'embed',    // subtitles found for a video: 'embed' (default: inside the video, no extra file; the player's subtitle menu shows them), 'both' (+ the leading track as .srt next to it), 'sidecar' .srt only, or 'off'
   subtitleLanguage: 'auto', // default subtitle when the page names none: 'auto' (system language), 'off', or a language code such as 'de'
   audioLanguage: 'player',  // sound: 'player' (what the page's player plays), 'original', or a language code
   interfaceLanguage: 'auto', // the language of the app: 'auto' (Windows, when the app has it) or a code
@@ -209,10 +209,9 @@ export class DownloadQueue {
       if (Array.isArray(saved.queueNames) && saved.queueNames.length && saved.queueNames.length <= 20 && saved.queueNames.every(name => typeof name === 'string' && name.trim() && name.length <= 40)) this.settings.queueNames = [...new Set(['Genel', ...saved.queueNames])];
       if (this.settings.queueNames.includes(saved.selectedQueue)) this.settings.selectedQueue = saved.selectedQueue;
       if (Number.isInteger(saved.speedLimitKiB) && saved.speedLimitKiB >= 0 && saved.speedLimitKiB <= 1048576) this.settings.speedLimitKiB = saved.speedLimitKiB;
-      // Subtitles are off by default now (a plain video stays a plain video). Files still holding an old default (embed only, or embed + side .srt)
-      // move over once; a later deliberate choice is kept.
-      const settingsVersion = saved.settingsVersion || 1;
-      if (settingsVersion < 3 && (this.settings.subtitleMode === 'both' || (settingsVersion < 2 && this.settings.subtitleMode === 'embed'))) this.settings.subtitleMode = 'off';
+      // The default is back to embedding only: no extra file next to the video, the track shows in the player's subtitle menu. A file still holding the
+      // earlier default (embed + side .srt) moves over once; a later deliberate choice is kept.
+      if ((saved.settingsVersion || 1) < 3 && this.settings.subtitleMode === 'both') this.settings.subtitleMode = 'embed';
     } catch { /* defaults: one at a time */ }
     setMessageLanguage(this.interfaceLanguage());
     this.queueRunning = false;
