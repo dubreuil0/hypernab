@@ -9,7 +9,7 @@
   T.apply(document);
   /** Remembers the language and reloads the window once, so every text (also the ones built by code) is in it. */
   T.switchTo = code => {
-    if (!T.supported().includes(code) || code === T.language()) return;
+    if (!T.available().includes(code) || code === T.language()) return;
     let guard = null; try { guard = sessionStorage.getItem(KEY); } catch { /* none */ }
     if (guard === code) return; // already reloaded for this language: never loop
     try { localStorage.setItem(KEY, code); sessionStorage.setItem(KEY, code); } catch { return; }

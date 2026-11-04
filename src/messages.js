@@ -6,7 +6,12 @@ import vm from 'node:vm';
 import { interfaceLanguage } from './language.js';
 
 let texts = {};
-try { const sandbox = {}; vm.runInNewContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), { globalThis: sandbox }); texts = sandbox.HypernabText.TEXTS; } catch { /* keys show */ }
+try {
+  const sandbox = {}, context = vm.createContext({ globalThis: sandbox });
+  vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context);
+  for (const code of sandbox.HypernabText.packs) { try { vm.runInContext(fs.readFileSync(new URL(`../public/lang/${code}.js`, import.meta.url), 'utf8'), context); } catch { /* that language falls back to English */ } }
+  texts = sandbox.HypernabText.TEXTS;
+} catch { /* keys show */ }
 let language = interfaceLanguage('auto', process.env.HYPERNAB_LOCALE);
 export function setMessageLanguage(code) { language = texts[code] ? code : 'en'; }
 export const messageLanguage = () => language;

@@ -27,7 +27,7 @@ test('every message key used by the engine exists in both languages, and no Turk
 test('the engine speaks the interface language and follows a change at once', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-msg-'));
   try {
-    const queue = new DownloadQueue({ locale: 'de-DE', directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: root });
+    const queue = new DownloadQueue({ locale: 'ja-JP', directory: path.join(root, 'd'), stateFile: path.join(root, 'queue.json'), toolsDirectory: root });
     const fail = () => { try { queue.setSettings({ maxConnections: 99 }); } catch (error) { return error.message; } return null; };
     assert.equal(fail(), 'The number of connections must be between 1 and 16.', 'German Windows: English');
     queue.setSettings({ interfaceLanguage: 'tr' });

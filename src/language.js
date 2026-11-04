@@ -7,7 +7,7 @@ export const validAudioLanguage = value => value === 'player' || value === 'orig
 
 // "Automatic" means the language of the interface, not of Windows: a Turkish user may run an English Windows and reads the app in the
 // language the app shows.
-export const INTERFACE_LANGUAGES = ['en', 'tr']; // the languages the app itself is translated into
+export const INTERFACE_LANGUAGES = ['en', 'tr', 'es', 'de', 'fr', 'ru', 'pt']; // the languages the app itself is translated into
 export const validInterfaceLanguage = value => value === 'auto' || INTERFACE_LANGUAGES.includes(value);
 /** The language of the app: the setting, or (automatic) the language of Windows when the app has it, else English. */
 export function interfaceLanguage(setting, systemLocale) {

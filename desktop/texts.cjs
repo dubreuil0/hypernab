@@ -6,7 +6,12 @@ const vm = require('node:vm');
 
 let texts = null;
 for (const file of [path.join(process.resourcesPath || '', 'engine', 'public', 'strings.js'), path.join(__dirname, '..', 'public', 'strings.js')]) {
-  try { const sandbox = {}; vm.runInNewContext(fs.readFileSync(file, 'utf8'), { globalThis: sandbox }); texts = sandbox.HypernabText; break; } catch { /* try the next place */ }
+  try {
+    const sandbox = {}, context = vm.createContext({ globalThis: sandbox });
+    vm.runInContext(fs.readFileSync(file, 'utf8'), context);
+    for (const code of sandbox.HypernabText.packs) { try { vm.runInContext(fs.readFileSync(path.join(path.dirname(file), 'lang', `${code}.js`), 'utf8'), context); } catch { /* that language falls back to English */ } }
+    texts = sandbox.HypernabText; break;
+  } catch { /* try the next place */ }
 }
 let language = 'en';
 function setLanguage(code) { language = texts?.TEXTS?.[code] ? code : 'en'; }

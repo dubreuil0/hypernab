@@ -4,7 +4,7 @@
 
 A local download manager for Windows, with a media-capture extension for Firefox, Chrome, Edge, Brave and Opera. Your downloads stay on your computer; there is no account, cloud or tracking.
 
-**Version:** app 0.16.5 · extension 0.11.1 · Windows 10/11 (x64)
+**Version:** app 0.17.0 · extension 0.11.1 · Windows 10/11 (x64)
 
 ## Features
 

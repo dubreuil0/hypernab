@@ -20,7 +20,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const port = await freePort(), origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, ['src/server.js'], { cwd: root, windowsHide: true, stdio: 'ignore',
-  env: { ...process.env, HYPERNAB_LOCALE: 'de-DE', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
+  env: { ...process.env, HYPERNAB_LOCALE: 'ja-JP', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
 for (let n = 0; n < 50; n++) { try { if ((await fetch(origin + '/ds.js')).ok) break; } catch { /* starting */ } await sleep(200); }
 
 const LEAK = String.raw`(() => { const keys = new Set(); const walk = root => { for (const node of root.querySelectorAll('*')) { const own = [...node.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join(' '); if (/^(app|panel|lang|sub|job|ext|opt|prompt|ctl)\.[\w.-]+$/.test(own)) keys.add(own); for (const a of ['title', 'aria-label', 'placeholder']) { const v = node.getAttribute(a); if (v && /^(app|panel|lang|sub|job|ext|opt|prompt|ctl)\.[\w.-]+$/.test(v)) keys.add(v); } } }; walk(document); return [...keys]; })()`;
@@ -35,7 +35,7 @@ async function run(name, launch) {
     const ev = expr => browser.eval(tab, expr);
     await sleep(1500);
     const text = id => ev(`document.getElementById('${id}')?.textContent.trim()`);
-    check(name, 'a German Windows gets English (the app has no German texts)', await ev(`document.documentElement.lang`) === 'en' && /Ready for your next video/.test(await ev(`document.getElementById('job-list').textContent`)));
+    check(name, 'a Japanese Windows gets English (the app has no Japanese texts)', await ev(`document.documentElement.lang`) === 'en' && /Ready for your next video/.test(await ev(`document.getElementById('job-list').textContent`)));
     check(name, 'static texts are English: tabs, buttons, placeholders', /All/.test(await ev(`document.querySelector('[data-filter=all]').textContent`)) && await ev(`document.getElementById('url').placeholder`) === 'Paste a video page or a media link');
     check(name, 'no raw text key shows in the main view', (await ev(LEAK)).length === 0, JSON.stringify(await ev(LEAK)));
     await ev(`document.getElementById('open-settings').click()`); await sleep(500);
@@ -59,7 +59,7 @@ async function run(name, launch) {
     await ev(`document.getElementById('open-settings').click()`); await sleep(500);
     check(name, 'no raw text key shows in Turkish Settings', (await ev(LEAK)).length === 0, JSON.stringify(await ev(LEAK)));
     await browser.screenshot(tab, path.join(shots, `${name}-ui-turkish-settings.png`));
-    // back to automatic: German Windows -> English again
+    // back to automatic: Japanese Windows -> English again
     await ev(`(async () => { const b = await fetch('/api/bootstrap').then(r => r.json()); await fetch('/api/settings', { method: 'POST', headers: { Authorization: 'Bearer ' + b.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ interfaceLanguage: 'auto' }) }); })()`);
     await sleep(4500);
     check(name, 'back to "Same as Windows": English again', await ev(`document.documentElement.lang`) === 'en');

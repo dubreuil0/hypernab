@@ -1,4 +1,5 @@
 import { m } from './messages.js';
+import { INTERFACE_LANGUAGES } from './language.js';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,6 +50,7 @@ const assets = new Map([
   ['/ds.js', ['ds.js', 'text/javascript; charset=utf-8']],
   ['/strings.js', ['strings.js', 'text/javascript; charset=utf-8']],
   ['/ui-language.js', ['ui-language.js', 'text/javascript; charset=utf-8']],
+  ['/lang-load.js', ['lang-load.js', 'text/javascript; charset=utf-8']],
   ['/t.js', ['t.js', 'text/javascript; charset=utf-8']],
   ['/select-upgrade.js', ['select-upgrade.js', 'text/javascript; charset=utf-8']],
   ['/extension-help.js', ['extension-help.js', 'text/javascript; charset=utf-8']],
@@ -91,6 +93,12 @@ const server = http.createServer(async (req, res) => {
       const [file, type] = assets.get(url.pathname);
       res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'no-store' });
       return res.end(fs.readFileSync(path.join(root, 'public', file)));
+    }
+    // A further interface language is one small file (public/lang/<code>.js); only the codes the app has are served.
+    const pack = req.method === 'GET' && /^\/lang\/([a-z]{2})\.js$/.exec(url.pathname);
+    if (pack && INTERFACE_LANGUAGES.includes(pack[1]) && fs.existsSync(path.join(root, 'public', 'lang', `${pack[1]}.js`))) {
+      res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(fs.readFileSync(path.join(root, 'public', 'lang', `${pack[1]}.js`)));
     }
     // Local UI bootstrap is same-origin only; token never appears in HTML or URLs.
     if (url.pathname === '/api/bootstrap' && req.method === 'GET') {

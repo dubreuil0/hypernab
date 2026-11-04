@@ -23,7 +23,7 @@ const FILE = 'https://codeload.github.com/dubreuil0/hypernab/zip/refs/heads/main
 
 const port = await freePort(), origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, ['src/server.js'], { cwd: root, windowsHide: true, stdio: 'ignore',
-  env: { ...process.env, HYPERNAB_LOCALE: 'de-DE', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
+  env: { ...process.env, HYPERNAB_LOCALE: 'ja-JP', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
 for (let n = 0; n < 50; n++) { try { if ((await fetch(origin + '/ds.js')).ok) break; } catch { /* starting */ } await sleep(200); }
 
 async function run(name, launch) {

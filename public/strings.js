@@ -1993,5 +1993,9 @@
     } catch { /* no storage: the browser's language stays */ }
   }
   const tn = (key, count, vars) => t(`${key}.${count === 1 ? 'one' : 'other'}`, { n: count, ...vars });
-  globalThis.HypernabText = { t, tn, TEXTS, apply, supported, follow, language: () => current, setLanguage(code) { current = TEXTS[code] ? code : 'en'; } };
+  // Further languages live in their own files (public/lang/<code>.js) so only the language in use is loaded: each file calls
+  // addLanguage. PACKS lists the codes that exist; a missing text in a pack falls back to English.
+  const PACKS = ['es', 'de', 'fr', 'ru', 'pt'];
+  const available = () => ['en', 'tr', ...PACKS];
+  globalThis.HypernabText = { t, tn, TEXTS, apply, supported, available, packs: PACKS, addLanguage(code, texts) { TEXTS[code] = texts; }, follow, language: () => current, setLanguage(code) { current = TEXTS[code] ? code : 'en'; } };
 })();
