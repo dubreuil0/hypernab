@@ -46,6 +46,7 @@ const assets = new Map([
   ['/tray.js', ['tray.js', 'text/javascript; charset=utf-8']],
   ['/history-view.js', ['history-view.js', 'text/javascript; charset=utf-8']],
   ['/theme.css', ['theme.css', 'text/css; charset=utf-8']],
+  ['/rtl.css', ['rtl.css', 'text/css; charset=utf-8']],
   ['/ds.css', ['ds.css', 'text/css; charset=utf-8']],
   ['/ds.js', ['ds.js', 'text/javascript; charset=utf-8']],
   ['/strings.js', ['strings.js', 'text/javascript; charset=utf-8']],

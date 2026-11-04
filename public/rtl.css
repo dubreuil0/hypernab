@@ -1,0 +1,37 @@
+/* Right-to-left languages (Arabic): the page is mirrored by dir="rtl" on <html> (set in ui-language.js). The layout itself (flex, grid, inline
+   logical properties) mirrors by itself; this file only mirrors the few rules written with physical left/right, and the arrows. Left-to-right
+   languages never load a rule from here (every selector starts with [dir="rtl"]). */
+[dir="rtl"] .topbar-end { margin-left:0;margin-right:auto; }
+[dir="rtl"] .seg b { margin-left:0;margin-right:5px; }
+[dir="rtl"] .conn i { margin-right:0;margin-left:6px; }
+[dir="rtl"] .select select { padding-right:11px;padding-left:34px; }
+[dir="rtl"] .select>.ic { right:auto;left:10px; }
+[dir="rtl"] .count { margin-left:0;margin-right:7px; }
+[dir="rtl"] .select-bar .toolbar { margin-left:0;margin-right:auto; }
+[dir="rtl"] .saved { margin-left:0;margin-right:auto; }
+[dir="rtl"] .unit-input input { padding-right:11px;padding-left:62px; }
+[dir="rtl"] .unit-input>span { right:auto;left:12px; }
+[dir="rtl"] .switch span:after { left:auto;right:3px; }
+[dir="rtl"] .switch input:checked+span:after { transform:translateX(-16px); }
+[dir="rtl"] .steps { padding-left:0;padding-right:17px; }
+[dir="rtl"] .job-state, [dir="rtl"] .job-actions { margin-left:0;margin-right:auto; }
+[dir="rtl"] .col-resize { right:auto;left:-8px; }
+[dir="rtl"] .col-actions { text-align:left; }
+[dir="rtl"] .layout-pop { right:auto;left:0; }
+[dir="rtl"] .menu-item { text-align:right; }
+[dir="rtl"] .quality-label small { margin-left:0;margin-right:6px; }
+[dir="rtl"] .queue-run #queue-run-state, [dir="rtl"] .selection-toolbar #selected-count { margin-right:0;margin-left:auto; }
+[dir="rtl"] .tabs { margin-left:0;margin-right:8px; }
+[dir="rtl"] .nav b { margin-left:0;margin-right:4px; }
+[dir="rtl"] .status-pill { margin-left:0;margin-right:auto; }
+[dir="rtl"] .queue-heading h2 span { margin-left:0;margin-right:6px; }
+[dir="rtl"] .setup-card ol { padding-left:0;padding-right:16px; }
+[dir="rtl"] .tool-row small { margin-left:0;margin-right:4px; }
+[dir="rtl"] .setting .btn.icon-only.help { margin-left:0;margin-right:6px; }
+/* The closed "More settings" arrow points the way the text reads; the back arrow points to the right. */
+[dir="rtl"] .settings-more>summary .ic { transform:rotate(90deg); }
+[dir="rtl"] .settings-more[open]>summary .ic { transform:none; }
+[dir="rtl"] svg:has(> use[href="#i-back"]) { transform:scaleX(-1); }
+/* Paths, links and file names keep their own left-to-right order inside right-to-left text. */
+[dir="rtl"] .mono, [dir="rtl"] .mono-text, [dir="rtl"] input.mono { direction:ltr;text-align:left;unicode-bidi:plaintext; }
+@media(max-width:640px){ [dir="rtl"] .tabs { margin-right:0; }  [dir="rtl"] .job-actions, [dir="rtl"] .job-state { margin-left:0;margin-right:auto; } }

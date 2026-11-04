@@ -5,7 +5,7 @@
   const KEY = 'hypernab-language';
   let saved = null; try { saved = localStorage.getItem(KEY); } catch { /* storage may be off: the browser language is used */ }
   if (saved && T.supported().includes(saved)) T.setLanguage(saved);
-  document.documentElement.lang = T.language();
+  document.documentElement.lang = T.language(); document.documentElement.dir = T.dir();
   T.apply(document);
   /** Remembers the language and reloads the window once, so every text (also the ones built by code) is in it. */
   T.switchTo = code => {

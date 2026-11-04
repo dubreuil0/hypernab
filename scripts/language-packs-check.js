@@ -50,6 +50,7 @@ async function run(name, launch) {
       await setLanguage(ev, code); await sleep(4500);
       const t = texts[code];
       check(name, `${code}: the window reloaded into it by itself`, await ev(`document.documentElement.lang`) === code, await ev(`document.documentElement.lang`));
+      check(name, `${code}: the page direction is ${code === 'ar' ? 'right-to-left' : 'left-to-right'}`, await ev(`document.documentElement.dir`) === (code === 'ar' ? 'rtl' : 'ltr'));
       check(name, `${code}: static texts follow (placeholder of the link box)`, await ev(`document.getElementById('url').placeholder`) === t['app.url.placeholder'], await ev(`document.getElementById('url').placeholder`));
       check(name, `${code}: built texts follow (empty list)`, (await ev(`document.getElementById('job-list').textContent`)).includes(t['app.empty.ready']));
       check(name, `${code}: no raw text key in the main view`, (await ev(LEAK)).length === 0, JSON.stringify(await ev(LEAK)));

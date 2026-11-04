@@ -482,7 +482,7 @@ function bindResize(grip, id) {
   });
   grip.addEventListener('pointermove', event => {
     if (resizing?.grip !== grip || resizing.pointerId !== event.pointerId) return;
-    setWidth(id, resizing.startWidth + event.clientX - resizing.startX, false, resizing.base);
+    setWidth(id, resizing.startWidth + (document.documentElement.dir === 'rtl' ? -1 : 1) * (event.clientX - resizing.startX), false, resizing.base);
   });
   const finish = cancelled => {
     if (resizing?.grip !== grip) return;
@@ -494,7 +494,7 @@ function bindResize(grip, id) {
   grip.addEventListener('dblclick', event => { event.preventDefault(); fitColumn(id); });
   grip.addEventListener('keydown', event => {
     const step = event.shiftKey ? 40 : 10;
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWidth(id, currentWidth(id) + (event.key === 'ArrowRight' ? step : -step), true); }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); setWidth(id, currentWidth(id) + ((event.key === 'ArrowRight') === (document.documentElement.dir !== 'rtl') ? step : -step), true); }
     else if (event.key === 'Home') { event.preventDefault(); const widths = { ...layout.widths }; delete widths[id]; changeLayout({ ...layout, widths }); }
     else if (event.key === 'Enter') { event.preventDefault(); fitColumn(id); }
   });

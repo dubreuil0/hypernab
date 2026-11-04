@@ -1,6 +1,6 @@
 {
   "name": "hypernab",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "private": true,
   "author": "Hypernab",
   "description": "Local download manager for Windows with a media-capture extension for Firefox, Chrome and Edge",

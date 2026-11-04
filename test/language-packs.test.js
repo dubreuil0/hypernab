@@ -18,7 +18,7 @@ test('the languages the app can be set to are exactly the built-in two plus the 
   assert.deepEqual(offered.sort(), ['auto', ...INTERFACE_LANGUAGES].sort());
 });
 
-for (const code of ['es', 'de', 'fr', 'ru', 'pt']) {
+for (const code of ['es', 'de', 'fr', 'ru', 'pt', 'ar']) {
   test(`${code}: the pack loads, covers every window / desktop / engine text and keeps every placeholder`, () => {
     const { T, context } = load();
     assert.ok(T.packs.includes(code) && !T.TEXTS[code], 'not loaded until its file runs');
@@ -33,6 +33,7 @@ for (const code of ['es', 'de', 'fr', 'ru', 'pt']) {
     for (const key of Object.keys(texts)) assert.ok(key in en, `${code}: ${key} is not a known text`);
     T.setLanguage(code);
     assert.equal(T.language(), code);
+    assert.equal(T.dir(), code === 'ar' ? 'rtl' : 'ltr', 'only Arabic is written right to left');
     assert.equal(T.t('app.settings'), texts['app.settings']);
     assert.equal(T.t('panel.download'), en['panel.download'], 'a text the pack does not carry falls back to English');
   });
