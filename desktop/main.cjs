@@ -1,13 +1,15 @@
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain, clipboard } = require('electron');
 const { offerFor } = require('./clipboard-links.cjs');
-const { detectBrowsers, openBrowserSetup } = require('./browsers.cjs');
+const { STORE_PAGES, defaultBrowserFamily, openStorePage } = require('./browsers.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const { openJobLocation, playJob } = require('./job-location.cjs');
 const { TrayPanel } = require('./tray-panel.cjs');
 const { Updater } = require('./updater.cjs');
 const { t, setLanguage } = require('./texts.cjs');
+// runs a Windows tool and gives its output (reading the default browser from the registry)
+const readWindows = { run: (file, args) => new Promise((resolve, reject) => execFile(file, args, { windowsHide: true, timeout: 5000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)))) };
 if (process.env.HD_DESKTOP_TEST === '1' && process.env.HD_DESKTOP_PROFILE) app.setPath('userData', process.env.HD_DESKTOP_PROFILE);
 app.setAppUserModelId('com.hypernab.desktop'); // Windows shows the app's own name and icon on notifications and the taskbar
 
@@ -171,7 +173,7 @@ else {
     };
     ipcMain.handle('desktop:settings', event => {
       fromApp(event);
-      return { packaged: app.isPackaged, startup: app.getLoginItemSettings({ args: ['--startup'] }).openAtLogin, downloads, version: app.getVersion(), extensions: path.join(root, 'build', 'extensions') };
+      return { packaged: app.isPackaged, startup: app.getLoginItemSettings({ args: ['--startup'] }).openAtLogin, downloads, version: app.getVersion() };
     });
     ipcMain.handle('desktop:action', async (event, command, value) => {
       fromApp(event);
@@ -180,9 +182,12 @@ else {
       if (command === 'job-play') return playJob(value, { lookup: id => request(`/api/jobs/${id}/location`), shell });
       if (command === 'history-play') return playJob(value, { lookup: id => request(`/api/history/${id}/location`), shell });
       if (command === 'history-location') return openJobLocation(value, { lookup: id => request(`/api/history/${id}/location`), shell });
-      if (command === 'extensions') return shell.openPath(path.join(root, 'build/extensions'));
-    if (command === 'browsers') return detectBrowsers().map(({ id, name, family }) => ({ id, name, family }));
-    if (command === 'browser-setup' && typeof value === 'string') return openBrowserSetup(value, { spawn, shell, clipboard, extensionsFolder: path.join(root, 'build', 'extensions') });
+      // The browser extension: which kind of browser is the default, and a store page opened in the right kind of browser (see browsers.cjs).
+      if (command === 'default-browser') return defaultBrowserFamily(readWindows);
+      if (command === 'open-store' && value && typeof value === 'object') {
+        if (process.env.HD_DESKTOP_TEST === '1') { if (!STORE_PAGES[value.family]?.test(String(value.url))) throw new Error('unknown store page'); return { opened: 'default' }; } // a test never opens a real browser
+        return openStorePage(value.family, value.url, { defaultFamily: await defaultBrowserFamily(readWindows), spawn, shell, clipboard });
+      }
       if (command === 'startup' && typeof value === 'boolean' && app.isPackaged) { app.setLoginItemSettings({ openAtLogin: value, args: ['--startup'] }); return true; }
       if (command === 'settings-changed') { await loadSettings(); return true; }
       if (command === 'pick-folder') {

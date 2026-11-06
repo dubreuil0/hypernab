@@ -1,5 +1,5 @@
 import { upgradeSelects } from './select-upgrade.js';
-import { setupExtensionHelp } from './extension-help.js';
+import { setupExtension } from './extension-setup.js';
 export function setupAdvanced(api, refreshStatus) {
   const $ = id => document.getElementById(id), desktop = globalThis.hypernabDesktop;
   let loaded = false;
@@ -58,13 +58,13 @@ export function setupAdvanced(api, refreshStatus) {
   if (desktop) {
     for (const id of ['s-desktop', 'nav-desktop', 'desktop-settings', 'open-downloads']) $(id).hidden = false;
     $('dir-edit').hidden = true;
-    desktop.settings().then(info => { setupExtensionHelp(info.extensions, () => api('/api/extension')); $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
+    desktop.settings().then(info => { $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
     $('desktop-startup').onchange = run(() => desktop.action('startup', $('desktop-startup').checked));
     for (const [id, action] of [['open-downloads', 'downloads'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = globalThis.HypernabText.t(node.dataset.t);
   // Every setting keeps its explanation behind a small "?" button instead of a paragraph under it (the text itself is unchanged).
-  for (const row of document.querySelectorAll('#view-settings .setting:not(.ext-card)')) { // the browser-extension cards keep their own texts (steps, connection state)
+  for (const row of document.querySelectorAll('#view-settings .setting')) {
     const copy = row.firstElementChild, title = copy?.querySelector('strong'), hint = copy?.querySelector('.hint');
     if (!hint || !title || row.querySelector('.help')) continue;
     const button = document.createElement('button'), icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
@@ -101,13 +101,14 @@ export function setupAdvanced(api, refreshStatus) {
       await refreshStatus(); show(T.t('app.reset.done'));
     } catch (error) { show(error.message, true); }
   };
-  setupExtensionHelp(null); // without the desktop app the folder is the development one; the app passes the real one below
+  const extension = setupExtension({ api, save, show });
   upgradeSelects(); // every drop-down of the app window becomes the design system's list
   async function poll() {
     const [info, settings] = await Promise.all([api('/api/automation'), api('/api/settings')]);
     globalThis.HypernabAppearance?.apply(settings);
     globalThis.HypernabText?.switchTo?.(settings.interfaceLanguageResolved); // the app's language changed (here or by the engine's own default): reload once
     globalThis.HypernabLayoutSync?.(settings.listLayout);
+    void extension.welcome(settings); // a new install sees the "add the browser extension" window once
     for (const key of keys) { const node = $(`set-${key}`); if (document.activeElement === node) continue; if (node.type === 'checkbox') node.checked = settings[key]; else node.value = String(settings[key]); }
     for (const [key, select] of Object.entries(languageSelects)) if (settings[key] && select.getValue() !== settings[key]) select.setValue(settings[key]);
     if (!loaded) { $('deep-verify').checked = settings.deepVerifyDefault; loaded = true; }

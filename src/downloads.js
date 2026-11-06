@@ -80,7 +80,8 @@ const SETTING_DEFAULTS = {
   deepVerifyDefault: false, // full decode scan after each media download
   notifyOnFinish: true,     // desktop notification when a download finishes or fails
   closeToTray: true,        // desktop window close button keeps the app in the tray
-  startMinimized: false     // when Windows starts the app, keep it in the tray
+  startMinimized: false,    // when Windows starts the app, keep it in the tray
+  extensionPromptDone: false // the one-time "add the browser extension" window was shown and closed (a settings file from before it counts as done)
 };
 const bool = nameKey => value => typeof value === 'boolean' || m('e.must-be-on-or-off', { name: m(nameKey) });
 // Only known column ids and bounded numbers are stored; never free-form CSS or markup.
@@ -91,7 +92,7 @@ const validLayout = value => value && typeof value === 'object' && !Array.isArra
   && Object.entries(value.widths).every(([key, width]) => LAYOUT_COLUMNS.includes(key) && Number.isInteger(width) && width >= 48 && width <= 1600)
   && Array.isArray(value.hidden) && value.hidden.length <= LAYOUT_HIDEABLE.length && new Set(value.hidden).size === value.hidden.length && value.hidden.every(id => LAYOUT_HIDEABLE.includes(id))
   && typeof value.focus === 'boolean';
-const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout'];
+const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout', 'extensionPromptDone'];
 const SETTING_CHECKS = {
   interfaceLanguage: value => validInterfaceLanguage(value) || 'Invalid interface language.',
   subtitleLanguage: value => validSubtitleLanguage(value) || m('e.invalid-subtitle-language'),
@@ -115,7 +116,8 @@ const SETTING_CHECKS = {
   deepVerifyDefault: bool('e.name.deep-verify'),
   notifyOnFinish: bool('e.name.notification'),
   closeToTray: bool('e.name.tray'),
-  startMinimized: bool('e.name.hidden')
+  startMinimized: bool('e.name.hidden'),
+  extensionPromptDone: bool('e.name.extension-prompt')
 };
 // A chosen folder must exist (or be creatable) and accept files, before any download is sent there.
 function usableDirectory(dir) {
@@ -213,6 +215,8 @@ export class DownloadQueue {
       // The default is back to embedding only: no extra file next to the video, the track shows in the player's subtitle menu. A file still holding the
       // earlier default (embed + side .srt) moves over once; a later deliberate choice is kept.
       if ((saved.settingsVersion || 1) < 3 && this.settings.subtitleMode === 'both') this.settings.subtitleMode = 'embed';
+      // A person who already used the app is not welcomed with the one-time extension window: only a brand-new install sees it.
+      if (!('extensionPromptDone' in saved)) this.settings.extensionPromptDone = true;
     } catch { /* defaults: one at a time */ }
     setMessageLanguage(this.interfaceLanguage());
     this.queueRunning = false;

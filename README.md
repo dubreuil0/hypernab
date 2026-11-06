@@ -4,7 +4,7 @@
 
 A local download manager for Windows, with a media-capture extension for Firefox, Chrome, Edge, Brave and Opera. Your downloads stay on your computer; there is no account, cloud or tracking.
 
-**Version:** app 0.17.1 · extension 0.11.1 · Windows 10/11 (x64)
+**Version:** app 0.18.0 · extension 0.11.1 · Windows 10/11 (x64)
 
 ## Features
 
@@ -38,12 +38,9 @@ The extension asks for no `downloads` permission. A link to a web page (instead 
 
 ### Extension
 
-The extension is built from source: `npm run build:extensions` produces the Firefox and Chromium packages under `build/extensions`.
+The extension is on both stores: the [Chrome Web Store](https://chromewebstore.google.com/detail/decnigdaajpbapbcaieefjnjapeombpb) (Chrome, Edge, Brave, Opera and every other Chromium-based browser) and [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/hypernab-video-catcher/). On a new install the app offers to open the right store page once; later it is the row at the top of **Settings**. A browser never lets an app add an extension silently: press the add button on the store page.
 
-- **Chrome, Edge, Brave, Opera** (same folder): the browser's extensions page (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`) → Developer mode → *Load unpacked* → `build/extensions/chromium`.
-- **Firefox:** `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `build/extensions/firefox/manifest.json`. A temporary add-on disappears when Firefox closes; a permanent install needs a signed package.
-
-The app's **Settings > Browser extension** section shows these steps with copyable addresses.
+For development, the extension is built from source: `npm run build:extensions` produces the Firefox and Chromium packages under `build/extensions`. Load the Chromium one through the browser's extensions page (Developer mode → *Load unpacked* → `build/extensions/chromium`) and the Firefox one through `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `build/extensions/firefox/manifest.json`.
 
 In the desktop app the same section starts with a **Set up in <browser>** button for every supported browser found on the computer: it opens that browser's extensions page and the extension folder and copies the path to pick; the browser itself always asks you to confirm, nothing is installed behind your back. A green mark shows when the extension has reached the app.
 
@@ -70,7 +67,7 @@ The full policy is in [PRIVACY.md](PRIVACY.md).
 
 - It is not guaranteed to work on every site; sites change. If there is a problem, the **Copy the diagnostic report** button on the extension's settings page makes a report without cookie or query information (it does contain the site names and shortened path parts of the pages involved).
 - Subtitles that are only drawn as a special layer on the page cannot be captured.
-- A Windows code signature and a permanent (signed) Firefox package do not exist yet.
+- A Windows code signature does not exist yet (updates are checked by their SHA-512 digest).
 
 ## Development
 

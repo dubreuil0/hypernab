@@ -81,3 +81,18 @@ test('the engine reports the default of every preference, and applying them rest
   for (const key of keys) assert.deepEqual(queue.settings[key], fresh[key], `${key} is back to its default`);
   const restored = new DownloadQueue(config); for (const key of keys) assert.deepEqual(restored.settings[key], fresh[key], `${key} stays at its default after a restart`); restored.stop();
 });
+
+test('the one-time "add the browser extension" window: a brand-new install sees it, an existing settings file never does, and an answer stays', t => {
+  const { queue, config, root } = fixture(t);
+  assert.equal(queue.settings.extensionPromptDone, false, 'a new install has not answered yet');
+  assert.equal(queue.settingDefaults().extensionPromptDone, false);
+  let pumps = 0; queue.pump = () => { pumps++; };
+  queue.setSettings({ extensionPromptDone: true }); assert.equal(pumps, 0, 'it is no reason to start downloads');
+  assert.equal(new DownloadQueue(config).settings.extensionPromptDone, true, 'the answer stays after a restart');
+  assert.throws(() => queue.setSettings({ extensionPromptDone: 'yes' }), /Eklenti penceresi/, 'only on or off is accepted (the tests run with a Turkish Windows)');
+  // a settings file written by an earlier version (without the key) belongs to a person who already used the app
+  const older = { ...config, stateFile: path.join(root, 'older.json') };
+  fs.writeFileSync(`${older.stateFile}.settings.json`, JSON.stringify({ theme: 'light', settingsVersion: 3 }));
+  const existing = new DownloadQueue(older); t.after(() => existing.stop());
+  assert.equal(existing.settings.theme, 'light'); assert.equal(existing.settings.extensionPromptDone, true, 'not welcomed again');
+});

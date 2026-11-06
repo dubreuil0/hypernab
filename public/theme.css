@@ -22,11 +22,6 @@ html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic
 .hd-select.hd-native { display:inline-block;min-width:8em; }
 .hd-select.hd-native.wide { display:block;width:100%; }
 .hd-select.hd-native .hd-select-btn { min-height:2.1em; }
-.ext-card .steps { display:grid;gap:.6em; }
-.ext-extra { display:flex;flex-wrap:wrap;align-items:center;gap:.4em .6em;margin-top:.35em; }
-.ext-chip { display:inline-flex;align-items:center;gap:.5em;max-width:100%; }
-.ext-chip code { overflow-wrap:anywhere; }
-.ext-label { color:var(--muted);font-size:.9em; }
 .job-subs { display:flex;flex-wrap:wrap;align-items:center;gap:.4em .5em; }
 .job-subs .hd-ic { color:var(--muted); }
 @media (prefers-reduced-motion:reduce) { * { animation:none!important;transition:none!important; } }
@@ -72,6 +67,14 @@ html[data-appearance="compact"] .group { padding:4px 14px 6px;margin-bottom:10px
 html[data-appearance="compact"] .settings-more>summary { padding:8px 0; }
 @media (min-width:1180px) {
   .group, .more-body { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:36px; }
-  .group>h2, .group>.group-head, .group>details, .group>p, .group>#extension-help, .setting.wide { grid-column:1/-1; }
+  .group>h2, .group>.group-head, .group>details, .group>p, .setting.wide { grid-column:1/-1; }
   .group .setting-control .hd-select, .more-body .setting-control .hd-select { width:15em; }
 }
+/* The browser extension row at the top of Settings (one line) and the one-time window of a new install. */
+#s-extension>.setting, #s-extension>details { grid-column:1/-1; }
+#s-extension:has(#ext-problem[hidden]) #ext-row { border-bottom:0; }
+#ext-row .badge { margin-inline-start:6px;vertical-align:middle; }
+#ext-row .setting-control { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px; }
+#ext-welcome { width:min(34rem,92vw); }
+#ext-welcome .row-actions { margin-top:12px; }
+.ext-welcome-stores { align-items:center;flex-wrap:wrap;gap:8px; }

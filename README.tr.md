@@ -4,7 +4,7 @@
 
 Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera için medya yakalama eklentisi. İndirmeler bilgisayarında kalır; hesap, bulut veya izleme yoktur.
 
-**Sürüm:** uygulama 0.17.1 · eklenti 0.11.1 · Windows 10/11 (x64)
+**Sürüm:** uygulama 0.18.0 · eklenti 0.11.1 · Windows 10/11 (x64)
 
 ## Özellikler
 
@@ -39,12 +39,9 @@ Eklenti `downloads` izni istemez. Dosya yerine bir web sayfasına giden bağlant
 
 ### Eklenti
 
-Eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions` altında Firefox ve Chromium paketlerini üretir.
+Eklenti iki mağazada da var: [Chrome Web Store](https://chromewebstore.google.com/detail/decnigdaajpbapbcaieefjnjapeombpb) (Chrome, Edge, Brave, Opera ve diğer tüm Chromium tabanlı tarayıcılar) ve [Firefox Eklentileri](https://addons.mozilla.org/en-US/firefox/addon/hypernab-video-catcher/). Yeni kurulumda uygulama bir kez doğru mağaza sayfasını açmayı önerir; sonra **Ayarlar**'ın en üstündeki satırdır. Tarayıcı, bir uygulamanın eklentiyi sessizce eklemesine izin vermez: mağaza sayfasında ekle düğmesine bas.
 
-- **Chrome, Edge, Brave, Opera** (aynı klasör): tarayıcının eklentiler sayfası (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`) → Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`.
-- **Firefox:** `about:debugging#/runtime/this-firefox` → *Geçici eklenti yükle* → `build/extensions/firefox/manifest.json`. Geçici yükleme Firefox kapanınca kaybolur; kalıcı kurulum için imzalı paket gerekir.
-
-Uygulamanın **Ayarlar > Tarayıcı eklentisi** bölümü bu adımları kopyalanabilir adreslerle gösterir.
+Geliştirme için eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions` altında Firefox ve Chromium paketlerini üretir. Chromium olanı tarayıcının eklentiler sayfasından (Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`), Firefox olanı `about:debugging#/runtime/this-firefox` → *Geçici eklenti yükle* → `build/extensions/firefox/manifest.json` ile yüklenir.
 
 Masaüstü uygulamasında aynı bölüm, bilgisayarda bulunan her desteklenen tarayıcı için bir **<tarayıcı> için kur** düğmesiyle başlar: o tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, seçilecek yolu panoya kopyalar; onay her zaman tarayıcının kendisinden gelir, arkandan hiçbir şey kurulmaz. Eklenti uygulamaya ulaşınca yeşil bir işaret çıkar.
 
@@ -71,7 +68,7 @@ Tam politika [PRIVACY.tr.md](PRIVACY.tr.md) dosyasındadır.
 
 - Her sitede çalışacağı garanti edilmez; siteler değişebilir. Sorun olursa eklentinin ayarlar sayfasındaki **Teşhis raporunu kopyala** düğmesi çerez ve sorgu bilgisi içermeyen bir rapor üretir (ilgili sayfaların site adlarını ve kısaltılmış yol parçalarını içerir).
 - Yalnızca sayfada özel bir katman olarak çizilen altyazılar yakalanamaz.
-- Windows kod imzası ve kalıcı (imzalı) Firefox paketi henüz yoktur.
+- Windows kod imzası henüz yoktur (güncellemeler SHA-512 özetiyle doğrulanır).
 
 ## Geliştirme
 

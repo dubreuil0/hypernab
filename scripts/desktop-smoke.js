@@ -37,6 +37,19 @@ try {
     return result.result.value;
   };
   await browserUntil(() => evaluate('document.querySelector("#connection").textContent.includes("aktif")'));
+  // A brand-new install: the one-time "add the browser extension" window (default-browser button only when Windows tells the kind, the two stores always).
+  await browserUntil(() => evaluate(`document.getElementById('ext-welcome').open`), 20000);
+  const defaultKind = await evaluate(`hypernabDesktop.action('default-browser')`);
+  assert.ok([null, 'chromium', 'firefox'].includes(defaultKind), String(defaultKind));
+  assert.equal(await evaluate(`!document.getElementById('ext-welcome-default').hidden`), defaultKind !== null, 'the default-browser button shows only when the kind is known');
+  assert.deepEqual(await evaluate(`['ext-welcome-chromium', 'ext-welcome-firefox'].map(id => document.getElementById(id).textContent.trim())`), ['Chrome Web Store', 'Firefox Add-ons']);
+  assert.match(await evaluate(`document.getElementById('ext-welcome-title').textContent`), /Tarayıcı eklentisini ekle/);
+  assert.equal((await call('/api/settings')).extensionPromptDone, false, 'not answered yet');
+  await evaluate(`document.getElementById('ext-welcome-chromium').click()`);
+  await browserUntil(() => evaluate(`!document.getElementById('ext-welcome').open`));
+  assert.match(await evaluate(`document.getElementById('settings-saved').textContent`), /Mağaza sayfası açıldı/, 'the store page was asked for (a test opens no real browser)');
+  await browserUntil(async () => (await call('/api/settings')).extensionPromptDone === true, 10000);
+  console.log('OK one-time extension window on a new install: shown, store button opens the store page, window closes and the answer is saved');
   const mainTarget = (await (await fetch(`http://127.0.0.1:${inspector}/json/list`)).json())[0];
   const main = await connect(mainTarget.webSocketDebuggerUrl);
   const mainEval = async expression => { const r = await main('Runtime.evaluate', { expression, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text); return r.result.value; };
@@ -180,19 +193,23 @@ try {
   await evaluate(`document.querySelector('#set-watchClipboard').click()`); await browserUntil(async () => (await call('/api/settings')).watchClipboard === false);
   await mainEval(`${electron}.clipboard.writeText('')`);
   console.log('OK clipboard offer: off by default, strip on focus with the link\'s site, once per text, Add fills the several-links dialog');
-  // The extension setup wizard: the browsers found on this computer, and the mark that turns green when the extension reaches the app.
+  // Settings: the extension is one compact row at the very top; the old manual setup is gone; the mark turns green when the extension reaches the app.
   await evaluate('document.querySelector("#open-settings").click()');
-  await browserUntil(() => evaluate(`document.querySelector('#extension-help .ext-wizard') !== null && document.querySelector('#extension-help .ext-wizard .ext-browsers').children.length > 0`));
-  const wizardRows = await evaluate(`[...document.querySelectorAll('#extension-help .ext-wizard .ext-browsers button')].map(b => b.textContent.trim())`);
-  const installed = await mainEval(`(()=>{try{return require('node:fs').existsSync(process.env['ProgramFiles(x86)']+'\\\\Microsoft\\\\Edge\\\\Application\\\\msedge.exe')}catch{return false}})()`);
-  assert.ok(wizardRows.length >= 1 || !installed, 'one set-up button per browser found');
-  assert.ok(wizardRows.every(text => /kur$/i.test(text)), `the buttons are in the app's language: ${wizardRows}`);
-  assert.equal(await evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').className.includes('ok')`), false, 'not connected yet');
+  await browserUntil(() => evaluate(`document.getElementById('ext-row') !== null && document.getElementById('ext-row').offsetParent !== null`));
+  assert.equal(await evaluate(`document.querySelector('.settings-body').firstElementChild.id`), 's-extension', 'the extension row heads Settings');
+  assert.equal(await evaluate(`document.querySelector('#s-browser, #extension-help, .ext-wizard') === null && !document.querySelector('.settings-nav a[href="#s-browser"]')`), true, 'no old manual setup');
+  assert.equal(await evaluate(`document.getElementById('ext-state').className.includes('ok')`), false, 'not connected yet');
+  assert.match(await evaluate(`document.getElementById('ext-state').textContent`), /Bağlı değil/);
+  assert.equal(await evaluate(`!document.getElementById('ext-stores').hidden && !document.getElementById('ext-problem').hidden`), true, 'not connected: store buttons and the connection help show');
+  assert.equal(await evaluate(`!document.getElementById('desktop-settings').hidden`), true, 'the repair button is in the connection help (desktop app)');
+  const rowHeight = await evaluate(`document.getElementById('ext-row').getBoundingClientRect().height`);
+  assert.ok(rowHeight < 80, `the row stays one compact line (${rowHeight}px)`);
   await fetch(`http://127.0.0.1:${port}/api/prefs`, { headers: { Authorization: `Bearer ${token}`, 'X-Hypernab-Client': 'extension' } }); // what the extension's native host does
-  await browserUntil(() => evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').className.includes('ok')`), 15000).catch(async error => { throw new Error('wizard mark: ' + await evaluate(`(async()=>{const b=document.querySelector('#extension-help .ext-wizard');const t=(await fetch('/api/bootstrap').then(r=>r.json())).token;const s=await fetch('/api/extension',{headers:{Authorization:'Bearer '+t}}).then(r=>r.text());return JSON.stringify({connected:b?.isConnected,offsetParent:b?.offsetParent?.tagName||null,state:b?.querySelector('.ext-state')?.textContent,api:s})})()`)); });
-  assert.match(await evaluate(`document.querySelector('#extension-help .ext-wizard .ext-state .badge').textContent`), /Bağlı/);
+  await browserUntil(() => evaluate(`document.getElementById('ext-state').className.includes('ok')`), 15000);
+  assert.match(await evaluate(`document.getElementById('ext-state').textContent`), /Bağlı$/);
+  assert.equal(await evaluate(`document.getElementById('ext-stores').hidden && document.getElementById('ext-problem').hidden`), true, 'connected: the row shrinks to the green mark');
   await evaluate('document.querySelector("#close-settings").click()');
-  console.log('OK extension wizard: one button per browser found, green mark when the extension talks to the app');
+  console.log('OK Settings extension row: first, compact, no manual setup, store buttons while not connected, green mark when the extension talks to the app');
   // Real pointer input, not a synthetic reorder API call: hold the handle across a poll cycle and drop it.
   await call('/api/settings', { queueLimit: 1, speedLimitKiB: 16 });
   const ids = [];
@@ -342,6 +359,8 @@ try {
     const reopenedPage = await browserUntil(async () => (await (await fetch(`http://127.0.0.1:${debug}/json/list`)).json()).find(p => p.type === 'page' && p.url.startsWith(`http://127.0.0.1:${port}`)), 30000);
     const reopenedRpc = await connect(reopenedPage.webSocketDebuggerUrl);
     await browserUntil(async () => (await reopenedRpc('Runtime.evaluate', { expression: 'document.readyState === "complete" && document.querySelector("#connection")?.textContent.includes("aktif")', returnByValue: true })).result.value);
+    await wait(4500); // longer than the moment a new install waits before it would show the window
+    assert.equal(await reopenedRpc('Runtime.evaluate', { expression: "document.getElementById('ext-welcome').open", returnByValue: true }).then(r => r.result.value), false, 'the one-time window never comes back');
     for (const socket of connections) socket.close();
     const status = await call('/api/status'); await call('/api/app/shutdown', { confirm: true, instanceId: status.instanceId });
     await browserUntil(() => reopened.exitCode !== null, 20000);
