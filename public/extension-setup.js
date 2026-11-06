@@ -27,11 +27,12 @@ export function setupExtension({ api, save, show }) {
   // closing the window, by any way, is the answer: it never comes back
   $('ext-welcome').addEventListener('close', () => { save({ extensionPromptDone: true }).catch(() => {}); });
 
-  // Connected: the row shrinks to its title and a green mark. Not connected: the store buttons and the "connection problem?" help appear.
+  // The store buttons stay whether or not the extension is connected: it may be wanted in another browser, or the default may change. Only the
+  // "connection problem?" help is for the not-connected case.
   function render(isConnected) {
     connected = isConnected;
     const badge = $('ext-state'); badge.className = `badge${connected ? ' ok' : ''}`; badge.textContent = T(connected ? 'ext.row.connected' : 'ext.row.disconnected');
-    $('ext-stores').hidden = connected; $('ext-problem').hidden = connected;
+    $('ext-problem').hidden = connected;
     if (connected && $('ext-welcome').open) $('ext-welcome').close(); // it arrived while the window was open: nothing left to ask
   }
   async function look() {

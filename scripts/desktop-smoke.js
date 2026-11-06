@@ -207,9 +207,9 @@ try {
   await fetch(`http://127.0.0.1:${port}/api/prefs`, { headers: { Authorization: `Bearer ${token}`, 'X-Hypernab-Client': 'extension' } }); // what the extension's native host does
   await browserUntil(() => evaluate(`document.getElementById('ext-state').className.includes('ok')`), 15000);
   assert.match(await evaluate(`document.getElementById('ext-state').textContent`), /Bağlı$/);
-  assert.equal(await evaluate(`document.getElementById('ext-stores').hidden && document.getElementById('ext-problem').hidden`), true, 'connected: the row shrinks to the green mark');
+  assert.equal(await evaluate(`!document.getElementById('ext-stores').hidden && document.getElementById('ext-problem').hidden`), true, 'connected: the green mark shows, the store buttons stay (another browser may be wanted), the connection help goes');
   await evaluate('document.querySelector("#close-settings").click()');
-  console.log('OK Settings extension row: first, compact, no manual setup, store buttons while not connected, green mark when the extension talks to the app');
+  console.log('OK Settings extension row: first, compact, no manual setup, store buttons always, green mark when the extension talks to the app');
   // Real pointer input, not a synthetic reorder API call: hold the handle across a poll cycle and drop it.
   await call('/api/settings', { queueLimit: 1, speedLimitKiB: 16 });
   const ids = [];

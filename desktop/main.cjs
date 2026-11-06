@@ -1,6 +1,6 @@
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain, clipboard } = require('electron');
 const { offerFor } = require('./clipboard-links.cjs');
-const { STORE_PAGES, defaultBrowserFamily, openStorePage } = require('./browsers.cjs');
+const { STORE_PAGES, installedBrowsers, defaultBrowserFamily, openStorePage } = require('./browsers.cjs');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
@@ -186,7 +186,7 @@ else {
       if (command === 'default-browser') return defaultBrowserFamily(readWindows);
       if (command === 'open-store' && value && typeof value === 'object') {
         if (process.env.HD_DESKTOP_TEST === '1') { if (!STORE_PAGES[value.family]?.test(String(value.url))) throw new Error('unknown store page'); return { opened: 'default' }; } // a test never opens a real browser
-        return openStorePage(value.family, value.url, { defaultFamily: await defaultBrowserFamily(readWindows), spawn, shell, clipboard });
+        return openStorePage(value.family, value.url, { defaultFamily: await defaultBrowserFamily(readWindows), detect: () => installedBrowsers(readWindows), spawn, shell, clipboard });
       }
       if (command === 'startup' && typeof value === 'boolean' && app.isPackaged) { app.setLoginItemSettings({ openAtLogin: value, args: ['--startup'] }); return true; }
       if (command === 'settings-changed') { await loadSettings(); return true; }

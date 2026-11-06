@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const { detectBrowsers, BROWSERS, STORE_PAGES, familyOfProgId, defaultBrowserFamily, openStorePage } = createRequire(import.meta.url)('../desktop/browsers.cjs');
+const { detectBrowsers, BROWSERS, STORE_PAGES, parseRegisteredBrowsers, installedBrowsers, familyOfProgId, defaultBrowserFamily, openStorePage } = createRequire(import.meta.url)('../desktop/browsers.cjs');
 const env = { ProgramFiles: 'C:\\Program Files', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', LOCALAPPDATA: 'D:\\LocalData' };
 const CHROMIUM = 'https://chromewebstore.google.com/detail/decnigdaajpbapbcaieefjnjapeombpb';
 const FIREFOX = 'https://addons.mozilla.org/en-US/firefox/addon/hypernab-video-catcher/';
@@ -43,4 +43,37 @@ test('store pages: only the two known pages are accepted; the same-kind default 
   await assert.rejects(openStorePage('chromium', 'https://evil.example/', tools('chromium')), /unknown store page/);
   await assert.rejects(openStorePage('firefox', CHROMIUM, tools('firefox')), /unknown store page/, 'a store address of the other kind is refused');
   await assert.rejects(openStorePage('../x', FIREFOX, tools('firefox')), /unknown store page/);
+});
+
+const REG = `
+HKEY_LOCAL_MACHINE\\SOFTWARE\\Clients\\StartMenuInternet\\Mozilla Firefox
+    (Default)    REG_SZ    Mozilla Firefox
+
+HKEY_LOCAL_MACHINE\\SOFTWARE\\Clients\\StartMenuInternet\\Mozilla Firefox\\shell\\open\\command
+    (Default)    REG_SZ    "C:\\Program Files\\Mozilla Firefox\\firefox.exe"
+
+HKEY_LOCAL_MACHINE\\SOFTWARE\\Clients\\StartMenuInternet\\Internet Explorer\\shell\\open\\command
+    (Default)    REG_SZ    C:\\Program Files\\Internet Explorer\\iexplore.exe
+
+HKEY_CURRENT_USER\\SOFTWARE\\Clients\\StartMenuInternet\\Vivaldi\\shell\\open\\command
+    (Standard)    REG_SZ    "D:\\Apps\\Vivaldi\\Application\\vivaldi.exe"
+
+HKEY_CURRENT_USER\\SOFTWARE\\Clients\\StartMenuInternet\\Opera GX Stable\\shell\\open\\command
+    <NO NAME>    REG_SZ    C:\\Games\\Opera GX\\opera.exe --flag
+
+HKEY_LOCAL_MACHINE\\SOFTWARE\\Clients\\StartMenuInternet\\Unknown\\shell\\open\\command
+    (Default)    REG_SZ    "C:\\Tools\\mystery.exe"
+`;
+
+test('Windows\' list of installed browsers: every browser it names is found, told Chromium-based or Firefox by its program; unknown programs are left out', async () => {
+  const found = parseRegisteredBrowsers(REG);
+  assert.deepEqual(found.map(item => [item.id, item.family]), [['firefox', 'firefox'], ['vivaldi', 'chromium'], ['opera', 'chromium']], 'Internet Explorer and an unknown program are not offered');
+  assert.equal(found[1].exe, 'D:\\Apps\\Vivaldi\\Application\\vivaldi.exe', 'a program on another drive is found; a localized "(Standard)" value name works');
+  assert.equal(found[2].exe, 'C:\\Games\\Opera GX\\opera.exe', 'the arguments after the program are cut off');
+  assert.deepEqual(parseRegisteredBrowsers(''), []);
+  assert.deepEqual(parseRegisteredBrowsers(undefined), []);
+  const present = new Set(['C:\\Program Files\\Mozilla Firefox\\firefox.exe', 'D:\\Apps\\Vivaldi\\Application\\vivaldi.exe', path.join(env['ProgramFiles(x86)'], 'Microsoft\\Edge\\Application\\msedge.exe')]);
+  const list = await installedBrowsers({ run: async (file, args) => (args[1].startsWith('HKCU') || args[1].startsWith('HKLM\\SOFTWARE\\Clients') ? REG : ''), exists: file => present.has(file), env });
+  assert.deepEqual(list.map(item => item.id), ['firefox', 'vivaldi', 'edge'], 'listed browsers first, then the known places; a program is listed once; a file that is gone is dropped');
+  assert.deepEqual(await installedBrowsers({ run: async () => { throw new Error('no such key'); }, exists: file => file === path.join(env['ProgramFiles(x86)'], 'Microsoft\\Edge\\Application\\msedge.exe'), env }), [{ id: 'edge', family: 'chromium', exe: path.join(env['ProgramFiles(x86)'], 'Microsoft\\Edge\\Application\\msedge.exe') }], 'without the registry list the known places still work');
 });

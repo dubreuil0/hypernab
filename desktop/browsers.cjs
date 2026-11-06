@@ -24,6 +24,40 @@ function detectBrowsers({ env = process.env, exists = fs.existsSync } = {}) {
   return found;
 }
 
+// Windows keeps a list of the browsers that are installed (Settings > Default apps reads it). It names every browser, also the ones this file
+// has no install place for (Vivaldi, Opera GX, a browser on another drive...). The kind is told from the program's file name.
+const KIND_BY_PROGRAM = [
+  [/^(firefox|waterfox|librewolf|palemoon|floorp|zen)\.exe$/i, 'firefox'],
+  [/^(chrome|msedge|brave|opera|vivaldi|chromium|yandex|browser|thorium|whale|coccoc|iridium|arc|sidekick|duckduckgo)\.exe$/i, 'chromium']
+];
+const REGISTERED = ['HKLM\\SOFTWARE\\Clients\\StartMenuInternet', 'HKCU\\SOFTWARE\\Clients\\StartMenuInternet', 'HKLM\\SOFTWARE\\WOW6432Node\\Clients\\StartMenuInternet'];
+
+/** The browsers in the output of eg query <StartMenuInternet> /s: [{ id, family, exe }]; programs of an unknown kind (Internet Explorer...) are left out. */
+function parseRegisteredBrowsers(output) {
+  const found = []; let inCommand = false;
+  for (const line of String(output || '').split(/\r?\n/)) {
+    if (/^HKEY_/i.test(line.trim())) { inCommand = /\\shell\\open\\command$/i.test(line.trim()); continue; }
+    const value = inCommand && /^\s+.*?\s+REG_(?:EXPAND_)?SZ\s+(.*)$/.exec(line)?.[1]; if (!value) continue;
+    inCommand = false;
+    const exe = (/^"([^"]+)"/.exec(value.trim()) || /^(.+?\.exe)/i.exec(value.trim()))?.[1]; if (!exe) continue;
+    const name = path.win32.basename(exe), family = KIND_BY_PROGRAM.find(([pattern]) => pattern.test(name))?.[1];
+    if (family) found.push({ id: name.replace(/\.exe$/i, '').toLowerCase(), family, exe });
+  }
+  return found;
+}
+
+/** Every installed browser Hypernab can use: Windows' own list first, then the known install places; each program once, only if the file exists. */
+async function installedBrowsers({ run, exists = fs.existsSync, env = process.env }) {
+  const listed = [];
+  for (const key of REGISTERED) { try { listed.push(...parseRegisteredBrowsers(await run('reg', ['query', key, '/s']))); } catch { /* that list does not exist */ } }
+  const seen = new Set(), result = [];
+  for (const item of [...listed, ...detectBrowsers({ env, exists })]) {
+    const key = item.exe.toLowerCase(); if (seen.has(key) || !exists(item.exe)) continue;
+    seen.add(key); result.push({ id: item.id, family: item.family, exe: item.exe });
+  }
+  return result;
+}
+
 // The two store pages the app may open (the page that asks passes its address; anything else is refused).
 const STORE_PAGES = {
   chromium: /^https:\/\/chromewebstore\.google\.com\/detail\/[a-p]{32}$/,
@@ -51,10 +85,10 @@ async function defaultBrowserFamily({ run }) {
  * Same family as the default: the default browser opens it. Otherwise an installed browser of that family opens it. None installed:
  * with an unknown default the default browser is tried, else the address is copied so it can be pasted.
  */
-async function openStorePage(family, url, { defaultFamily, detect = detectBrowsers, spawn, shell, clipboard }) {
+async function openStorePage(family, url, { defaultFamily, detect = async () => detectBrowsers(), spawn, shell, clipboard }) {
   if (!STORE_PAGES[family]?.test(String(url))) throw new Error('unknown store page');
   if (defaultFamily === family) { await shell.openExternal(url); return { opened: 'default' }; }
-  const browser = detect().find(item => item.family === family);
+  const browser = (await detect()).find(item => item.family === family);
   if (browser) {
     const child = spawn(browser.exe, [url], { detached: true, stdio: 'ignore' });
     child.on?.('error', () => {}); child.unref?.();
@@ -65,4 +99,4 @@ async function openStorePage(family, url, { defaultFamily, detect = detectBrowse
   return { opened: false, copied: true };
 }
 
-module.exports = { BROWSERS, STORE_PAGES, detectBrowsers, familyOfProgId, defaultBrowserFamily, openStorePage };
+module.exports = { BROWSERS, STORE_PAGES, detectBrowsers, parseRegisteredBrowsers, installedBrowsers, familyOfProgId, defaultBrowserFamily, openStorePage };
