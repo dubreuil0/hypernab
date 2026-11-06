@@ -1,5 +1,6 @@
 export const canPause = job => ['running', 'queued'].includes(job.status);
-export const canResume = job => ['paused', 'interrupted'].includes(job.status) && !job.resumeRequested;
+// A download added for later (held) is a download that has not been started: it is resumed like a paused one.
+export const canResume = job => ['paused', 'interrupted', 'held'].includes(job.status) && !job.resumeRequested;
 export const canCancel = job => ['running', 'queued', 'held', 'paused', 'interrupted', 'failed'].includes(job.status);
 export const visibleJobs = (jobs, filter) => jobs.filter(job => filter === 'all' ||
   (filter === 'running' ? ['running', 'queued', 'held', 'paused'].includes(job.status) :

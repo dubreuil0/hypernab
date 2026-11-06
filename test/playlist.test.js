@@ -35,7 +35,7 @@ test('series flow: list, mark what is already queued, add the chosen ones to the
   const result = queue.addPlaylist({ title: listing.title, url: 'https://example.org/series', entries: listing.entries.map(({ index, title, url }) => ({ index, title, url })) });
   assert.deepEqual([result.added, result.skipped, result.failed], [2, 1, 0]);
   const added = result.ids.map(id => queue.jobs.find(job => job.id === id));
-  assert.deepEqual(added.map(job => [job.title, job.status, job.viaQueue]), [['Ada Günlükleri - S01E01', 'held', true], ['Ada Günlükleri - S01E03', 'held', true]]); // waiting, not started
+  assert.deepEqual(added.map(job => [job.title, job.status]), [['Ada Günlükleri - S01E01', 'held'], ['Ada Günlükleri - S01E03', 'held']]); // added for later: not started
   assert.throws(() => queue.addPlaylist({ entries: [] }), /seç/);
   assert.equal(queue.addPlaylist({ title: 'x', entries: [{ url: 'http://127.0.0.1/x', title: 'a' }, { url: 'nonsense', title: 'b' }] }).failed, 2);
 });

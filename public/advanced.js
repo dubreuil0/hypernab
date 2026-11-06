@@ -42,13 +42,11 @@ export function setupAdvanced(api, refreshStatus) {
       languageSelects[key] = select; copy.append(title, hint); control.append(select.el); row.append(copy, control); $('language-settings').append(row);
     }
   }
-  $('named-queue').onchange = run(() => save({ selectedQueue: $('named-queue').value }));
-  $('new-queue').onclick = run(async () => { await save({ addQueue: $('new-queue-name').value }); $('new-queue-name').value = ''; });
   $('save-speed').onclick = run(() => save({ speedLimitKiB: Math.round(Number($('speed-limit-mb').value) * 1024) }));
   $('save-schedule').onclick = run(() => {
     const at = new Date($('schedule-at').value).getTime();
     if (!Number.isFinite(at) || at <= Date.now()) throw new Error(T.t('app.err.futureTime'));
-    return post('/api/automation', { schedule: { at, queue: $('named-queue').value } });
+    return post('/api/automation', { schedule: { at } });
   });
   $('cancel-schedule').onclick = run(() => post('/api/automation', { schedule: null }));
   $('arm-power').onclick = run(() => post('/api/automation', { power: $('power-action').value || null }));
@@ -113,15 +111,12 @@ export function setupAdvanced(api, refreshStatus) {
     for (const [key, select] of Object.entries(languageSelects)) if (settings[key] && select.getValue() !== settings[key]) select.setValue(settings[key]);
     if (!loaded) { $('deep-verify').checked = settings.deepVerifyDefault; loaded = true; }
     const parts = [];
-    if (info.schedule) parts.push(T.t('app.schedule.status', { queue: info.schedule.queue === 'Genel' ? T.t('app.queue.general') : info.schedule.queue, date: new Date(info.schedule.at).toLocaleString(T.language()) }));
+    if (info.schedule) parts.push(T.t('app.schedule.status', { date: new Date(info.schedule.at).toLocaleString(T.language()) }));
     if (info.power) parts.push(info.power.deadline ? T.t(`app.power.countdown.${info.power.action === 'shutdown' ? 'shutdown' : 'sleep'}`, { s: Math.max(0, Math.ceil((info.power.deadline - Date.now()) / 1000)) }) : T.t('app.power.armed'));
     if (info.error) parts.push(info.error);
     $('automation-status').textContent = parts.join(' '); $('automation-bar').hidden = !parts.length; $('cancel-power').hidden = !info.power;
   }
   return { poll, render(queue) {
-    const select = $('named-queue');
-    if (JSON.stringify([...select.options].map(option => option.value)) !== JSON.stringify(queue.queueNames)) select.replaceChildren(...queue.queueNames.map(name => new Option(name === 'Genel' ? T.t('app.queue.general') : name, name)));
-    if (document.activeElement !== select) select.value = queue.selectedQueue;
     if (document.activeElement !== $('speed-limit-mb')) $('speed-limit-mb').value = queue.speedLimitKiB / 1024;
   } };
 }

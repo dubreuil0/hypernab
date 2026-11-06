@@ -163,8 +163,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/prefs') return json(res, 200, { interfaceLanguage: queue.interfaceLanguage(), subtitleLanguage: queue.settings.subtitleLanguage, audioLanguage: queue.settings.audioLanguage, theme: queue.settings.theme, accent: queue.settings.accent });
     if (req.method === 'GET' && url.pathname === '/api/settings') return json(res, 200, { ...queue.settings, defaults: queue.settingDefaults(), interfaceLanguageResolved: queue.interfaceLanguage(), queue: queue.queueInfo() });
     if (req.method === 'POST' && url.pathname === '/api/settings') return json(res, 200, { ...queue.setSettings(await body(req)), interfaceLanguageResolved: queue.interfaceLanguage(), queue: queue.queueInfo() });
-    if (req.method === 'POST' && url.pathname === '/api/queue/start') return json(res, 200, queue.startQueue());
-    if (req.method === 'POST' && url.pathname === '/api/queue/stop') return json(res, 200, queue.stopQueue());
+    if (req.method === 'POST' && url.pathname === '/api/queue/start') return json(res, 200, queue.resumeAll()); // older callers: "start the queue" now means "resume all"
+    if (req.method === 'POST' && url.pathname === '/api/queue/stop') return json(res, 200, queue.queueInfo()); // older callers: there is no queue to stop any more (nothing to do)
     if (req.method === 'POST' && url.pathname === '/api/queue/reorder') return json(res, 200, queue.reorder((await body(req)).ids));
     const startNow = /^\/api\/jobs\/([a-f0-9-]+)\/start-now$/.exec(url.pathname);
     if (req.method === 'POST' && startNow) return json(res, 200, queue.startNow(startNow[1]));

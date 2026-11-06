@@ -45,7 +45,7 @@
     const focus = document.activeElement?.dataset.trayJob;
     $('tray-speed').textContent = rate(state.speed);
     $('tray-counts').textContent = T('app.tray.counts', { active: state.active, queued: state.queued, paused: state.paused });
-    $('tray-extra').textContent = [state.more ? TN('app.tray.more', state.more) : '', state.held ? TN('app.tray.held', state.held) : ''].filter(Boolean).join(' ');
+    $('tray-extra').textContent = state.more ? TN('app.tray.more', state.more) : '';
     const rows = state.rows.map(job => {
       const row = document.createElement('article'); row.className = 'tray-row';
       const info = document.createElement('div'); info.className = 'tray-row-info';

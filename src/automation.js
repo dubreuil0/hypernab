@@ -15,7 +15,7 @@ export class Automation {
   constructor(queue, file, { now = Date.now, execute = powerAction } = {}) {
     this.queue = queue; this.file = file; this.now = now; this.execute = execute;
     this.schedule = null; this.power = null; this.error = null;
-    try { const saved = JSON.parse(fs.readFileSync(file, 'utf8')); if (saved.schedule?.at > now() && queue.settings.queueNames.includes(saved.schedule.queue)) this.schedule = saved.schedule; } catch {}
+    try { const saved = JSON.parse(fs.readFileSync(file, 'utf8')); if (saved.schedule?.at > now()) this.schedule = { at: saved.schedule.at }; } catch {}
     // Power actions are deliberately never restored after restart.
   }
   info() { return { schedule: this.schedule, power: this.power && { action: this.power.action, deadline: this.power.deadline }, error: this.error }; }
@@ -23,8 +23,8 @@ export class Automation {
     let schedule = this.schedule, power = this.power;
     if ('schedule' in input) {
       schedule = input.schedule;
-      if (schedule !== null && (!Number.isFinite(schedule?.at) || schedule.at <= this.now() || schedule.at > this.now() + 366 * 86400000 || !this.queue.settings.queueNames.includes(schedule.queue))) throw new Error(m('e.choose-a-future-date-and-a'));
-      if (schedule) schedule = { at: schedule.at, queue: schedule.queue };
+      if (schedule !== null && (!Number.isFinite(schedule?.at) || schedule.at <= this.now() || schedule.at > this.now() + 366 * 86400000)) throw new Error(m('e.choose-a-future-date-and-a'));
+      if (schedule) schedule = { at: schedule.at }; // an older request may still name a queue: there are none, the name is ignored
     }
     if ('power' in input) {
       if (input.power !== null && !['shutdown', 'sleep'].includes(input.power)) throw new Error(m('e.invalid-finish-action'));
@@ -40,9 +40,8 @@ export class Automation {
     this.busy = true;
     try {
       if (this.schedule && this.schedule.at <= this.now()) {
-        const name = this.schedule.queue;
         this.configure({ schedule: null }); // one-shot; consume before starting
-        this.queue.startQueue(name);
+        this.queue.resumeAll();
       }
       if (this.power) {
         const watched = this.power.ids.map(id => this.queue.jobs.find(job => job.id === id));

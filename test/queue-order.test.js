@@ -42,71 +42,74 @@ test('sıraya ekle: bekler, sıra numarası verir, kuyruk başlatılmadan hiçbi
   assert.equal(queue.active.size, 0);
 });
 
-test('Kuyruğu başlat: sınır 1 iken teker teker, sırayla; bitince kuyruk durur', async () => {
-   const { queue, gates } = fixture(test);
-   queue.setSettings({ queueLimit: 1 });
+test('Hepsini sürdür: sınır 1 iken sonra için eklenenler teker teker, sırayla başlar; sonradan eklenen yine hemen başlamaz', async () => {
+  const { queue, gates } = fixture(test);
+  queue.setSettings({ queueLimit: 1 });
   const [a, b, c] = ['a', 'b', 'c'].map(name => add(queue, name, 'queue'));
   assert.equal(queue.queueInfo().limit, 1);
-  queue.startQueue();
-  assert.deepEqual([a, b, c].map(id => status(queue, id)), ['running', 'held', 'held']);
+  assert.equal(queue.active.size, 0, 'sonra için eklenenler kendiliğinden başlamaz');
+  queue.resumeAll();
+  assert.deepEqual([a, b, c].map(id => status(queue, id)), ['running', 'queued', 'queued'], 'hepsi sürdürüldü; sınır 1: biri çalışır, diğerleri sırasını bekler');
   await finish(queue, gates, a);
-  assert.deepEqual([a, b, c].map(id => status(queue, id)), ['completed', 'running', 'held']);
+  assert.deepEqual([a, b, c].map(id => status(queue, id)), ['completed', 'running', 'queued']);
   await finish(queue, gates, b); await finish(queue, gates, c);
   assert.deepEqual([a, b, c].map(id => status(queue, id)), ['completed', 'completed', 'completed']);
-  assert.equal(queue.queueInfo().running, false, 'liste bitince kuyruk durur; sonradan eklenenler beklemeye devam eder');
   const late = add(queue, 'late', 'queue');
-  assert.equal(status(queue, late), 'held');
+  assert.equal(status(queue, late), 'held', 'listeyi bitirmek sonradan eklenenleri başlatmaz: "sonra için" yalnızca hemen başlamaz');
 });
 
 test('sınır ayarı: azaltınca fazla çalışan bekler, Hepsi ile kalanlar başlar', async () => {
   const { queue, gates } = fixture(test);
   const ids = ['a', 'b', 'c', 'd'].map(name => add(queue, name, 'queue'));
-  queue.setSettings({ queueLimit: 2 }); queue.startQueue();
-  assert.deepEqual(ids.map(id => status(queue, id)), ['running', 'running', 'held', 'held']);
+  queue.setSettings({ queueLimit: 2 }); queue.resumeAll();
+  assert.deepEqual(ids.map(id => status(queue, id)), ['running', 'running', 'queued', 'queued']);
   queue.setSettings({ queueLimit: 1 });
   assert.equal(status(queue, ids[1]), 'queued', 'fazla çalışan güvenle duraklatılıp otomatik devam için bekler');
   await wait(20);
   assert.equal(queue.active.size, 1);
   await finish(queue, gates, ids[0]);
-  assert.deepEqual(ids.map(id => status(queue, id)), ['completed', 'running', 'held', 'held'], 'sınır 1: ikinci biterken yeni başlamaz');
+  assert.deepEqual(ids.map(id => status(queue, id)), ['completed', 'running', 'queued', 'queued'], 'sınır 1: ikinci biterken yeni başlamaz');
   queue.setSettings({ queueLimit: 'all' });
   assert.deepEqual(ids.map(id => status(queue, id)), ['completed', 'running', 'running', 'running'], 'Hepsi: kalanların hepsi birden başlar');
 });
 
-test('genel sınır kuyruk ve direkt indirmelerin toplamına uygulanır', () => {
+test('genel sınır sonra eklenenlerle direkt indirmelerin toplamına uygulanır', () => {
   const { queue } = fixture(test);
   queue.setSettings({ queueLimit: 1 });
-  add(queue, 'q1', 'queue'); add(queue, 'q2', 'queue'); queue.startQueue();
+  add(queue, 'q1', 'queue'); add(queue, 'q2', 'queue'); queue.resumeAll();
   const direct = ['x', 'y', 'z'].map(name => add(queue, name));
   assert.ok(direct.every(id => status(queue, id) === 'queued'));
-  assert.equal(queue.active.size, 1, 'kuyruk ve direkt işler tek bütçeyi paylaşır');
+  assert.equal(queue.active.size, 1, 'tek bütçe: hepsi aynı sınırı paylaşır');
 });
 
-test('Şimdi başlat, yeniden sırala ve sıradaki işi iptal et', () => {
+test('Sürdür tek bir indirmeyi başlatır; Duraklat bekleyene dokunmaz; Şimdi başlat, yeniden sırala ve iptal', () => {
   const { queue } = fixture(test);
   const [a, b, c] = ['a', 'b', 'c'].map(name => add(queue, name, 'queue'));
   queue.reorder([c, a]);
   assert.deepEqual(queue.jobs.map(job => job.id), [c, a, b]);
-  queue.startNow(b); assert.equal(status(queue, b), 'running');
-  assert.deepEqual(queue.heldJobs().map(job => job.id), [c, a]);
+  assert.deepEqual(queue.batch('pause', { all: true }), { changed: 0, skipped: 3 }, 'duraklat, henüz başlamamış indirmelere dokunmaz');
+  queue.resume(b); assert.equal(status(queue, b), 'running', 'Sürdür, sonra için eklenen indirmeyi de başlatır');
+  queue.startNow(c); assert.equal(status(queue, c), 'running', 'eski "şimdi başlat" yolu çalışır');
+  assert.deepEqual(queue.jobs.filter(job => job.status === 'held').map(job => job.id), [a]);
   queue.cancel(a); assert.equal(status(queue, a), 'cancelled');
-  assert.throws(() => queue.startNow(a), /sırada değil/);
+  assert.throws(() => queue.startNow(a), /sırada değil|sirada degil|not in the queue/i);
 });
 
-test('ayarlar doğrulanır ve kalıcıdır; kuyruk durumu yeniden başlatmada durmuş döner, sıra korunur', () => {
+test('ayarlar doğrulanır ve kalıcıdır; bekleyenler yeniden başlatmada bekler, sıra korunur', () => {
   const { queue, root } = fixture(test);
-  assert.throws(() => queue.setSettings({ queueLimit: 7 }), /1 ile 6/);
-  assert.throws(() => queue.setSettings({ queueLimit: 0 }), /1 ile 6/);
-  assert.throws(() => queue.setSettings({ queueLimit: 'many' }), /Hepsi/);
-  assert.throws(() => add(queue, 'bad', 'later'), /geçersiz/);
+  assert.throws(() => queue.setSettings({ queueLimit: 7 }), /1 ile 6|1 and 6/);
+  assert.throws(() => queue.setSettings({ queueLimit: 0 }), /1 ile 6|1 and 6/);
+  assert.throws(() => queue.setSettings({ queueLimit: 'many' }), /Hepsi|All/);
+  assert.throws(() => add(queue, 'bad', 'later'), /geçersiz|Invalid/i);
   const a = add(queue, 'a', 'queue'), b = add(queue, 'b', 'queue');
-  queue.setSettings({ queueLimit: 3 }); queue.startQueue(); queue.stopQueue();
+  queue.setSettings({ queueLimit: 3 });
   const again = new DownloadQueue({ directory: path.join(root, 'downloads'), stateFile: path.join(root, 'queue.json'), toolsDirectory: path.join(root, 'tools') });
   again.run = () => new Promise(() => {}); // never let a downloaded job proceed in this check
   assert.equal(again.settings.queueLimit, 3);
-  assert.equal(again.queueInfo().running, false);
   assert.deepEqual(again.jobs.map(job => job.id), [a, b], 'sıra yeniden başlatmada aynı');
+  assert.deepEqual(again.jobs.map(job => job.status), ['held', 'held'], 'sonra için eklenenler yeniden açılışta kendiliğinden başlamaz');
   assert.equal(again.active.size, 0);
+  assert.deepEqual(Object.keys(again.queueInfo()).sort(), ['limit', 'speedLimitKiB'], 'kuyruk durumu diye bir şey kalmadı');
   again.stop();
 });
 

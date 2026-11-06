@@ -204,14 +204,13 @@ export class DownloadQueue {
     this.settingsFile = `${stateFile}.settings.json`;
     this.locale = locale ?? process.env.HYPERNAB_LOCALE ?? ''; // the language of Windows, which 'auto' interface language follows; tests pass their own
     this.defaultAutoRetries = autoRetries;
-    this.settings = { queueLimit: 'all', queueNames: ['Genel'], selectedQueue: 'Genel', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
+    this.settings = { queueLimit: 'all', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
     try {
       const saved = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
       for (const [key, check] of Object.entries(SETTING_CHECKS)) if (key in saved && check(saved[key]) === true) this.settings[key] = saved[key];
       if (saved.queueLimit === 'all' || saved.queueLimitEnabled === false) this.settings.queueLimit = 'all'; // older files: "limit off" means all
       else if (Number.isInteger(saved.queueLimit) && saved.queueLimit >= 1 && saved.queueLimit <= 6) this.settings.queueLimit = saved.queueLimit;
-      if (Array.isArray(saved.queueNames) && saved.queueNames.length && saved.queueNames.length <= 20 && saved.queueNames.every(name => typeof name === 'string' && name.trim() && name.length <= 40)) this.settings.queueNames = [...new Set(['Genel', ...saved.queueNames])];
-      if (this.settings.queueNames.includes(saved.selectedQueue)) this.settings.selectedQueue = saved.selectedQueue;
+      // Older files also hold named queues (queueNames / selectedQueue): there are none any more, those fields are simply not read.
       if (Number.isInteger(saved.speedLimitKiB) && saved.speedLimitKiB >= 0 && saved.speedLimitKiB <= 1048576) this.settings.speedLimitKiB = saved.speedLimitKiB;
       // The default is back to embedding only: no extra file next to the video, the track shows in the player's subtitle menu. A file still holding the
       // earlier default (embed + side .srt) moves over once; a later deliberate choice is kept.
@@ -220,8 +219,6 @@ export class DownloadQueue {
       if (!('extensionPromptDone' in saved)) this.settings.extensionPromptDone = true;
     } catch { /* defaults: one at a time */ }
     setMessageLanguage(this.interfaceLanguage());
-    this.queueRunning = false;
-    this.runningQueue = null;
     this.limiters = new Map();
     for (const job of this.jobs) if (job.status === 'cancelled') this.discardPartial(job); // pieces left by versions that kept them
   }
@@ -370,7 +367,7 @@ export class DownloadQueue {
       this.meter(job).stage('pausing');
       this.active.get(job.id)?.abort(); return true;
     }
-    if (action === 'resume' && ['paused', 'interrupted'].includes(job.status) && !job.resumeRequested) {
+    if (action === 'resume' && ['paused', 'interrupted', 'held'].includes(job.status) && !job.resumeRequested) {
       job.error = null; job.speed = 0;
       if (this.active.has(job.id)) job.resumeRequested = true;
       else job.status = 'queued';
@@ -649,7 +646,6 @@ export class DownloadQueue {
       status: toQueue ? 'held' : 'queued', received: 0, total: null, speed: 0, createdAt: new Date().toISOString(), error: null, file: null
     };
     if (nativeHls) { job.total = this.hlsEstimate(job, this.cachedSelection(job) || {}); job.sizeKind = job.total ? 'approx' : 'unknown'; }
-    if (toQueue) { job.viaQueue = true; job.queueName = this.settings.selectedQueue; }
     fs.mkdirSync(job.directory, { recursive: true });
     // Cookies are only taken from the inspection the user just made for this exact URL (never from the request body).
     const session = this.offered.get(url);
@@ -1000,9 +996,7 @@ export class DownloadQueue {
   pump() {
     if (this.stopping) return;
     const limit = Math.min(this.concurrency, this.settings.queueLimit === 'all' ? Infinity : this.settings.queueLimit);
-    const ready = this.jobs.filter(job => ['running', 'queued'].includes(job.status) ||
-      (job.status === 'paused' && job.resumeRequested) ||
-      (job.status === 'held' && this.queueRunning && (job.queueName || 'Genel') === this.runningQueue));
+    const ready = this.jobs.filter(job => ['running', 'queued'].includes(job.status) || (job.status === 'paused' && job.resumeRequested));
     const desired = new Set(ready.slice(0, limit));
     let changed = false;
     for (const job of this.jobs) {
@@ -1014,30 +1008,16 @@ export class DownloadQueue {
     for (const job of desired) {
       if (this.active.has(job.id) || job.status === 'running') continue;
       if (this.active.size >= limit) break;
-      if (job.status === 'held') job.viaQueue = true;
       job.resumeRequested = false; this.launch(job); changed = true;
     }
-    if (this.queueRunning && !this.heldJobs(this.runningQueue).length) { this.queueRunning = false; this.runningQueue = null; }
     if (changed) this.save();
   }
 
-  heldJobs(name = this.settings.selectedQueue) { return this.jobs.filter(job => job.status === 'held' && (job.queueName || 'Genel') === name); } // in list order
-
-  queueInfo() {
-    return { running: this.queueRunning, limit: this.settings.queueLimit, waiting: this.jobs.filter(job => job.status === 'queued' || (job.status === 'paused' && job.resumeRequested)).length, held: this.heldJobs(this.settings.selectedQueue).length, selectedQueue: this.settings.selectedQueue, runningQueue: this.runningQueue, queueNames: this.settings.queueNames, speedLimitKiB: this.settings.speedLimitKiB };
-  }
+  // What the app window needs to know about how many run at once and how fast.
+  queueInfo() { return { limit: this.settings.queueLimit, speedLimitKiB: this.settings.speedLimitKiB }; }
 
   setSettings(input = {}) {
     const next = { ...this.settings };
-    if (input.addQueue !== undefined) {
-      if (typeof input.addQueue !== 'string' || !input.addQueue.trim() || input.addQueue.trim().length > 40 || /[\x00-\x1f]/.test(input.addQueue) || next.queueNames.length >= 20) throw new Error(m('e.the-queue-name-must-be-1'));
-      next.queueNames = [...new Set([...next.queueNames, input.addQueue.trim()])];
-      next.selectedQueue = input.addQueue.trim();
-    }
-    if (input.selectedQueue !== undefined) {
-      if (!next.queueNames.includes(input.selectedQueue)) throw new Error(m('e.queue-not-found'));
-      next.selectedQueue = input.selectedQueue;
-    }
     if (input.speedLimitKiB !== undefined) {
       if (!Number.isInteger(input.speedLimitKiB) || input.speedLimitKiB < 0 || input.speedLimitKiB > 1048576) throw new Error(m('e.the-speed-limit-must-be-0'));
       next.speedLimitKiB = input.speedLimitKiB;
@@ -1077,17 +1057,13 @@ export class DownloadQueue {
     }
   }
 
-  startQueue(name = this.settings.selectedQueue) {
-    if (!this.settings.queueNames.includes(name)) throw new Error(m('e.queue-not-found'));
-    if (this.queueRunning && this.runningQueue !== name) throw new Error(m('e.stop-the-running-queue-first'));
-    this.runningQueue = name; this.queueRunning = this.heldJobs(name).length > 0; this.pump(); return this.queueInfo();
-  }
-  stopQueue() { this.queueRunning = false; this.runningQueue = null; return this.queueInfo(); } // running downloads continue; nothing new starts from the queue
+  /** "Resume all": every paused, interrupted or added-for-later download goes on (the simultaneous limit then decides how many run). */
+  resumeAll() { this.batch('resume', { all: true }); return this.queueInfo(); }
 
   startNow(id) {
     const job = this.jobs.find(j => j.id === id);
     if (!job || job.status !== 'held') throw new Error(m('e.this-download-is-not-in-the'));
-    job.status = 'queued'; job.viaQueue = false;
+    job.status = 'queued';
     this.save(); this.pump();
     return { ok: true };
   }

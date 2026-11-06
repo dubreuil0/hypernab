@@ -92,7 +92,7 @@
           <div class="preview-head"><span class="tile"><svg class="ic"><use href="#i-list"/></svg></span><div><h3 id="playlist-title"></h3><p id="playlist-facts"></p></div></div>
           <label class="check"><input type="checkbox" id="playlist-all"><span data-i18n="app.selectAll">Select all</span></label>
           <div id="playlist-items" class="playlist-items" role="group" aria-label="Episodes" data-i18n-aria="app.episodes"></div>
-          <p class="hint" data-i18n="app.episodes.hint">Selected episodes are queued like “Add for later”; names are edited as “Series - S01E03 - Title”. They download one after another when you start the queue.</p>
+          <p class="hint" data-i18n="app.episodes.hint">Selected episodes are added for later; names are edited as “Series - S01E03 - Title”. They start when you resume them.</p>
           <div class="row-actions">
             <button id="playlist-add" class="btn primary"><svg class="ic"><use href="#i-later"/></svg><span data-i18n="app.addSelected">Add selected to the queue</span></button>
             <button id="playlist-close" class="btn ghost"><svg class="ic"><use href="#i-x"/></svg><span data-i18n="app.dismiss">Cancel</span></button>
@@ -108,12 +108,8 @@
 <span class="stat"><span class="stat-label" data-i18n="app.totalSpeed">Total speed</span> <strong id="stat-speed">0 <small>B/s</small></strong></span>
 <span class="stat"><span class="stat-label" data-i18n="app.filter.completed">Completed</span> <strong id="stat-complete">0</strong></span>
 </p>
+<label class="field inline queue-limit-field" title="The most downloads that run at the same time. All downloads share this number." data-i18n-title="app.concurrent.hint"><span data-i18n="app.concurrent">At the same time</span><span class="select"><select id="queue-limit" aria-label="At the same time" data-i18n-aria="app.concurrent"><option value="all" data-i18n="app.all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><svg class="ic"><use href="#i-chevron"/></svg></span></label>
 </div>
-<div class="queue-bar card flat" role="group" aria-label="Queue" data-i18n-aria="app.queue">
-          <span class="queue-state"><svg class="ic muted"><use href="#i-list"/></svg><span id="queue-run-state" data-i18n="app.queue.empty">Queue is empty</span></span>
-          <label class="field inline"><span data-i18n="app.concurrent">At the same time</span><span class="select"><select id="queue-limit"><option value="all" data-i18n="app.all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
-          <button id="queue-toggle" class="btn sm"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="app.queue.start">Start the queue</span></button>
-        </div>
         <div id="automation-bar" class="notice" hidden><svg class="ic"><use href="#i-clock"/></svg><span id="automation-status"></span><button class="btn sm ghost" id="cancel-power" hidden data-i18n="app.cancelFinish">Cancel the finish action</button></div>
         <div class="list-actions" role="toolbar" aria-label="List actions" data-i18n-aria="app.act.toolbar">
 <div class="select-group">
@@ -175,7 +171,7 @@
         <nav class="settings-nav" aria-label="Settings sections" data-i18n-aria="app.settings.sections">
           <a href="#s-appearance"><svg class="ic"><use href="#i-monitor"/></svg><span data-i18n="app.general">General</span></a>
           <a href="#s-download"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="app.dl">Download</span></a>
-          <a href="#s-queue"><svg class="ic"><use href="#i-list"/></svg><span data-i18n="app.queueSchedule">Queue and schedule</span></a>
+          <a href="#s-schedule"><svg class="ic"><use href="#i-list"/></svg><span data-i18n="app.scheduleSection">Schedule</span></a>
           <a href="#s-desktop" id="nav-desktop" hidden><svg class="ic"><use href="#i-monitor"/></svg><span data-i18n="app.desktop">Desktop</span></a>
                     <a href="#s-about"><svg class="ic"><use href="#i-info"/></svg><span data-i18n="app.enginesAbout">Engines and about</span></a>
         </nav>
@@ -223,10 +219,8 @@
 </div>
 </details>
           </section>
-          <section class="group" id="s-queue"><h2 data-i18n="app.queueSchedule">Queue and schedule</h2>
-            <div class="setting wide"><div><strong data-i18n="app.laterTarget">“Add for later” target</strong><p class="hint" data-i18n="app.laterTarget.hint">Downloads added for later wait in this queue.</p></div>
-              <div class="setting-control stack"><span class="select"><select id="named-queue"></select><svg class="ic sm"><use href="#i-chevron"/></svg></span><div class="toolbar"><input class="input" id="new-queue-name" maxlength="40" placeholder="New queue name" data-i18n-placeholder="app.queue.new.placeholder"><button class="btn sm" id="new-queue" data-i18n="app.add">Add</button></div></div></div>
-            <div class="setting wide"><div><strong data-i18n="app.scheduler">Scheduler</strong><p class="hint" data-i18n="app.scheduler.hint">Starts the selected queue at the time you set. The app and the computer must be on.</p></div>
+          <section class="group" id="s-schedule"><h2 data-i18n="app.scheduleSection">Schedule</h2>
+            <div class="setting wide"><div><strong data-i18n="app.scheduler">Start at a set time</strong><p class="hint" data-i18n="app.scheduler.hint">At the time you set, every paused download and every one added for later starts, within the simultaneous-downloads limit. The app and the computer must be on.</p></div>
               <div class="setting-control stack"><input class="input" id="schedule-at" type="datetime-local"><div class="toolbar"><button class="btn sm" id="save-schedule"><svg class="ic"><use href="#i-clock"/></svg><span data-i18n="app.schedule">Schedule</span></button><button class="btn sm ghost" id="cancel-schedule" data-i18n="app.remove">Remove</button></div></div></div>
             <div class="setting"><div><strong data-i18n="app.whenDone">When downloads finish</strong><p class="hint" data-i18n="app.whenDone.hint">Applies when all current downloads finish successfully; there is a 60-second window to cancel first. It is cancelled on an error or a pause.</p></div>
               <div class="setting-control stack"><span class="select"><select id="power-action"><option value="" data-i18n="app.power.none">Do nothing</option><option value="shutdown" data-i18n="app.power.shutdown">Shut down the computer</option><option value="sleep" data-i18n="app.power.sleep">Put to sleep</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span><button class="btn sm" id="arm-power"><svg class="ic"><use href="#i-power"/></svg><span data-i18n="app.apply">Apply</span></button></div></div>

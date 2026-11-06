@@ -13,28 +13,35 @@ function fixture(t) {
   t.after(() => { queue.stop(); fs.rmSync(dir, { recursive: true, force: true }); });
   return { queue, file: path.join(dir, 'automation.json') };
 }
-test('named queues start only their own waiting jobs and retain row order', t => {
+test('"add for later" is a download not started yet: Resume all starts every one of them in list order, nothing else changes', t => {
   const { queue } = fixture(t), launches = [];
   queue.launch = job => { launches.push(job.id); job.status = 'completed'; };
   const a = queue.add({ url: 'https://example.org/a', engine: 'direct', start: 'queue' });
-  queue.setSettings({ addQueue: 'Videos' });
   const b = queue.add({ url: 'https://example.org/b', engine: 'direct', start: 'queue' });
-  queue.startQueue(); assert.deepEqual(launches, [b]);
-  assert.equal(queue.jobs[0].status, 'held'); assert.deepEqual(queue.jobs.map(job => job.id), [a, b]);
-  queue.setSettings({ selectedQueue: 'Genel' }); queue.startQueue(); assert.deepEqual(launches, [b, a]);
-  assert.throws(() => queue.setSettings({ selectedQueue: 'unknown' }));
+  const c = queue.add({ url: 'https://example.org/c', engine: 'direct', start: 'queue' });
+  assert.deepEqual(queue.jobs.map(job => job.status), ['held', 'held', 'held']); assert.deepEqual(launches, [], 'nothing starts by itself');
+  assert.deepEqual(queue.batch('pause', { all: true }), { changed: 0, skipped: 3 }, 'pausing leaves what has not started alone');
+  queue.resumeAll();
+  assert.deepEqual(launches, [a, b, c]); assert.deepEqual(queue.jobs.map(job => job.id), [a, b, c], 'row order never changes');
   assert.throws(() => queue.setSettings({ speedLimitKiB: -1 }));
+  queue.setSettings({ addQueue: 'Videos', selectedQueue: 'Videos' }); // a window of an older version may still send these: there are no named queues, nothing breaks
+  assert.equal('queueNames' in queue.settings, false); assert.equal('selectedQueue' in queue.settings, false);
 });
-test('scheduler fires once; future schedules survive restart but missed schedules do not', async t => {
+test('scheduler fires once (Resume all at the time); future schedules survive restart but missed schedules do not; an older file naming a queue still loads', async t => {
   const { queue, file } = fixture(t); let now = 1000, calls = 0;
-  queue.startQueue = name => { assert.equal(name, 'Genel'); calls++; };
+  queue.resumeAll = () => { calls++; };
   const options = { now: () => now, execute: () => assert.fail('No real power action') };
   const automation = new Automation(queue, file, options);
-  automation.configure({ schedule: { at: 2000, queue: 'Genel' } });
+  assert.deepEqual(automation.configure({ schedule: { at: 2000, queue: 'Genel' } }).schedule, { at: 2000 }, 'a named queue in the request is ignored');
   assert.equal(new Automation(queue, file, options).info().schedule.at, 2000);
+  fs.writeFileSync(file, JSON.stringify({ schedule: { at: 5000, queue: 'Videos' } })); // written by an older version
+  assert.deepEqual(new Automation(queue, file, options).info().schedule, { at: 5000 }, 'older file: the queue name is dropped, the time is kept');
+  automation.configure({ schedule: { at: 2000 } });
   await automation.tick(); assert.equal(calls, 0);
   now = 2100; assert.equal(new Automation(queue, file, options).info().schedule, null);
   await automation.tick(); await automation.tick(); assert.equal(calls, 1);
+  assert.throws(() => automation.configure({ schedule: { at: 100 } }), /./, 'a time in the past is refused');
+  assert.throws(() => automation.configure({ schedule: { at: 'soon' } }), /./);
 });
 test('power action waits for verified success and countdown; cancel and restart disarm it', async t => {
   const { queue, file } = fixture(t); let now = 0, calls = [];

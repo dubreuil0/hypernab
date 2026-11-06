@@ -12,13 +12,14 @@ test('tray summary is bounded, ignores stale speeds and never exposes source/ses
   const order = jobs.map(job => job.id);
   const view = traySnapshot(jobs, { theme: 'light', accent: 'violet', textSize: 'large', token: 'secret' });
   assert.equal(view.speed, 300); assert.equal(view.active, 3); assert.equal(view.queued, 1);
-  assert.equal(view.held, 1); assert.equal(view.paused, 3); assert.equal(view.rows.length, 5); assert.equal(view.more, 2);
+  assert.equal(view.held, undefined, 'added for later is no separate count: it is paused'); assert.equal(view.paused, 4, 'paused + interrupted + added for later'); assert.equal(view.rows.length, 5); assert.equal(view.more, 3);
   assert.deepEqual(view.rows.map(row => row.status), ['running', 'running', 'running', 'queued', 'paused']);
   assert.deepEqual(jobs.map(job => job.id), order, 'real queue priority never changes');
   assert.ok(!/secret|private-cookie|private-path|private-file|https:/.test(JSON.stringify(view)));
   assert.equal(traySnapshot([{ status: 'running', speed: NaN }, { status: 'running', speed: -1 }]).speed, 0);
   assert.equal(traySnapshot([{ status: 'paused', resumeRequested: true }]).canResume, false);
-  assert.equal(traySnapshot([{ status: 'held' }]).canResume, false);
+  assert.equal(traySnapshot([{ status: 'held' }]).canResume, true, 'a download added for later is resumed like a paused one');
+  assert.equal(traySnapshot([{ status: 'held', title: 'a' }]).rows[0].status, 'paused');
 });
 
 test('tray bounds stay inside work area on top/bottom/side taskbars and negative-coordinate screens', () => {

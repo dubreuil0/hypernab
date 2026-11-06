@@ -88,6 +88,18 @@ async function run(name, launch) {
     await ev(`document.querySelector('#jobs [data-job-action$="-retry"]').click()`); await sleep(500);
     check(name, '"Try again" asks the engine to retry that download', /^\/api\/jobs\/00000000-0000-4000-8000-000000000005\/retry$/.test((await calls()).at(-1)?.[0] || ''), JSON.stringify(await calls()));
     await reset();
+    // ---------- no queue: "At the same time" sits in the header, a download added for later is a paused one (Resume starts it), Settings has a Schedule
+    check(name, 'no queue row, no start/stop button, no named queues; "At the same time" is in the header', await ev(`(() => !document.querySelector('.queue-bar') && !document.getElementById('queue-toggle') && !document.getElementById('named-queue') && Boolean(document.querySelector('.queue-head #queue-limit')))()`));
+    const resumable = await ev(`[...document.querySelectorAll('#jobs [data-job-action$="-resume"]')].map(b => b.closest('.job').querySelector('.job-title').textContent)`);
+    check(name, 'a paused row and the added-for-later row both offer Resume (no separate "Start now")', JSON.stringify(resumable) === '["File 3","File 6"]' && (await ev(`document.querySelectorAll('#jobs [data-job-action$="-start-now"]').length`)) === 0, JSON.stringify(resumable));
+    await act(`document.querySelectorAll('#jobs .job input[type=checkbox]')[5].click();`); await sleep(300);
+    check(name, 'selecting only the added-for-later row: "Resume (1)" is on', (await text('act-resume-label')) === 'Resume (1)' && !(await state('act-resume')).disabled, await text('act-resume-label'));
+    await ev(`document.getElementById('act-resume').click()`); await sleep(500);
+    check(name, 'Resume on it asks the engine to resume exactly that download', (await calls()).at(-1)?.[1]?.ids?.length === 1 && (await calls()).at(-1)?.[1]?.action === 'resume', JSON.stringify((await calls()).at(-1)));
+    await reset();
+    await ev(`document.getElementById('open-settings').click()`); await sleep(500);
+    check(name, 'Settings has "Schedule" (time + finish action) and no queue targets', await ev(`(() => Boolean(document.getElementById('s-schedule') && document.getElementById('schedule-at') && document.getElementById('power-action')) && !document.getElementById('new-queue') && !document.getElementById('new-queue-name') && !document.querySelector('a[href="#s-queue"]'))()`));
+    await ev(`document.getElementById('close-settings').click()`); await sleep(300);
     // ---------- one row on a wide window: the select box, the buttons and the search sit on one line
     const geo = await ev(`(() => { const y = id => Math.round(document.getElementById(id).getBoundingClientRect().y); return { select: y('select-all'), pause: y('act-pause'), search: y('list-search'), width: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()`);
     check(name, 'select box, action buttons and search are on one line and the page does not scroll sideways', Math.abs(geo.select - geo.pause) < 14 && Math.abs(geo.pause - geo.search) < 18 && geo.width <= 1, JSON.stringify(geo));

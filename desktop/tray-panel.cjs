@@ -2,21 +2,23 @@ const { t } = require('./texts.cjs');
 const path = require('node:path');
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const pauseable = job => ['running', 'queued'].includes(job.status);
-const resumable = job => ['paused', 'interrupted'].includes(job.status) && !job.resumeRequested;
+// A download added for later (held) is just one that has not been started: for the panel it is a paused one.
+const resumable = job => ['paused', 'interrupted', 'held'].includes(job.status) && !job.resumeRequested;
 const speed = job => job.status === 'running' && Number.isFinite(job.speed) && job.speed > 0 ? job.speed : 0;
 
 // At most five rows; no URLs, headers, cookies or file paths cross this bridge.
 function traySnapshot(jobs, appearance = {}) {
   const wanted = ['running', 'queued', 'paused', 'interrupted'];
-  const rows = jobs.filter(job => wanted.includes(job.status));
-  rows.sort((a, b) => wanted.indexOf(a.status) - wanted.indexOf(b.status));
+  const shown = job => (job.status === 'held' ? 'paused' : job.status);
+  const rows = jobs.filter(job => wanted.includes(shown(job)));
+  rows.sort((a, b) => wanted.indexOf(shown(a)) - wanted.indexOf(shown(b)));
   return {
     connected: true, active: jobs.filter(job => job.status === 'running').length,
     queued: jobs.filter(job => job.status === 'queued').length,
-    paused: jobs.filter(resumable).length, held: jobs.filter(job => job.status === 'held').length,
+    paused: jobs.filter(resumable).length,
     speed: jobs.reduce((sum, job) => sum + speed(job), 0),
     canPause: jobs.some(pauseable), canResume: jobs.some(resumable), more: Math.max(0, rows.length - 5),
-    rows: rows.slice(0, 5).map(job => ({ id: job.id, title: String(job.title === 'video' ? job.host || 'Video' : job.title || 'Video').slice(0, 140), status: job.status, speed: speed(job), canPause: pauseable(job), canResume: resumable(job) })),
+    rows: rows.slice(0, 5).map(job => ({ id: job.id, title: String(job.title === 'video' ? job.host || 'Video' : job.title || 'Video').slice(0, 140), status: shown(job), speed: speed(job), canPause: pauseable(job), canResume: resumable(job) })),
     appearance: {
       theme: ['dark', 'light', 'system'].includes(appearance.theme) ? appearance.theme : 'dark',
       accent: ['green', 'blue', 'orange', 'violet'].includes(appearance.accent) ? appearance.accent : 'green',

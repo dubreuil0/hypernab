@@ -135,7 +135,7 @@ async function run(name, open) {
     if (segmented) check(name, 'kalite seçimi gerçek HLS kaynağına uygulanıp doğrulandı', Boolean(job?.formatId) && job?.media?.height > 0, `(${job?.formatId}, ${job?.media?.height}p)`);
     const file = job?.file && path.join(dir, 'downloads', job.file);
     check(name, 'dosya diskte ve boş değil', Boolean(file) && fs.existsSync(file) && fs.statSync(file).size > 10000, file ? `(${fs.existsSync(file) ? fs.statSync(file).size : 0} bayt)` : '');
-    // Second: "Sıraya ekle" waits (no download), "Kuyruğu başlat" then runs it.
+    // Second: "Sonra ekle" waits (no download), then "Hepsini sürdür" (/api/queue/start) runs it.
     await browser.navigate(tab, pageUrl); await browserUntil(async () => Boolean(await browser.eval(tab, barBox)), 30000); await wait(6000);
     const closed2 = await browser.eval(tab, barBox);
     await browser.click(tab, closed2.l + 18, Math.round((closed2.t + closed2.b) / 2)); await wait(2500);
@@ -154,7 +154,7 @@ async function run(name, open) {
     const started = await call('/api/queue/start', {});
     await browserUntil(async () => { const list = await ownJobs(); return list.every(item => ['completed', 'failed'].includes(item.status)); }, 90000).catch(() => {});
     const final = await ownJobs();
-    check(name, 'Kuyruğu başlat: bekleyen iş indi', final.length === 2 && final.every(item => item.status === 'completed') && started.limit === 'all' && final[0].id === afterQueue[0].id, `(${final.map(item => item.status).join(',')})`);
+    check(name, 'Hepsini sürdür: sonra eklenen iş indi', final.length === 2 && final.every(item => item.status === 'completed') && started.limit === 'all' && final[0].id === afterQueue[0].id, `(${final.map(item => item.status).join(',')})`);
   } finally { await browser.close(); }
 }
 

@@ -11,7 +11,7 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera
 - **Hızlı indirme:** parçalı ve uyarlanabilir bağlantı sayısıyla indirme, kaldığı yerden devam, hız sınırı (çalışan indirmeye de anında uygulanır).
 - **İstediğin her dosya:** tarayıcıda bir bağlantıya sağ tıkla ve **Hypernab ile indir**'i seç, ya da bağlantıları uygulamaya yapıştır (**Birden çok bağlantı ekle**, ya da isteğe bağlı pano önerisi). Dosya gerçek adıyla kaydedilir, parçalara bölünerek hızlandırılır, boyutu ve yapısı (zip, pdf, program, resim...) doğrulanır ve Windows'un "internetten indirildi" işareti eklenir. Hypernab tarayıcının kendi indirmelerini arkandan devralmaz.
 
-- **Kuyruk:** adlandırılmış kuyruklar, zamanlama, sürükleyerek sıralama, genel eşzamanlılık sınırı, "Sonra ekle".
+- **İndirme listesi:** zamanlama (belirlediğin saatte hepsini sürdür), sürükleyerek sıralama, aynı anda kaç indirme çalışacağına genel sınır ve "Sonra ekle" (yalnızca hemen başlamayan indirme; Sürdür onu duraklatılmış gibi başlatır).
 - **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir. HLS indirmelerinde duraklatma, yeniden başlatma ve yeniden deneme bitmiş parçaları korur; yalnızca eksikler indirilir.
 - **Akışlar:** HLS ve ayrı görüntü/ses akışları FFmpeg ile birleştirilir; sonuç ffprobe ile doğrulanır.
 - **Alt yazı:** oynatıcıdan veya akıştan yakalanan alt yazı videoya gömülür ve varsayılan alt yazı ayrıca aynı adla `.srt` olarak yanına yazılır; böylece VLC, Media Player ve Films & TV kendiliğinden gösterir. Adı olmayan alt yazı dosyalarının dili 30 dilde içindeki kelimelerden anlaşılır; eski kod sayfalarındaki dosyalar (Windows-125x, GBK, Shift_JIS, EUC-KR, Big5, UTF-16...) doğru okunur. Ayarlar'dan yalnız gömme, yalnız yan dosya ya da kapalı seçilebilir.
@@ -52,7 +52,7 @@ Masaüstü uygulamasında aynı bölüm, bilgisayarda bulunan her desteklenen ta
 Uygulama açıldıktan kısa süre sonra yeni sürüm olup olmadığına bir kez bakar. Tepsi menüsündeki **Güncellemeleri denetle** ile elle de denetleyebilirsin.
 
 - Yeni sürüm **sen onaylamadan indirilmez**.
-- Kurulum **aktif indirme yokken** önerilir; kapatmadan önce motor güvenle durdurulur, kuyruk ve ayarlar korunur.
+- Kurulum **aktif indirme yokken** önerilir; kapatmadan önce motor güvenle durdurulur, indirme listesi ve ayarlar korunur.
 - Paket sürüm sayfasından alınır ve SHA-512 özetiyle doğrulanır.
 
 ## Gizlilik ve güvenlik

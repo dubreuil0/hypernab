@@ -14,8 +14,6 @@ let lastPicked = null; // the row whose checkbox was used last (Shift + click se
 const expandedJobs = new Set();
 let queueBusy = false, pendingQueueCommand = null;
 const $ = id => document.getElementById(id);
-let selectedQueueName = 'Genel'; // the default queue's stored name is data; it is shown translated
-const queueLabel = name => (!name || name === 'Genel' ? T('app.queue.general') : name);
 let dragging = null;
 const advanced = setupAdvanced(api, status);
 const fmt = value => {
@@ -46,7 +44,7 @@ function icon(name) {
   const use = document.createElementNS(svg.namespaceURI, 'use'); use.setAttribute('href', `#i-${name}`); svg.append(use); return svg;
 }
 // Every action uses the shared SVG sprite, including text buttons in settings and confirmation dialogs.
-const buttonIcons = { 'add-button': 'download', 'close-preview': 'x', 'deselect-all': 'x', 'cancel-power': 'x', 'open-downloads': 'folder', 'dir-reset': 'reset', 'reset-confirms': 'reset', 'save-speed': 'check', 'new-queue': 'plus', 'cancel-schedule': 'x', 'queue-confirm-cancel': 'x', 'queue-confirm-accept': 'check', 'reset-confirm-cancel': 'x', 'reset-confirm-accept': 'check' };
+const buttonIcons = { 'add-button': 'download', 'close-preview': 'x', 'deselect-all': 'x', 'cancel-power': 'x', 'open-downloads': 'folder', 'dir-reset': 'reset', 'reset-confirms': 'reset', 'save-speed': 'check', 'cancel-schedule': 'x', 'queue-confirm-cancel': 'x', 'queue-confirm-accept': 'check', 'reset-confirm-cancel': 'x', 'reset-confirm-accept': 'check' };
 for (const button of document.querySelectorAll('button.btn')) {
   const text = button.textContent.trim();
   if (text && !button.getAttribute('aria-label')) button.setAttribute('aria-label', text);
@@ -120,9 +118,8 @@ function render(force = false) {
     const titleNode = el('div', 'job-title', title); titleNode.title = title;
     const sourceText = `${job.host} · ${job.engine === 'direct' ? T('app.kind.file') : T('app.kind.stream')}${job.formatLabel || job.media?.height ? ` · ${job.formatLabel || `${job.media.height}p`}` : ''}`;
     info.append(titleNode, el('div', 'job-meta', `${sourceText} · ${view.size}${view.speed ? ` · ${view.speed}` : ''}`));
-    details.append(el('div', 'job-meta compact-source', `${title} · ${sourceText}${job.viaQueue ? ` · ${T('app.queue.name', { name: queueLabel(job.queueName) })}` : ''}`));
+    details.append(el('div', 'job-meta compact-source', `${title} · ${sourceText}`));
     const stage = view.stage;
-    if (job.viaQueue) info.append(el('div', 'job-meta', T('app.queue.name', { name: queueLabel(job.queueName) })));
     const tile = el('span', 'file-icon'); tile.append(icon(job.status === 'completed' ? 'check' : job.status === 'held' ? 'list' : 'download'));
     const stageNode = el('span', `job-state ${job.status}`, stage); stageNode.title = stage;
     top.append(tile, info, stageNode);
@@ -140,7 +137,6 @@ function render(force = false) {
         : runQueueCommand({ type: 'single', action, id: job.id }));
       actions.append(button);
     };
-    if (job.status === 'held') addAction('start-now', T('app.startNow'));
     if (canPause(job)) addAction('pause', T('app.pause'));
     if (canResume(job)) addAction('resume', T('app.resume'));
     if (job.status === 'failed') addAction('retry', T('app.retryNow')); // a failed download is always one click from another try
@@ -623,7 +619,6 @@ function openRowMenu(id, x, y) {
   if (globalThis.hypernabDesktop && canPlayFile(job)) item('play', T('app.play'), async () => { try { await globalThis.hypernabDesktop.action('job-play', id); } catch (error) { queueMessage(error.message, true); } });
   item('copy', T('app.copyName'), () => copyText(title, 'app.copied.name'));
   if (job.file) item('copy', T('app.copyPath'), () => copyText(job.directory ? `${job.directory}\\${job.file}` : job.file, 'app.copied.path'));
-  if (job.status === 'held') item('bolt', T('app.startNow'), () => runQueueCommand({ type: 'single', action: 'start-now', id }), queueBusy);
   if (canPause(job)) item('pause', T('app.pause'), () => runQueueCommand({ type: 'single', action: 'pause', id }), queueBusy);
   if (canResume(job)) item('play', T('app.resume'), () => runQueueCommand({ type: 'single', action: 'resume', id }), queueBusy);
   if (['failed', 'cancelled'].includes(job.status)) item('reset', T('app.retryNow'), () => runQueueCommand({ type: 'single', action: 'retry', id }), queueBusy);
@@ -717,8 +712,7 @@ async function status() {
   }
   $('dir-current').textContent = info.directory;
   if (document.activeElement !== $('dir-input')) $('dir-input').value = info.directory;
-  renderQueueBar(info.queue);
-  selectedQueueName = info.queue.selectedQueue || 'Genel';
+  renderLimit(info.queue);
   advanced.render(info.queue);
   await advanced.poll();
 }
@@ -818,19 +812,15 @@ async function submitPending(mode, confirmedDuplicate = false) {
 $('confirm-download').addEventListener('click', () => submitPending('now'));
 $('queue-download').addEventListener('click', () => submitPending('queue'));
 // Queue bar: how many run together (1–6, can be switched off), start/stop, reordering.
-function renderQueueBar(queue) {
-  if (!queue) return;
-  $('queue-run-state').textContent = queue.waiting ? `${TN('app.queue.waiting', queue.waiting)}${queue.held ? T('app.queue.heldPart', { n: queue.held }) : ''}` : queue.held ? `${T('app.queue.held', { n: queue.held })}${queue.running ? T('app.queue.runningPart') : ''}` : queue.running ? T('app.queue.running') : T('app.queue.empty');
-  if (document.activeElement !== $('queue-limit')) $('queue-limit').value = String(queue.limit); // 1–6 or "all" (Hepsi)
-  $('queue-toggle').replaceChildren(icon(queue.running ? 'stop' : 'play'), el('span', '', queue.running ? T('app.queue.stop') : T('app.queue.start')));
-  $('queue-toggle').classList.toggle('on', queue.running); $('queue-toggle').disabled = !queue.running && !queue.held;
+// How many downloads run at the same time (1-6 or "all"): one number for every download.
+function renderLimit(queue) {
+  if (queue && document.activeElement !== $('queue-limit')) $('queue-limit').value = String(queue.limit);
 }
 async function queueCall(route, body) {
   try { await api(route, { method: 'POST', body: JSON.stringify(body || {}) }); await Promise.all([refresh(), status()]); }
   catch (error) { queueMessage(error.message, true); }
 }
 $('queue-limit').addEventListener('change', () => queueCall('/api/settings', { queueLimit: $('queue-limit').value === 'all' ? 'all' : Number($('queue-limit').value) }));
-$('queue-toggle').addEventListener('click', () => queueCall($('queue-toggle').classList.contains('on') ? '/api/queue/stop' : '/api/queue/start'));
 const sizeText = option => option.filesize ? (option.sizeKind === 'exact' ? fmt(option.filesize) : T('app.sizeApprox', { size: fmt(option.filesize) })) : T('app.size.unknown');
 const audioText = { included: T('app.audio.included'), merged: T('app.audio.merged'), none: T('app.audio.none') };
 function renderQuality(info) {

@@ -95,23 +95,26 @@ try {
   await evaluate('document.querySelector("#close-settings").click()');
   console.log('OK settings view, real SVG pause icon and persisted quality/connection preferences');
   console.log('OK desktop UI, sandbox and preload');
-  await evaluate('document.querySelector("#new-queue-name").value="Smoke"; document.querySelector("#new-queue").click()');
-  await browserUntil(async () => (await call('/api/settings')).selectedQueue === 'Smoke');
+  assert.equal(await evaluate('document.querySelector("#queue-limit") !== null && document.querySelector("#queue-toggle") === null && document.querySelector(".queue-bar") === null && document.querySelector("#named-queue") === null'), true, 'no queue row, no named queues; "At the same time" stays');
+  await evaluate('document.querySelector("#queue-limit").value="2"; document.querySelector("#queue-limit").dispatchEvent(new Event("change"))');
+  await browserUntil(async () => (await call('/api/settings')).queue.limit === 2);
+  await evaluate('document.querySelector("#queue-limit").value="all"; document.querySelector("#queue-limit").dispatchEvent(new Event("change"))');
+  await browserUntil(async () => (await call('/api/settings')).queue.limit === 'all');
   await evaluate('document.querySelector("#speed-limit-mb").value="0.5"; document.querySelector("#save-speed").click()');
   await browserUntil(async () => (await call('/api/settings')).speedLimitKiB === 512);
   await evaluate('document.querySelector("#url").value="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"; document.querySelector("#engine").value="direct"; document.querySelector("#download-form").requestSubmit()');
   await browserUntil(() => evaluate('!document.querySelector("#preview").hidden'), 30000);
   await evaluate('document.querySelector("#queue-download").click()');
   await browserUntil(async () => (await call('/api/jobs'))[0]?.status === 'held');
-  assert.equal((await call('/api/jobs'))[0].queueName, 'Smoke');
-  await call('/api/automation', { schedule: { at: Date.now() + 1200, queue: 'Smoke' } });
+  assert.equal(await evaluate('[...document.querySelectorAll("#jobs .job")].length'), 1);
+  await call('/api/automation', { schedule: { at: Date.now() + 1200 } }); // the scheduler resumes everything that is paused or was added for later
   await browserUntil(async () => (await call('/api/jobs'))[0]?.status === 'completed', 90000);
   const job = (await call('/api/jobs'))[0];
   assert.equal(job.speedLimitKiB, 512);
   assert.equal(fs.statSync(path.join(dir, 'downloads', job.file)).size, 1128375);
   assert.ok(job.recovery.some(item => item.event === 'transfer-observed' && Number.isFinite(item.elapsedMs)));
   assert.doesNotMatch(JSON.stringify(job.recovery), /https?:|cookie|referer|signature/i);
-  console.log('OK named queue, speed setting, schedule and verified real download');
+  console.log('OK "At the same time" control, speed setting, schedule (resume all) and verified real download');
   // Hidden/minimised renderers intentionally stop polling. Restore this isolated test window.
   await mainEval(`(()=>{const w=${electron}.BrowserWindow.getAllWindows()[0];w.restore();w.show();w.focus();return true})()`);
   try { await browserUntil(() => evaluate(`!!document.querySelector('[data-job-id="${job.id}"] .job-state.completed')`)); }
@@ -296,7 +299,7 @@ try {
   assert.equal(await panelEval(`document.querySelectorAll('.tray-row').length <= 5 && [...document.querySelectorAll('button')].every(button=>button.querySelector('svg'))`), true);
   await panelEval(`document.querySelector('#tray-resume').click()`);
   await browserUntil(async () => (await call('/api/jobs')).filter(job => job.status === 'running').length === 1);
-  assert.equal((await call('/api/jobs')).find(job => job.id === long.id).status, 'held');
+  assert.ok(['queued', 'running'].includes((await call('/api/jobs')).find(job => job.id === long.id).status), 'a download added for later is resumed like a paused one (the limit of 1 lets only one run)');
   await browserUntil(() => panelEval(`!document.querySelector('#tray-pause').disabled`));
   await panelEval(`document.querySelector('#tray-pause').click()`);
   await browserUntil(async () => !(await call('/api/jobs')).some(job => ['running','queued'].includes(job.status) || job.settling));
@@ -326,7 +329,7 @@ try {
   await mainEval(`globalThis.__hypernabTestTray.emit('double-click')`);
   await browserUntil(visible);
   assert.equal(await mainEval(`${electron}.BrowserWindow.getAllWindows().length`), 1);
-  console.log('OK native tray panel: lazy renderer, sandbox, shared pause/resume, held queue preserved, disconnect, Escape and double-click');
+  console.log('OK native tray panel: lazy renderer, sandbox, shared pause/resume (added-for-later downloads resume like paused ones), disconnect, Escape and double-click');
   const before = (await call('/api/status')).processId;
   await mainEval(`${electron}.BrowserWindow.getAllWindows()[0].close()`);
   assert.equal(await mainEval(`${electron}.BrowserWindow.getAllWindows()[0].isVisible()`), false);
