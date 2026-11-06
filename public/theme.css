@@ -78,3 +78,30 @@ html[data-appearance="compact"] .settings-more>summary { padding:8px 0; }
 #ext-welcome { width:min(34rem,92vw); }
 #ext-welcome .row-actions { margin-top:12px; }
 .ext-welcome-stores { align-items:center;flex-wrap:wrap;gap:8px; }
+/* The list: the title with its three figures, ONE action bar (selection and actions side by side, search and sort at the other end), and
+   notifications at the bottom of the window. Logical properties only: the bar mirrors by itself in right-to-left languages. */
+.queue-head { margin-bottom:8px; }
+.queue-stats { display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 18px;margin:0;color:var(--muted);font-size:12px; }
+.queue-stats .stat strong { color:var(--text);font-size:13px;font-weight:600;letter-spacing:0; }
+.queue-stats .stat strong small { font-size:11px; }
+.list-actions { display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 0;position:sticky;top:0;z-index:6;background:var(--bg); }
+.select-group { display:flex;align-items:center;gap:6px;font-size:12px; }
+.select-menu { position:relative; }
+.select-menu>summary { list-style:none; }
+.select-menu>summary::-webkit-details-marker { display:none; }
+.select-pop { position:absolute;inset-inline-start:0;top:100%;z-index:20;display:grid;min-width:150px;margin-top:4px;padding:6px;border:1px solid var(--border);border-radius:6px;background:var(--raised); }
+.select-pop .btn { justify-content:flex-start; }
+#list-buttons { display:flex;flex-wrap:wrap;gap:6px; }
+#act-cancel { margin-inline-start:4px; }
+.list-actions .list-tools { margin:0;margin-inline-start:auto;flex:0 1 auto;flex-wrap:nowrap;min-width:0; }
+.list-actions .list-search { flex:1 1 150px;min-width:130px;max-width:300px; }
+.list-actions .list-tools .field.inline>span:first-child { white-space:nowrap; }
+.list-actions #layout-menu>summary>span { display:none; } /* the columns button keeps its icon; its name is the tooltip */
+.list-actions #layout-menu>summary { padding-inline:8px; }
+.toasts { position:fixed;inset-inline:0;bottom:14px;display:grid;justify-items:center;gap:8px;pointer-events:none;z-index:60; }
+html .toasts>#message, html .toasts>#queue-message, .toasts>.toast { pointer-events:auto;width:fit-content;max-width:min(640px,92vw);margin:0;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--raised);color:var(--text);font-size:13px;line-height:1.4; }
+html .toasts>#message:empty, html .toasts>#queue-message:empty { display:none; }
+html .toasts>#message.error, html .toasts>#queue-message.error { color:var(--danger);border-color:var(--danger); }
+.toast { display:flex;align-items:center;gap:12px; }
+.toast[hidden] { display:none; }
+@media (max-width:860px) { #list-buttons .btn>span { display:none; } #list-buttons .btn { padding-inline:8px; } }

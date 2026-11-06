@@ -169,6 +169,7 @@ const server = http.createServer(async (req, res) => {
     const startNow = /^\/api\/jobs\/([a-f0-9-]+)\/start-now$/.exec(url.pathname);
     if (req.method === 'POST' && startNow) return json(res, 200, queue.startNow(startNow[1]));
     if (req.method === 'POST' && url.pathname === '/api/queue/clear') return json(res, 200, queue.clearFinished(await body(req)));
+    if (req.method === 'POST' && url.pathname === '/api/queue/restore') return json(res, 200, queue.restoreRemoved(await body(req)));
     if (req.method === 'POST' && url.pathname === '/api/queue/bulk') {
       const { action, ...selection } = await body(req);
       return json(res, 200, queue.batch(action, selection));

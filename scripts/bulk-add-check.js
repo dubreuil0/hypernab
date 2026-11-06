@@ -35,6 +35,9 @@ async function run(name, launch) {
     if (browser.viewport) await browser.viewport(tab, 1280, 900);
     const ev = expr => browser.eval(tab, expr);
     await sleep(1500);
+    // one engine serves both browsers: the second pass starts from an empty list (the first pass's links would all be \"already in the list\")
+    await ev(`(async () => { const b = await fetch('/api/bootstrap').then(r => r.json()); const h = { Authorization: 'Bearer ' + b.token, 'Content-Type': 'application/json' }; await fetch('/api/queue/bulk', { method: 'POST', headers: h, body: JSON.stringify({ action: 'cancel', all: true }) }); await fetch('/api/queue/clear', { method: 'POST', headers: h, body: '{}' }); })()`);
+    await sleep(500);
     const jobs = () => ev(`(async () => { const b = await fetch('/api/bootstrap').then(r => r.json()); return (await fetch('/api/jobs', { headers: { Authorization: 'Bearer ' + b.token } }).then(r => r.json())).map(j => [j.status, j.engine, j.kind || '']); })()`);
     check(name, 'the "Add several links" button is there, with an icon', await ev(`(() => { const b = document.getElementById('open-bulk'); return Boolean(b && b.querySelector('svg') && b.getAttribute('aria-label') === 'Add several links'); })()`));
     await ev(`document.getElementById('open-bulk').click()`); await sleep(400);

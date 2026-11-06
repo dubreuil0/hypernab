@@ -59,12 +59,6 @@
     </header>
 
     <main id="view-downloads">
-      <section class="stats" aria-label="Download summary" data-i18n-aria="app.summary">
-        <div class="stat"><span class="stat-label" data-i18n="app.active">Active</span><strong id="stat-active">0</strong></div>
-        <div class="stat"><span class="stat-label" data-i18n="app.totalSpeed">Total speed</span><strong id="stat-speed">0 <small data-i18n="app.unit.bps">B/s</small></strong></div>
-        <div class="stat"><span class="stat-label" data-i18n="app.filter.completed">Completed</span><strong id="stat-complete">0</strong></div>
-      </section>
-
       <div class="clip-banner" id="clip-banner" role="status" hidden><svg class="ic"><use href="#i-link"/></svg><span id="clip-text"></span><button class="btn sm" id="clip-add" type="button"><svg class="ic sm"><use href="#i-plus"/></svg><span data-i18n="app.add">Add</span></button><button class="btn sm ghost icon-only" id="clip-dismiss" type="button" title="Not now" aria-label="Not now" data-i18n-title="app.clip.dismiss" data-i18n-aria="app.clip.dismiss"><svg class="ic sm"><use href="#i-x"/></svg></button></div>
       <section class="composer card">
         <form id="download-form">
@@ -104,37 +98,45 @@
             <button id="playlist-close" class="btn ghost"><svg class="ic"><use href="#i-x"/></svg><span data-i18n="app.dismiss">Cancel</span></button>
           </div>
         </section>
-        <div id="message" role="status" aria-live="polite"></div>
       </section>
 
       <section class="queue" aria-label="Downloads" data-i18n-aria="app.downloads">
         <div class="queue-head">
-          <h2><span data-i18n="app.downloads">Downloads</span> <span class="count" id="queue-count">0</span></h2>
-          <div class="toolbar">
-            <button class="btn sm" id="pause-all" title="Pauses active downloads and those about to start" data-i18n-title="app.pauseAll.title"><svg class="ic"><use href="#i-pause"/></svg><span data-i18n="app.pauseAll">Pause all</span></button>
-            <button class="btn sm" id="resume-all" title="Resumes all paused downloads" data-i18n-title="app.resumeAll.title"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="app.resumeAll">Resume all</span></button>
-            <button class="btn sm ghost" id="clear-queue" title="Removes finished and cancelled entries from the list; files are not deleted" data-i18n-title="app.clear.title"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="app.clear">Clear the list</span></button>
-          </div>
-        </div>
-        <div class="queue-bar card flat" role="group" aria-label="Queue" data-i18n-aria="app.queue">
+<h2><span data-i18n="app.downloads">Downloads</span> <span class="count" id="queue-count">0</span></h2>
+<p class="queue-stats" aria-label="Download summary" data-i18n-aria="app.summary">
+<span class="stat"><span class="stat-label" data-i18n="app.active">Active</span> <strong id="stat-active">0</strong></span>
+<span class="stat"><span class="stat-label" data-i18n="app.totalSpeed">Total speed</span> <strong id="stat-speed">0 <small>B/s</small></strong></span>
+<span class="stat"><span class="stat-label" data-i18n="app.filter.completed">Completed</span> <strong id="stat-complete">0</strong></span>
+</p>
+</div>
+<div class="queue-bar card flat" role="group" aria-label="Queue" data-i18n-aria="app.queue">
           <span class="queue-state"><svg class="ic muted"><use href="#i-list"/></svg><span id="queue-run-state" data-i18n="app.queue.empty">Queue is empty</span></span>
           <label class="field inline"><span data-i18n="app.concurrent">At the same time</span><span class="select"><select id="queue-limit"><option value="all" data-i18n="app.all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
           <button id="queue-toggle" class="btn sm"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="app.queue.start">Start the queue</span></button>
         </div>
-        <div class="select-bar" role="group" aria-label="Selection" data-i18n-aria="app.selection">
-          <label class="check"><input type="checkbox" id="select-all" aria-label="Select everything in this view" data-i18n-aria="app.selectAllHere"><span data-i18n="app.selectAll">Select all</span></label>
-          <span id="selected-count" class="muted-text" aria-live="polite"></span>
-          <div class="toolbar" id="selection-actions">
-            <button class="btn sm" id="pause-selected"><svg class="ic"><use href="#i-pause"/></svg><span data-i18n="app.pause">Pause</span></button>
-            <button class="btn sm" id="resume-selected"><svg class="ic"><use href="#i-play"/></svg><span data-i18n="app.resume">Resume</span></button>
-            <button class="btn sm danger" id="cancel-selected"><svg class="ic"><use href="#i-x"/></svg><span data-i18n="app.cancel">Cancel</span></button>
-            <button class="btn sm ghost" id="clear-selected"><svg class="ic"><use href="#i-trash"/></svg><span data-i18n="app.removeFromList">Remove from the list</span></button>
-            <button class="btn sm ghost" id="deselect-all" data-i18n="app.deselect">Clear the selection</button>
-          </div>
-        </div>
-        <p id="queue-message" role="status" aria-live="polite"></p>
         <div id="automation-bar" class="notice" hidden><svg class="ic"><use href="#i-clock"/></svg><span id="automation-status"></span><button class="btn sm ghost" id="cancel-power" hidden data-i18n="app.cancelFinish">Cancel the finish action</button></div>
-        <div class="list-tools" role="group" aria-label="List tools" data-i18n-aria="app.listTools">
+        <div class="list-actions" role="toolbar" aria-label="List actions" data-i18n-aria="app.act.toolbar">
+<div class="select-group">
+<label class="check"><input type="checkbox" id="select-all" aria-label="Select everything in this view" data-i18n-aria="app.selectAllHere"><span data-i18n="app.selectAll">Select all</span></label>
+<details class="select-menu" id="select-menu"><summary class="btn sm ghost icon-only" title="Select…" aria-label="Select…" data-i18n-title="app.sel.title" data-i18n-aria="app.sel.title"><svg class="ic sm"><use href="#i-chevron"/></svg></summary>
+<div class="select-pop" role="group" aria-label="Select…" data-i18n-aria="app.sel.title">
+<button type="button" class="btn sm ghost" data-select="all"><svg class="ic sm"><use href="#i-list"/></svg><span data-i18n="app.all">All</span></button>
+<button type="button" class="btn sm ghost" data-select="none"><svg class="ic sm"><use href="#i-x"/></svg><span data-i18n="app.sel.none">None</span></button>
+<button type="button" class="btn sm ghost" data-select="completed"><svg class="ic sm"><use href="#i-check"/></svg><span data-i18n="app.filter.completed">Completed</span></button>
+<button type="button" class="btn sm ghost" data-select="failed"><svg class="ic sm"><use href="#i-alert"/></svg><span data-i18n="app.phase.failed">Failed</span></button>
+<button type="button" class="btn sm ghost" data-select="paused"><svg class="ic sm"><use href="#i-pause"/></svg><span data-i18n="app.phase.paused">Paused</span></button>
+<button type="button" class="btn sm ghost" data-select="running"><svg class="ic sm"><use href="#i-download"/></svg><span data-i18n="app.phase.downloading">Downloading</span></button>
+</div></details>
+<span id="selected-count" class="muted-text" aria-live="polite"></span>
+<button class="btn sm ghost icon-only" id="deselect-all" type="button" title="Clear the selection" aria-label="Clear the selection" data-i18n-title="app.deselect" data-i18n-aria="app.deselect" hidden><svg class="ic sm"><use href="#i-x"/></svg></button>
+</div>
+<div class="toolbar" id="list-buttons" role="group" aria-label="Download actions" data-i18n-aria="app.actions">
+<button class="btn sm" id="act-pause" type="button"><svg class="ic"><use href="#i-pause"/></svg><span id="act-pause-label">Pause</span></button>
+<button class="btn sm" id="act-resume" type="button"><svg class="ic"><use href="#i-play"/></svg><span id="act-resume-label">Resume</span></button>
+<button class="btn sm danger" id="act-cancel" type="button"><svg class="ic"><use href="#i-x"/></svg><span id="act-cancel-label">Cancel</span></button>
+<button class="btn sm ghost" id="act-clear" type="button"><svg class="ic"><use href="#i-trash"/></svg><span id="act-clear-label">Remove from the list</span></button>
+</div>
+<div class="list-tools" role="group" aria-label="List tools" data-i18n-aria="app.listTools">
           <label class="list-search"><svg class="ic sm"><use href="#i-search"/></svg><input id="list-search" type="search" placeholder="Search: name or site (Ctrl+F)" aria-label="Search downloads" autocomplete="off" maxlength="100" data-i18n-placeholder="app.search.placeholder" data-i18n-aria="app.search.aria"></label>
           <label class="field inline"><span data-i18n="app.sort">Sort</span><span class="select"><select id="list-sort" aria-label="Visual sorting" data-i18n-aria="app.sort.visual">
             <option value="queue" data-i18n="app.sort.queue">Queue order</option><option value="name" data-i18n="app.col.name">Name</option><option value="size" data-i18n="app.col.size">Size</option><option value="status" data-i18n="app.col.status">Status</option><option value="date" data-i18n="app.col.added">Added</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></label>
@@ -150,8 +152,9 @@
               <button class="btn sm" id="layout-fit" type="button"><svg class="ic"><use href="#i-expand"/></svg><span data-i18n="app.fit">Fit to screen</span></button>
               <button class="btn sm ghost" id="layout-reset" type="button"><svg class="ic"><use href="#i-reset"/></svg><span data-i18n="app.layout.reset">Reset the layout</span></button>
             </div></details>
-        </div>
-        <p id="list-notice" class="muted-text" role="status" aria-live="polite" hidden></p>
+</div>
+</div>
+<p id="list-notice" class="muted-text" role="status" aria-live="polite" hidden></p>
         <div id="job-list" class="job-list"><div class="job-columns" id="job-columns" role="row" aria-label="Column headers" data-i18n-aria="app.col.headers"></div>
         <div id="jobs"></div></div>
         <p class="foot-hint" data-i18n="app.removeNote">Removing from the list does not delete files.</p>
@@ -248,7 +251,12 @@
     </section>
   </div>
 
-  <div id="row-menu" class="row-menu" role="menu" aria-label="Download actions" hidden data-i18n-aria="app.actions"></div>
+  <div id="toasts" class="toasts" aria-label="Notifications" data-i18n-aria="app.notifications">
+<div id="message" role="status" aria-live="polite"></div>
+<p id="queue-message" role="status" aria-live="polite"></p>
+<div id="undo-toast" class="toast" role="status" aria-live="polite" hidden><span id="undo-text"></span><button class="btn sm" id="undo-button" type="button"><svg class="ic"><use href="#i-reset"/></svg><span data-i18n="app.undo">Undo</span></button></div>
+</div>
+<div id="row-menu" class="row-menu" role="menu" aria-label="Download actions" hidden data-i18n-aria="app.actions"></div>
   <dialog id="duplicate-dialog" aria-labelledby="duplicate-title"><h2 id="duplicate-title" data-i18n="app.dupe.title">This download is already in the list</h2><p id="duplicate-text"></p><div class="row-actions end"><button class="btn ghost" id="duplicate-cancel"><svg class="ic"><use href="#i-x"/></svg><span data-i18n="app.dismiss">Cancel</span></button><button class="btn" id="duplicate-show"><svg class="ic"><use href="#i-list"/></svg><span data-i18n="app.dupe.show">Show the existing one</span></button><button class="btn primary" id="duplicate-accept"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="app.dupe.again">Download a new copy anyway</span></button></div></dialog>
   <dialog id="bulk-dialog" aria-labelledby="bulk-title"><h2 id="bulk-title" data-i18n="app.bulk.title">Add several links</h2><p class="hint" data-i18n="app.bulk.hint">Paste the links, one per line (up to 100). A file is taken like a browser download; a page goes to the media engine at its best quality. Links already in the list are skipped.</p><textarea class="input" id="bulk-text" rows="8" spellcheck="false" autocomplete="off" aria-label="Add several links" placeholder="One link per line" data-i18n-aria="app.bulk.title" data-i18n-placeholder="app.bulk.placeholder"></textarea><p class="hint" id="bulk-count" aria-live="polite"></p><div class="row-actions end"><button class="btn ghost" id="bulk-cancel" type="button"><svg class="ic"><use href="#i-x"/></svg><span data-i18n="app.dismiss">Cancel</span></button><button class="btn" id="bulk-later" type="button"><svg class="ic"><use href="#i-later"/></svg><span data-i18n="app.addLater">Add for later</span></button><button class="btn primary" id="bulk-now" type="button"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="app.download">Download</span></button></div></dialog>
     <dialog id="ext-welcome" aria-labelledby="ext-welcome-title"><h2 id="ext-welcome-title" data-i18n="ext.welcome.title">Add the browser extension</h2><p data-i18n="ext.welcome.text">The extension captures videos and links in your browser and sends them to Hypernab. Adding it takes one click on the store page.</p>

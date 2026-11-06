@@ -82,10 +82,10 @@ try {
   assert.equal(await evaluate('hypernabDesktop.settings().then(info => info.packaged)'), true);
   await evaluate('window.scrollTo(0,0)');
   assert.equal(await evaluate('document.querySelector("#view-downloads").hidden'), true);
-   assert.equal(await evaluate('getComputedStyle(document.querySelector("#pause-all")).borderRadius'), '5px');
+   assert.equal(await evaluate('getComputedStyle(document.querySelector("#act-pause")).borderRadius'), '5px');
    assert.equal((await call('/api/settings')).appearance, 'compact');
    assert.equal(await evaluate('document.documentElement.dataset.appearance'), 'compact');
-  assert.equal(await evaluate('document.querySelector("#pause-all use").getAttribute("href")'), '#i-pause');
+  assert.equal(await evaluate('document.querySelector("#act-pause use").getAttribute("href")'), '#i-pause');
   await evaluate('document.querySelector("#set-maxConnections").value="3"; document.querySelector("#set-maxConnections").dispatchEvent(new Event("change"))');
   await browserUntil(async () => (await call('/api/settings')).maxConnections === 3);
   await evaluate('document.querySelector("#set-maxQuality").value="720"; document.querySelector("#set-maxQuality").dispatchEvent(new Event("change"))');
@@ -249,8 +249,8 @@ try {
   });
   await call('/api/queue/bulk', { action: 'pause', all: true });
   await browserUntil(async () => !(await call('/api/jobs')).some(job => job.settling));
-  await browserUntil(() => evaluate('!document.querySelector("#resume-all").disabled'));
-  await evaluate('document.querySelector("#resume-all").click()');
+  await browserUntil(() => evaluate('!document.querySelector("#act-resume").disabled'));
+  await evaluate('document.querySelector("#act-resume").click()');
   await browserUntil(async () => (await call('/api/jobs')).filter(job => job.status === 'running').length === 1);
   assert.equal((await call('/api/jobs')).find(job => job.status === 'running').id, ids[1]);
   // Keyboard equivalent moves B down one slot, restoring A's priority and preempting B.

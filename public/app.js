@@ -10,6 +10,7 @@ let token = '', jobs = [], filter = 'all', pending = null, inspected = null, aut
 let search = '', sortKey = 'queue', sortDir = 'asc';
 let layout = normalizeLayout(null), layoutPending = false, layoutTimer = null, resizing = null;
 const selected = new Set();
+let lastPicked = null; // the row whose checkbox was used last (Shift + click selects a range from it)
 const expandedJobs = new Set();
 let queueBusy = false, pendingQueueCommand = null;
 const $ = id => document.getElementById(id);
@@ -23,7 +24,13 @@ const fmt = value => {
   return `${(value / 1024 ** i).toLocaleString(LOCALE(), { maximumFractionDigits: i ? 1 : 0 })} ${['B', 'KB', 'MB', 'GB'][i]}`;
 };
 setupHistory({ api, el, icon, fmt });
-function message(text, error = false) { $('message').textContent = text; $('message').className = error ? 'error' : ''; }
+// Status lines are small notifications at the bottom of the window: they clear themselves (an error stays longer).
+const toastTimers = new Map();
+function toast(id, text, error) {
+  const node = $(id); node.textContent = text; node.className = error ? 'error' : '';
+  clearTimeout(toastTimers.get(id)); if (text) toastTimers.set(id, setTimeout(() => { node.textContent = ''; node.className = ''; }, error ? 15000 : 8000));
+}
+function message(text, error = false) { toast('message', text, error); }
 async function api(route, options = {}) {
   const response = await fetch(route, { ...options, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...options.headers } });
   const data = await response.json();
@@ -90,6 +97,14 @@ function render(force = false) {
     const selectLabel = el('label', 'job-select'), checkbox = el('input');
     checkbox.type = 'checkbox'; checkbox.checked = selected.has(job.id); checkbox.disabled = queueBusy;
     checkbox.dataset.jobSelect = job.id; checkbox.setAttribute('aria-label', T('app.select.job', { name: job.title || job.host }));
+    checkbox.addEventListener('click', event => {
+      if (event.shiftKey && lastPicked && lastPicked !== job.id) { // the range between the last pick and this one, in the order shown
+        const order = shownJobs().map(item => item.id), from = order.indexOf(lastPicked), to = order.indexOf(job.id);
+        if (from >= 0 && to >= 0) for (const id of order.slice(Math.min(from, to), Math.max(from, to) + 1)) { if (checkbox.checked) selected.add(id); else selected.delete(id); }
+        render(true);
+      }
+      lastPicked = job.id;
+    });
     checkbox.addEventListener('change', () => {
       if (checkbox.checked) selected.add(job.id); else selected.delete(job.id);
       card.classList.toggle('job-selected', checkbox.checked); renderSelection();
@@ -118,16 +133,17 @@ function render(force = false) {
     }
     const actions = el('div', 'job-actions');
     const addAction = (action, text, disabled = false) => {
-      const button = el('button', 'btn icon-only ghost'); button.title = text; button.setAttribute('aria-label', text); button.append(icon({ pause: 'pause', resume: 'play', cancel: 'x', 'start-now': 'bolt' }[action])); button.disabled = queueBusy || disabled;
+      const button = el('button', 'btn icon-only ghost'); button.title = text; button.setAttribute('aria-label', text); button.append(icon({ pause: 'pause', resume: 'play', cancel: 'x', 'start-now': 'bolt', retry: 'reset' }[action])); button.disabled = queueBusy || disabled;
       button.dataset.jobAction = `${job.id}-${action}`;
       button.addEventListener('click', () => action === 'cancel'
-        ? confirmQueue({ type: 'bulk', action, ids: [job.id] }, T('app.confirm.cancel.title'), T('app.confirm.cancel.text'))
+        ? askCancel([job.id])
         : runQueueCommand({ type: 'single', action, id: job.id }));
       actions.append(button);
     };
     if (job.status === 'held') addAction('start-now', T('app.startNow'));
     if (canPause(job)) addAction('pause', T('app.pause'));
     if (canResume(job)) addAction('resume', T('app.resume'));
+    if (job.status === 'failed') addAction('retry', T('app.retryNow')); // a failed download is always one click from another try
     if (canCancel(job)) addAction('cancel', T('app.cancel'));
     const detailButton = el('button', 'btn icon-only ghost job-details-toggle'); detailButton.append(icon('chevron')); detailButton.title = T('app.details.toggle'); detailButton.setAttribute('aria-label', T('app.details.aria')); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); detailButton.setAttribute('aria-controls', details.id); detailButton.dataset.jobAction = `${job.id}-details`;
     detailButton.addEventListener('click', () => { if (expandedJobs.has(job.id)) expandedJobs.delete(job.id); else expandedJobs.add(job.id); card.classList.toggle('details-open', expandedJobs.has(job.id)); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); });
@@ -318,19 +334,23 @@ function bindReorder(handle, id) {
   for (const event of ['pointercancel', 'lostpointercapture']) handle.addEventListener(event, () => { if (dragging?.handle === handle) finishDrag(true); });
 }
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && dragging) { event.preventDefault(); finishDrag(true); } });
-function queueMessage(text, error = false) { $('queue-message').textContent = text; $('queue-message').className = error ? 'error' : ''; }
+function queueMessage(text, error = false) { toast('queue-message', text, error); }
+// One action bar for the whole list. With a selection its buttons act on the selection (the label says how many); without one they act on every
+// download ("Pause all", "Remove finished"). A button that cannot do anything right now is dimmed.
 function renderSelection() {
   const visible = shownJobs(), scope = selectedShown(), state = selectionState(jobs, visible, scope);
   $('select-all').checked = state.all; $('select-all').indeterminate = state.mixed;
   $('select-all').disabled = queueBusy || !visible.length;
   const hiddenSelected = selected.size - scope.size;
-  $('selected-count').textContent = `${T('app.selected.count', { n: state.count })}${hiddenSelected ? ` · ${T('app.selected.hidden', { n: hiddenSelected })}` : ''}`;
-  $('selection-actions').hidden = !state.count;
-  for (const [id, enabled] of [['pause-selected', state.pause], ['resume-selected', state.resume], ['cancel-selected', state.cancel], ['clear-selected', state.clear], ['deselect-all', state.count]]) $(id).disabled = queueBusy || !enabled;
-  // Both bulk buttons stay clickable: there is no queue-wide pause mode to toggle.
-  $('pause-all').disabled = queueBusy;
-  $('resume-all').disabled = queueBusy;
-  $('clear-queue').disabled = queueBusy || !jobs.some(job => job.canClear);
+  $('selected-count').textContent = state.count ? `${T('app.selected.count', { n: state.count })}${hiddenSelected ? ` · ${T('app.selected.hidden', { n: hiddenSelected })}` : ''}` : '';
+  $('deselect-all').hidden = !state.count; $('deselect-all').disabled = queueBusy;
+  const some = Boolean(state.count);
+  const set = (id, text, enabled, hint) => { const button = $(id); $(`${id}-label`).textContent = text; button.disabled = queueBusy || !enabled; button.title = hint || text; button.setAttribute('aria-label', hint || text); };
+  const counted = (key, n) => `${T(key)} (${n})`;
+  set('act-pause', some ? (state.pause ? counted('app.pause', state.pause) : T('app.pause')) : T('app.pauseAll'), some ? state.pause > 0 : jobs.some(canPause), T('app.pauseAll.title'));
+  set('act-resume', some ? (state.resume ? counted('app.resume', state.resume) : T('app.resume')) : T('app.resumeAll'), some ? state.resume > 0 : jobs.some(canResume), T('app.resumeAll.title'));
+  set('act-cancel', some && state.cancel ? `${counted('app.cancel', state.cancel)}…` : T('app.cancel'), some && state.cancel > 0, some ? T('app.cancel') : T('app.act.cancelNeedsSelection'));
+  set('act-clear', some ? (state.clear ? counted('app.act.remove', state.clear) : T('app.act.remove')) : T('app.act.removeFinished'), some ? state.clear > 0 : jobs.some(job => job.canClear), T('app.clear.title'));
 }
 async function runQueueCommand(command) {
   if (queueBusy) return;
@@ -342,54 +362,94 @@ async function runQueueCommand(command) {
     else result = await api('/api/queue/bulk', { method: 'POST', body: JSON.stringify({ action: command.action, ...(command.all ? { all: true } : { ids: command.ids }) }) });
     const nothing = { pause: T('app.none.pause'), resume: T('app.none.resume'), cancel: T('app.none.cancel') };
     if (command.type === 'bulk' && command.all && !result.changed) queueMessage(nothing[command.action]);
-    else queueMessage(command.type === 'clear' ? TN('app.cleared', result.removed) : command.action === 'retry' ? T('app.retry.queued') : `${TN(`app.done.${command.action}`, result.changed ?? 1)}${result.skipped ? ` ${TN('app.done.skipped', result.skipped)}` : ''}`);
+    else if (command.type === 'clear') { for (const id of result.removedIds || []) selected.delete(id); offerUndo(result); }
+    else queueMessage(command.action === 'retry' ? T('app.retry.queued') : `${TN(`app.done.${command.action}`, result.changed ?? 1)}${result.skipped ? ` ${TN('app.done.skipped', result.skipped)}` : ''}`);
     await Promise.all([refresh(), status()]);
   } catch (error) { queueMessage(error.message, true); }
   finally { queueBusy = false; render(); }
 }
-// "Bir daha sorma": remembered per kind of action (cancel / clear list) in this browser only. Nothing here deletes files.
+// "Don't ask again": remembered per kind of action in this browser only; it never applies to cancelling several downloads at once.
 const confirmKind = command => command.type === 'clear' ? 'clear' : 'cancel';
 const skipKey = kind => `hypernab-skip-confirm-${kind}`;
 const skipping = kind => { try { return localStorage.getItem(skipKey(kind)) === '1'; } catch { return false; } };
 // One-time carry-over of the choice saved under the product's former name (HyperDown).
 try { for (const kind of ['cancel', 'clear']) { const old = `hyperdown-skip-confirm-${kind}`; if (localStorage.getItem(old) === '1' && localStorage.getItem(skipKey(kind)) === null) localStorage.setItem(skipKey(kind), '1'); localStorage.removeItem(old); } } catch { /* storage unavailable */ }
 function showResetConfirms() { const any = skipping('cancel') || skipping('clear'); $('reset-confirms').hidden = !any; $('reset-confirms').closest('.setting').hidden = !any; } // nothing to ask again: the whole row goes
-function confirmQueue(command, title, text) {
+const setLabel = (id, text) => { const button = $(id); (button.querySelector('span') || button).textContent = text; };
+// options.always: the window is never skipped (several downloads); options.accept / options.back: the two buttons' words
+function confirmQueue(command, title, text, options = {}) {
   if (queueBusy || $('queue-confirm').open) return;
-  if (skipping(confirmKind(command))) { runQueueCommand(command); return; }
+  if (!options.always && skipping(confirmKind(command))) { runQueueCommand(command); return; }
   pendingQueueCommand = command;
   $('queue-confirm-title').textContent = title; $('queue-confirm-text').textContent = text; $('queue-confirm-skip').checked = false;
-  $('queue-confirm').showModal(); $('queue-confirm-cancel').focus();
+  $('queue-confirm-skip').closest('label').hidden = Boolean(options.always);
+  setLabel('queue-confirm-accept', options.accept || T('app.confirm')); setLabel('queue-confirm-cancel', options.back || T('app.dismiss'));
+  $('queue-confirm-accept').classList.toggle('danger', Boolean(options.danger)); $('queue-confirm-accept').classList.toggle('primary', !options.danger);
+  $('queue-confirm-accept').querySelector('use')?.setAttribute('href', options.danger ? '#i-x' : '#i-check'); // a cancelling answer does not wear a tick
+  $('queue-confirm').showModal(); $('queue-confirm-cancel').focus(); // the safe answer is the one that has the focus
 }
 $('queue-confirm-cancel').addEventListener('click', () => $('queue-confirm').close());
 $('queue-confirm').addEventListener('close', () => { pendingQueueCommand = null; });
 $('queue-confirm-accept').addEventListener('click', () => {
   const command = pendingQueueCommand; pendingQueueCommand = null; $('queue-confirm').close();
-  if (command && $('queue-confirm-skip').checked) { try { localStorage.setItem(skipKey(confirmKind(command)), '1'); } catch { /* storage unavailable: just ask again next time */ } showResetConfirms(); }
+  if (command && $('queue-confirm-skip').checked && !$('queue-confirm-skip').closest('label').hidden) { try { localStorage.setItem(skipKey(confirmKind(command)), '1'); } catch { /* storage unavailable: just ask again next time */ } showResetConfirms(); }
   if (command) runQueueCommand(command);
 });
 $('reset-confirms').addEventListener('click', () => { try { localStorage.removeItem(skipKey('cancel')); localStorage.removeItem(skipKey('clear')); } catch { /* nothing stored */ } showResetConfirms(); });
 showResetConfirms();
+// Cancelling deletes half-written files, so it always asks; with several downloads it says how many and how much, and never offers "don't ask again".
+function askCancel(ids) {
+  const targets = jobs.filter(job => ids.includes(job.id) && canCancel(job));
+  if (!targets.length) return;
+  const n = targets.length;
+  if (n === 1) { confirmQueue({ type: 'bulk', action: 'cancel', ids: [targets[0].id] }, T('app.confirm.cancel.title'), T('app.confirm.cancel.text'), { accept: T('app.confirm.cancelYes.one'), back: T('app.confirm.back'), danger: true }); return; }
+  const bytes = targets.reduce((sum, job) => sum + (job.status === 'completed' ? 0 : Number(job.received) || 0), 0);
+  confirmQueue({ type: 'bulk', action: 'cancel', ids: targets.map(job => job.id) }, T('app.confirm.cancelMany.title', { n }),
+    bytes > 0 ? T('app.confirm.cancelMany.text', { n, size: fmt(bytes) }) : T('app.confirm.cancelMany.textNone', { n }),
+    { always: true, accept: T('app.confirm.cancelYes.other', { n }), back: T('app.confirm.back'), danger: true });
+}
+// "Remove from the list" deletes nothing, so there is no question: a small notification offers "Undo" for a while (the engine keeps the records).
+let undoTimer = null;
+function hideUndo() { clearTimeout(undoTimer); $('undo-toast').hidden = true; $('undo-button').dataset.token = ''; }
+function offerUndo(result) {
+  if (!result.removed || !result.undoToken) { queueMessage(TN('app.cleared', result.removed)); return; }
+  $('undo-text').textContent = TN('app.removed', result.removed); $('undo-button').dataset.token = result.undoToken; $('undo-toast').hidden = false;
+  clearTimeout(undoTimer); undoTimer = setTimeout(hideUndo, 8000);
+}
+$('undo-button').addEventListener('click', async () => {
+  const token = $('undo-button').dataset.token; if (!token || queueBusy) return;
+  hideUndo();
+  try { const result = await api('/api/queue/restore', { method: 'POST', body: JSON.stringify({ token }) }); queueMessage(TN('app.undo.done', result.restored)); await Promise.all([refresh(), status()]); }
+  catch (error) { queueMessage(error.message, true); }
+});
 $('select-all').addEventListener('change', event => {
   for (const job of shownJobs()) { if (event.target.checked) selected.add(job.id); else selected.delete(job.id); }
   render();
 });
 $('deselect-all').addEventListener('click', () => { selected.clear(); render(); });
-$('pause-all').addEventListener('click', () => runQueueCommand({ type: 'bulk', action: 'pause', all: true }));
-$('resume-all').addEventListener('click', () => runQueueCommand({ type: 'bulk', action: 'resume', all: true }));
-for (const action of ['pause', 'resume', 'cancel']) $(`${action}-selected`).addEventListener('click', () => {
-  const command = { type: 'bulk', action, ids: [...selectedShown()] };
-  if (action === 'cancel') confirmQueue(command, T('app.confirm.cancelSelected.title'), T('app.confirm.cancelSelected.text'));
-  else runQueueCommand(command);
+// the actions of the bar: on the selection when there is one, else on every download
+const barIds = () => [...selectedShown()];
+for (const action of ['pause', 'resume']) $(`act-${action}`).addEventListener('click', () => runQueueCommand(selectedShown().size ? { type: 'bulk', action, ids: barIds() } : { type: 'bulk', action, all: true }));
+$('act-cancel').addEventListener('click', () => askCancel(barIds()));
+$('act-clear').addEventListener('click', () => {
+  const scope = selectedShown(), ids = jobs.filter(job => job.canClear && (scope.size ? scope.has(job.id) : true)).map(job => job.id);
+  if (ids.length) runQueueCommand({ type: 'clear', ids });
 });
-function requestClear(onlySelected) {
-  const scope = selectedShown();
-  const ids = jobs.filter(job => job.canClear && (onlySelected ? scope.has(job.id) : true)).map(job => job.id);
-  if (!ids.length) return;
-  confirmQueue({ type: 'clear', ids }, T('app.confirm.clear.title'), T('app.confirm.clear.text', { n: ids.length }));
-}
-$('clear-queue').addEventListener('click', () => requestClear(false));
-$('clear-selected').addEventListener('click', () => requestClear(true));
+// "Select..." menu: replaces the selection with what matches (in the list as it is shown)
+const SELECTORS = { all: () => true, none: () => false, completed: job => job.status === 'completed', failed: job => job.status === 'failed', paused: job => ['paused', 'interrupted'].includes(job.status), running: job => job.status === 'running' };
+for (const button of document.querySelectorAll('[data-select]')) button.addEventListener('click', () => {
+  selected.clear(); for (const job of shownJobs()) if (SELECTORS[button.dataset.select](job)) selected.add(job.id);
+  $('select-menu').open = false; render(true);
+});
+document.addEventListener('click', event => { if ($('select-menu').open && !$('select-menu').contains(event.target)) $('select-menu').open = false; });
+// keyboard: Ctrl+A selects what is shown, Escape clears the selection (never while typing or while a window is open)
+document.addEventListener('keydown', event => {
+  if (dragging || document.querySelector('dialog[open]') || $('view-downloads').hidden) return;
+  const typing = event.target.closest?.('input:not([type=checkbox]), textarea, select, [contenteditable]');
+  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'a' && !typing) {
+    event.preventDefault(); for (const job of shownJobs()) selected.add(job.id); render(true);
+  } else if (event.key === 'Escape' && !typing && selected.size) { selected.clear(); render(true); }
+});
 // ---------- Column layout: header, resize handles, visibility, focus view (saved in app settings) ----------
 const sortableBy = { name: 'name', size: 'size', state: 'status' };
 const defaultDir = { name: 'asc', size: 'desc', status: 'asc', date: 'desc', queue: 'asc' };
@@ -564,9 +624,10 @@ function openRowMenu(id, x, y) {
   item('copy', T('app.copyName'), () => copyText(title, 'app.copied.name'));
   if (job.file) item('copy', T('app.copyPath'), () => copyText(job.directory ? `${job.directory}\\${job.file}` : job.file, 'app.copied.path'));
   if (job.status === 'held') item('bolt', T('app.startNow'), () => runQueueCommand({ type: 'single', action: 'start-now', id }), queueBusy);
-  if (canPause(job)) item('pause', 'Duraklat', () => runQueueCommand({ type: 'single', action: 'pause', id }), queueBusy);
-  if (canResume(job)) item('play', 'Devam et', () => runQueueCommand({ type: 'single', action: 'resume', id }), queueBusy);
-  if (canCancel(job)) item('x', T('app.cancelIt'), () => confirmQueue({ type: 'bulk', action: 'cancel', ids: [id] }, T('app.confirm.cancel.title'), T('app.confirm.cancel.text')), queueBusy);
+  if (canPause(job)) item('pause', T('app.pause'), () => runQueueCommand({ type: 'single', action: 'pause', id }), queueBusy);
+  if (canResume(job)) item('play', T('app.resume'), () => runQueueCommand({ type: 'single', action: 'resume', id }), queueBusy);
+  if (['failed', 'cancelled'].includes(job.status)) item('reset', T('app.retryNow'), () => runQueueCommand({ type: 'single', action: 'retry', id }), queueBusy);
+  if (canCancel(job)) item('x', T('app.cancelIt'), () => askCancel([id]), queueBusy);
   item('chevron', expandedJobs.has(id) ? T('app.details.hide') : T('app.details.show'), () => { if (expandedJobs.has(id)) expandedJobs.delete(id); else expandedJobs.add(id); render(); });
   menu.hidden = false;
   const box = menu.getBoundingClientRect();

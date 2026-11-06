@@ -92,6 +92,7 @@ const validLayout = value => value && typeof value === 'object' && !Array.isArra
   && Object.entries(value.widths).every(([key, width]) => LAYOUT_COLUMNS.includes(key) && Number.isInteger(width) && width >= 48 && width <= 1600)
   && Array.isArray(value.hidden) && value.hidden.length <= LAYOUT_HIDEABLE.length && new Set(value.hidden).size === value.hidden.length && value.hidden.every(id => LAYOUT_HIDEABLE.includes(id))
   && typeof value.focus === 'boolean';
+const UNDO_WINDOW_MS = 60000; // how long \"remove from the list\" can be undone
 const VISUAL_SETTINGS = ['appearance', 'textSize', 'theme', 'accent', 'listLayout', 'extensionPromptDone'];
 const SETTING_CHECKS = {
   interfaceLanguage: value => validInterfaceLanguage(value) || 'Invalid interface language.',
@@ -337,16 +338,30 @@ export class DownloadQueue {
     const selected = ids === undefined ? null : this.validateIds(ids);
     if (this.submissions.entries.size) this.submissions.save();
     const filesIn = this.fileLister();
-    const removed = [];
+    const removed = [], taken = [];
     // If history cannot be saved, leave queue records intact as well as their files.
     this.archiveCompleted(this.jobs.filter(job => (!selected || selected.has(job.id)) && this.canClear(job, filesIn(this.dirOf(job)))));
-    this.jobs = this.jobs.filter(job => {
-      if ((!selected || selected.has(job.id)) && this.canClear(job, filesIn(this.dirOf(job)))) { removed.push(job.id); this.dropSession(job); return false; }
+    this.jobs = this.jobs.filter((job, index) => {
+      if ((!selected || selected.has(job.id)) && this.canClear(job, filesIn(this.dirOf(job)))) { removed.push(job.id); taken.push({ index, job }); this.dropSession(job); return false; }
       return true;
     });
     // Deliberately no file operations: clearing history never touches downloads.
     this.save();
-    return { removed: removed.length, removedIds: removed };
+    // The last removal can be undone for a short while (the records only; nothing was deleted, so nothing has to be brought back).
+    const undoToken = taken.length ? randomUUID() : null;
+    this.lastRemoved = taken.length ? { token: undoToken, at: Date.now(), taken } : null;
+    return { removed: removed.length, removedIds: removed, undoToken };
+  }
+
+  /** Puts the records of the last \"remove from the list\" back where they were, if the token is its and it was not long ago. */
+  restoreRemoved({ token } = {}) {
+    const last = this.lastRemoved;
+    if (!last || typeof token !== 'string' || token !== last.token || Date.now() - last.at > UNDO_WINDOW_MS) throw new Error(m('e.nothing-to-undo'));
+    this.lastRemoved = null;
+    const have = new Set(this.jobs.map(job => job.id));
+    for (const { index, job } of [...last.taken].sort((a, b) => a.index - b.index)) if (!have.has(job.id)) this.jobs.splice(Math.min(index, this.jobs.length), 0, job);
+    this.save();
+    return { restored: last.taken.length };
   }
 
   transition(job, action) {

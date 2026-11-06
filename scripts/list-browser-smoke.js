@@ -19,7 +19,7 @@ const seeded = Array.from({ length: 60 }, (_, i) => ({
   url: `https://example.org/v${i}.mp4`, file: `v${i}.mp4`, directory: downloads, received: 1000 * (60 - i), total: 1000 * (60 - i), createdAt: new Date(Date.UTC(2026, 0, 1 + i)).toISOString()
 }));
 fs.writeFileSync(path.join(data, 'queue.json'), JSON.stringify(seeded));
-const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
+const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
 let browser;
 const ok = text => console.log(`OK ${text}`);
 try {
