@@ -1,0 +1,8 @@
+{
+  "extName": {
+    "message": "Hypernab — Video Catcher"
+  },
+  "extDescription": {
+    "message": "Sendet die abgespielten DRM-freien Videodateien und HLS/DASH-Anfragen an den lokalen Download-Manager."
+  }
+}

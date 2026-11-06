@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Hypernab</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="options.css"><script src="strings.js"></script><script src="ds.js"></script></head>
+<html lang="en"><head><meta charset="utf-8"><title>Hypernab</title><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="ds.css"><link rel="stylesheet" href="options.css"><script src="strings.js"></script><script src="lang/es.js"></script><script src="lang/de.js"></script><script src="lang/fr.js"></script><script src="lang/ru.js"></script><script src="lang/pt.js"></script><script src="lang/ar.js"></script><script src="ds.js"></script></head>
 <body>
 <main>
   <header><img src="icons/icon-48.png" alt=""><h1 data-t="opt.title"></h1></header>
@@ -13,7 +13,7 @@
   <section id="connection-section">
     <h2 data-t="opt.conn.title"></h2>
     <p id="conn-state" class="state" role="status"></p>
-    <div class="buttons"><button id="open-app" class="hd-btn primary" data-t="opt.conn.open"></button><button id="connect-native" class="hd-btn" data-t="opt.conn.connect"></button></div>
+    <div class="buttons"><button id="open-app" class="hd-btn primary" data-t="opt.conn.open"></button><button id="connect-native" class="hd-btn" data-t="opt.conn.connect"></button><a id="get-app" class="hd-btn" data-t="panel.getApp" href="https://github.com/dubreuil0/hypernab/releases/latest" target="_blank" rel="noopener noreferrer" hidden></a></div>
     <details id="backup"><summary data-t="opt.conn.backup"></summary>
       <p class="hint" data-t="opt.conn.backup.hint"></p>
       <div class="buttons"><input id="token" class="hd-input" type="password" autocomplete="off"><button id="save-token" class="hd-btn" data-t="opt.conn.save"></button></div>

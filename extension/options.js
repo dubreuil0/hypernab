@@ -4,10 +4,11 @@
   const api = globalThis.browser ?? globalThis.chrome;
   const $ = id => document.getElementById(id);
   const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars);
+  globalThis.HypernabText.restore?.(); // the packs are on this page now: start in the language the page showed last
   globalThis.HypernabText.follow?.(api, () => location.reload()); // the page is drawn again in the app's language
   Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:language' })).catch(() => {}); // ask the background to read the app's language now
   { const theme = document.createElement('style'); theme.textContent = DS.tokens('auto', 'green', ':root'); document.head.append(theme); }
-  if (document.documentElement) document.documentElement.lang = globalThis.HypernabText.language?.() || 'en';
+  if (document.documentElement) { document.documentElement.lang = globalThis.HypernabText.language?.() || 'en'; document.documentElement.dir = globalThis.HypernabText.dir?.() || 'ltr'; }
   for (const node of document.querySelectorAll('[data-t]')) node.textContent = T(node.dataset.t);
   $('token').placeholder = T('opt.conn.token');
   const say = (id, text, tone = '') => { const node = $(id); node.textContent = text; if (tone) node.dataset.tone = tone; else delete node.dataset.tone; };
@@ -25,8 +26,8 @@
     try {
       const info = await client.request('/api/status');
       if (!info.extensionProtocol || info.extensionProtocol < 1) throw new Error(T('opt.conn.old'));
-      say('conn-state', T('opt.conn.ok'), 'ok');
-    } catch (error) { say('conn-state', error.message || T('opt.conn.fail'), 'error'); }
+      say('conn-state', T('opt.conn.ok'), 'ok'); $('get-app').hidden = true;
+    } catch (error) { say('conn-state', error.message || T('opt.conn.fail'), 'error'); $('get-app').hidden = false; } // the app may simply not be installed yet
   };
   (async () => {
     const stored = await api.storage.local.get(['token', 'transport']).catch(() => ({}));

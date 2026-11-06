@@ -18,7 +18,6 @@
       'panel.download.title': 'Download with Hypernab — show qualities',
       'panel.download.aria': 'Download with Hypernab',
       'panel.hide': 'Hide on this page',
-      'panel.toast.queued': '✓ Added to the queue',
       'panel.toast.started': '✓ Download started',
       'panel.preparing': 'Preparing…',
       'panel.infoFailed': 'Could not get the video information.',
@@ -29,8 +28,6 @@
       'panel.dupe.cancel': 'Cancel',
       'panel.unnamed': 'Unnamed video',
       'panel.status.running': 'downloading',
-      'panel.status.queued': 'waiting in the queue',
-      'panel.status.held': 'in the added-for-later list',
       'panel.status.paused': 'paused',
       'panel.status.interrupted': 'interrupted',
       'panel.status.completed': 'completed',
@@ -963,6 +960,9 @@
       'app.concurrent.hint': 'The most downloads that run at the same time. All downloads share this number.',
       'app.phase.held': 'Paused',
       'app.dupe.s.held': 'paused',
+      'panel.toast.queued': '✓ Added for later',
+      'panel.status.queued': 'waiting its turn',
+      'panel.getApp': 'Download the app',
     },
     tr: {
       'lang.subtitle.title': 'Varsayılan altyazı dili',
@@ -979,7 +979,6 @@
       'panel.download.title': 'Hypernab ile indir — kaliteleri göster',
       'panel.download.aria': 'Hypernab ile indir',
       'panel.hide': 'Bu sayfada gizle',
-      'panel.toast.queued': '✓ Kuyruğa eklendi',
       'panel.toast.started': '✓ İndirmeye eklendi',
       'panel.preparing': 'Hazırlanıyor…',
       'panel.infoFailed': 'Video bilgisi alınamadı.',
@@ -990,8 +989,6 @@
       'panel.dupe.cancel': 'Vazgeç',
       'panel.unnamed': 'Adsız video',
       'panel.status.running': 'iniyor',
-      'panel.status.queued': 'sırasını bekliyor',
-      'panel.status.held': 'sonra eklenenlerde',
       'panel.status.paused': 'duraklatıldı',
       'panel.status.interrupted': 'kesintiye uğradı',
       'panel.status.completed': 'tamamlandı',
@@ -1924,6 +1921,9 @@
       'app.concurrent.hint': 'Aynı anda en fazla kaç indirme çalışır. Tüm indirmeler bu sayıyı paylaşır.',
       'app.phase.held': 'Duraklatıldı',
       'app.dupe.s.held': 'duraklatıldı',
+      'panel.toast.queued': '✓ Sonra eklendi',
+      'panel.status.queued': 'sırasını bekliyor',
+      'panel.getApp': 'Uygulamayı indir',
     },
   };
   // The interface language: the browser's/Windows' own when the app has it, else English. The app window and the extension then
@@ -1950,7 +1950,16 @@
   // The extension's own scripts follow the app's language: the background stores it (storage.local "uiLanguage") whenever it reads the
   // app's preferences; every other script of the extension reads it here and again when it changes. onChange runs after a real change.
   function follow(api, onChange) {
-    const apply = code => { if (typeof code === 'string' && TEXTS[code] && code !== current) { current = code; try { if (ownPage()) globalThis.localStorage?.setItem('hypernab-language', code); } catch { /* not remembered */ } try { onChange?.(code); } catch { /* cosmetic */ } } };
+    // A further language is not part of a page script: it is asked from the extension's background (which holds them all), once.
+    const load = code => {
+      if (!PACKS.includes(code) || typeof api?.runtime?.sendMessage !== 'function') return;
+      try { Promise.resolve(api.runtime.sendMessage({ type: 'hypernab:pack', code })).then(reply => { if (reply?.texts && typeof reply.texts === 'object' && !TEXTS[code]) { TEXTS[code] = reply.texts; apply(code); } }, () => {}); } catch { /* extension reloaded */ }
+    };
+    const apply = code => {
+      if (typeof code !== 'string' || code === current) return;
+      if (!TEXTS[code]) { load(code); return; }
+      current = code; try { if (ownPage()) globalThis.localStorage?.setItem('hypernab-language', code); } catch { /* not remembered */ } try { onChange?.(code); } catch { /* cosmetic */ }
+    };
     try {
       Promise.resolve(api?.storage?.local?.get?.('uiLanguage')).then(value => apply(value?.uiLanguage), () => {});
       api?.storage?.onChanged?.addListener?.((changes, area) => { if (area === 'local' && changes.uiLanguage) apply(changes.uiLanguage.newValue); });
@@ -1963,5 +1972,8 @@
   const RTL = ['ar', 'he', 'fa', 'ur']; // written right to left: the window sets dir="rtl"
   const available = () => ['en', 'tr', ...PACKS];
   const dir = code => RTL.includes(code ?? current) ? 'rtl' : 'ltr';
-  globalThis.HypernabText = { t, tn, TEXTS, apply, supported, available, packs: PACKS, dir, addLanguage(code, texts) { TEXTS[code] = texts; }, follow, language: () => current, setLanguage(code) { current = TEXTS[code] ? code : 'en'; } };
+  // The language packs of a page that carries them (the extension's settings page) arrive after this file: once they are there, the page
+  // takes up the language it showed last, so it neither starts in the browser's language nor reloads itself to reach its own.
+  const restore = () => { const code = remembered(); if (code) current = code; };
+  globalThis.HypernabText = { t, tn, TEXTS, restore, apply, supported, available, packs: PACKS, dir, addLanguage(code, texts) { TEXTS[code] = texts; }, follow, language: () => current, setLanguage(code) { current = TEXTS[code] ? code : 'en'; } };
 })();

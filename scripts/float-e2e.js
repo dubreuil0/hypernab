@@ -94,9 +94,21 @@ async function run(name, open) {
       check(name, 'gerçek ağdan sekiz bilinmeyen yanıt içinde oynatılan MP4 doğrudan seçildi', evidence.unknown >= 4 && evidence.engine === 'direct' && evidence.url === VIDEO, `(${evidence.unknown} UNKNOWN, ${evidence.engine})`);
     }
     // The app's language changes while the extension runs: a page opened afterwards still gets its button and its panel, in that language.
-    for (const code of ['tr', 'en']) {
-      await browser.eval(setup, `(globalThis.browser||globalThis.chrome).storage.local.set({ uiLanguage: ${JSON.stringify(code)} }).then(() => true)`);
+    const evalSetup = async expression => { for (let n = 0; ; n++) { try { return await browser.eval(setup, expression); } catch (error) { if (n >= 6) throw error; await wait(900); } } };
+    for (const code of ['tr', 'de', 'ar', 'en']) { // de / ar: the pack is fetched from the background on demand (Arabic also mirrors the panel)
+      await call('/api/settings', { interfaceLanguage: code }); // the app's own language: the extension reads it back (a value set only in the extension's storage is overwritten)
+      await evalSetup(`(globalThis.browser||globalThis.chrome).storage.local.set({ uiLanguage: ${JSON.stringify(code)} }).then(() => true)`);
       await wait(1500);
+      if (['de', 'ar'].includes(code)) { const ask = () => evalSetup(`(globalThis.browser||globalThis.chrome).storage.local.get('uiLanguage').then(s => JSON.stringify({ n: Object.keys(globalThis.HypernabText.TEXTS[${JSON.stringify(code)}]||{}).length, stored: s.uiLanguage }))`); let got = await ask(); for (let n = 0; n < 8 && JSON.parse(got).n <= 100; n++) { await wait(900); got = await ask(); } check(name, `arka plan ${code} metin paketini tutar`, JSON.parse(got).n > 100, got); }
+      if (code === 'ar') { // the extension's own settings page: Arabic text, mirrored, the app is reachable so the "download the app" link stays hidden
+        const optionsUrl = browser.extensionUrl ? `${browser.extensionUrl}options.html` : `chrome-extension://${chromiumId}/options.html`;
+        const options = await browser.create(optionsUrl);
+        await browserUntil(async () => (await browser.eval(options, `document.documentElement.lang === 'ar' && document.documentElement.dir === 'rtl' && Boolean((document.querySelector('h1') || {}).textContent)`)) === true, 25000).catch(() => {}); await wait(800);
+        const view = JSON.parse(await browser.eval(options, `JSON.stringify({ url: location.protocol, dir: document.documentElement.dir, lang: document.documentElement.lang, title: (document.querySelector('h1') || {}).textContent || '', getApp: (document.getElementById('get-app') || {}).hidden, scripts: [...document.scripts].map(s => s.src.split('/').pop()).join(), packs: Object.keys((globalThis.HypernabText || { TEXTS: {} }).TEXTS).join(), page: document.title, overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth })`));
+        check(name, 'ayarlar sayfası Arapça: sağdan sola, Arapça başlık, taşma yok, uygulama erişilebilir olduğu için "Uygulamayı indir" gizli', view.dir === 'rtl' && view.lang === 'ar' && /[\u0600-\u06FF]/.test(view.title) && !view.overflow && view.getApp === true, JSON.stringify(view));
+        const shotOptions = path.join(dir, `options-ar-${name}.png`); await browser.screenshot(options, shotOptions); console.log(`     ayarlar ekran görüntüsü: ${shotOptions}`);
+        await browser.closeTab(options).catch(() => {});
+      }
       const again = await browser.create(pageUrl);
       const ready = await browserUntil(async () => Boolean(await browser.eval(again, barBox)), 30000).catch(() => false);
       check(name, `dil ${code} olunca yeni sayfada indirme dugmesi gelir`, Boolean(ready));
@@ -106,6 +118,7 @@ async function run(name, open) {
         await browser.click(again, bar.l + 18, Math.round((bar.t + bar.b) / 2));
         const grown = await browserUntil(async () => { const box = await browser.eval(again, barBox); return box && box.b - box.t > 90 && box; }, 45000).catch(() => null);
         check(name, `dil ${code} olunca panel acilir ve icerik gelir`, Boolean(grown), grown ? `(${grown.b - grown.t}px)` : '');
+        if (grown && ['de', 'ar'].includes(code)) { const shotLang = path.join(dir, `float-${code}-${name}.png`); await browser.screenshot(again, shotLang); console.log(`     dil ekran g\u00f6r\u00fcnt\u00fcs\u00fc: ${shotLang}`); }
       }
       await browser.closeTab(again).catch(() => {}); await wait(500);
     }

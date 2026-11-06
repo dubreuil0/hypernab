@@ -4,7 +4,10 @@
 // they travel with the inspection request and are never stored. A first automatic look-up runs WITHOUT cookies.
 (() => {
   const T = (key, vars) => globalThis.HypernabText?.t(key, vars) ?? key; // texts: public/strings.js, in the language of the app
+  // The app is missing, not set up or too old: the panel then offers to download it.
+  const appProblem = error => ['NATIVE_DISCONNECTED', 'APP_OFFLINE', 'APP_TOO_OLD', 'APP_NOT_PAIRED'].includes(error?.code) ? { appProblem: true } : {};
   const api = globalThis.browser ?? globalThis.chrome;
+  globalThis.HypernabText?.follow?.(api); // the background speaks the app's language too (its messages reach the panel)
   const H = globalThis.Hypernab;
   if (!api?.runtime?.onMessage || !H) return;
   const CACHE_OK_MS = 900000, CACHE_FAIL_MS = 120000, MASTER_BYTES = 3000;
@@ -76,7 +79,7 @@
       await client.ready(userAction); nativeChannel = client.native;
       return client;
     }
-    if (!stored.token) throw new Error(stored.transport === 'native' ? T('x.open-the-window-of-the-extension') : T('x.first-click-the-extension-icon-and'));
+    if (!stored.token) throw Object.assign(new Error(stored.transport === 'native' ? T('x.open-the-window-of-the-extension') : T('x.first-click-the-extension-icon-and')), { code: 'APP_NOT_PAIRED' });
     const client = new H.Client({ token: stored.token }); await client.ready(false); return client;
   }
 
@@ -183,7 +186,7 @@
     if (!list.length) return { ok: false, code: 'none', error: T('x.no-downloadable-video-source-has-been') };
     let client;
     try { client = await connection(withCookies); }
-    catch (error) { return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: error.message }; }
+    catch (error) { return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: error.message, ...appProblem(error) }; }
     const finish = async (source, held) => {
       const { info } = held;
       // Other complete files this page loaded (the MP4 next to an HLS list, flv/avi/ts...) become extra rows under the qualities.
@@ -214,7 +217,7 @@
     }
     if (fallback) return finish(fallback.source, fallback.held);
     // A failed speculative HLS sniff is not the diagnosis of the whole video. Prefer the page's actionable reason.
-    return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || T('x.the-video-information-could-not-be') };
+    return { ok: false, code: withCookies ? 'failed' : 'needs-session', error: pageError?.message || firstError?.message || T('x.the-video-information-could-not-be'), ...appProblem(pageError || firstError) };
   }
   // The user's sound preference and the app's look (theme, accent) from the app; the app being unreachable never blocks the panel.
   async function prefsOf(client) {
@@ -280,7 +283,7 @@
           if ((await client.request(`/api/submissions/${payload.submissionId}`)).known) return { ok: true, queued: payload.start === 'queue' };
         }
       }
-    } catch (error) { return { ok: false, error: error.message }; }
+    } catch (error) { return { ok: false, error: error.message, ...appProblem(error) }; }
   }
 
   async function startDownload(tab, optionId, mode, intentId, allowDuplicate = false, audioTrack = null) {
@@ -392,6 +395,10 @@
   api.runtime.onInstalled?.addListener(() => { void syncLanguage(); void sweepOutbox(); });
 
   api.runtime.onMessage.addListener((message, sender, respond) => {
+    if (message?.type === 'hypernab:pack') { // a page script of ours asks for the texts of one further language (they are not loaded into every page)
+      const texts = sender.id === api.runtime?.id && globalThis.HypernabText?.packs?.includes(message.code) ? globalThis.HypernabText.TEXTS[message.code] : null;
+      respond(texts ? { texts } : { texts: null }); return false;
+    }
     if (message?.type === 'hypernab:language') {
       if (sender.id !== api.runtime?.id) return false;
       syncLanguage(true).then(() => respond({ ok: true }), () => respond({ ok: false })); // a page opening is asked for right now
@@ -424,7 +431,7 @@
       work = starts.get(key);
     }
     else { respond({ ok: false, error: T('x.invalid-request') }); return false; }
-    work.then(respond, error => respond({ ok: false, error: error.message }));
+    work.then(respond, error => respond({ ok: false, error: error.message, ...appProblem(error) }));
     return true;
   });
   globalThis.HypernabFloat = { connection }; // the link menu (link-download.js) uses the same app connection

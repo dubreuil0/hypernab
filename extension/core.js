@@ -135,7 +135,7 @@
           throw error;
         }
       }
-      if (!info?.extensionProtocol) throw new Error(T('x.use-the-current-hypernab-app-with'));
+      if (!info?.extensionProtocol) throw Object.assign(new Error(T('x.use-the-current-hypernab-app-with')), { code: 'APP_TOO_OLD' });
       this.instanceId = info.instanceId || null;
       return info;
     }

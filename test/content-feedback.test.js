@@ -45,7 +45,7 @@ test('gecikmiş sıraya ekleme sırasında yenileme/çift tıklama tek niyet ür
   app.open(); await flush(); app.find('later').click(); app.refresh(); app.find('now').click();
   assert.equal(app.sent.filter(m => m.action === 'start').length, 1);
   accept({ ok: true, queued: true }); await flush();
-  assert.equal(app.find('panel').hidden, true); assert.equal(app.find('toast').textContent, '✓ Kuyruğa eklendi');
+  assert.equal(app.find('panel').hidden, true); assert.equal(app.find('toast').textContent, '\u2713 Sonra eklendi');
 });
 
 test('başlatma hatasında panel kapanmaz veya başarı iddia edilmez', async () => {
@@ -82,4 +82,15 @@ test('gönderim sırasında kapatılıp açılan panelde gerçek hata görünür
   app.open(); await flush(); app.find('now').click(); app.open(); app.open(); await flush();
   accept({ ok: false, error: 'Kaynak isteği reddedildi.' }); await flush();
   assert.equal(app.find('panel').hidden, false); assert.equal(app.find('err').hidden, false); assert.equal(app.find('err').textContent, 'Kaynak isteği reddedildi.');
+});
+
+test('an app problem (missing, not set up, too old) offers "Download the app": a plain link to the release page; other errors do not', async () => {
+  const links = app => app.root.all().filter(item => item.tag === 'a');
+  const missing = setup({ inspect: () => ({ ok: false, error: 'Could not connect.', appProblem: true }) }); missing.open(); await flush();
+  assert.equal(links(missing).length, 1);
+  const [link] = links(missing);
+  assert.equal(link.href, 'https://github.com/dubreuil0/hypernab/releases/latest'); assert.equal(link.target, '_blank'); assert.equal(link.rel, 'noopener noreferrer');
+  assert.equal(link.textContent, 'Uygulamay\u0131 indir', 'in the language of the extension (these tests run in Turkish)');
+  const other = setup({ inspect: () => ({ ok: false, error: 'No video source yet.', code: 'none' }) }); other.open(); await flush();
+  assert.equal(links(other).length, 0, 'a page without a video is no reason to offer the app');
 });

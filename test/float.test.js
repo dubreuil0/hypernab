@@ -30,6 +30,7 @@ function setup({ entries = [], frames = {}, inspect, jobs = [], native, jobsAnsw
   context.globalThis = context;
   if (native) { local.transport = 'native'; context.HypernabNativeChannel = native; }
   vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context); vm.runInContext("HypernabText.setLanguage('tr')", context); // these tests read the Turkish texts
+  vm.runInContext(read('lang/de.js'), context); // a further language, as the background holds it
   vm.runInContext(read('core.js'), context); vm.runInContext(read('float.js'), context);
   const send = message => new Promise(resolve => {
     const keep = listener(message, { id: 'ext', tab: { id: 7, url: 'https://example.org/watch?v=1', title: 'Video başlığı' }, url: 'https://example.org/watch?v=1' }, resolve);
@@ -53,6 +54,15 @@ test('the language changed in the app reaches the extension when a page of the e
   const stranger = await app.raw({ type: 'hypernab:language' }, { id: 'other-extension' });
   assert.equal(stranger, null, 'only our own pages may ask');
   assert.equal(/alarms/.test(fs.readFileSync(new URL('../extension/float.js', import.meta.url), 'utf8')), false, 'no alarm (and no alarms permission) is needed');
+});
+
+test('the background hands the texts of one further language to its own page scripts only', async () => {
+  const app = setup({ inspect: () => info });
+  const own = await app.raw({ type: 'hypernab:pack', code: 'de' }, { id: 'ext', tab: { id: 7 } });
+  assert.equal(typeof own?.texts?.['panel.download'], 'string');
+  assert.equal((await app.raw({ type: 'hypernab:pack', code: 'de' }, { id: 'other-extension' }))?.texts, null, 'a stranger gets nothing');
+  assert.equal((await app.raw({ type: 'hypernab:pack', code: 'xx' }, { id: 'ext' }))?.texts, null, 'only a known pack');
+  assert.equal((await app.raw({ type: 'hypernab:pack', code: 'tr' }, { id: 'ext' }))?.texts, null, 'tr and en are part of every page script already');
 });
 
 test('privacy: the record of a download in progress never outlives the download; stale and old-format records are swept', async () => {

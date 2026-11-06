@@ -8,7 +8,7 @@
 .bar{display:flex;align-items:center;border-radius:999px;background:var(--panel);border:1px solid var(--border-strong);box-shadow:0 2px 8px #0004;opacity:.8;cursor:grab;user-select:none;touch-action:none}
 .bar:hover,.bar.drag{opacity:1}
 .bar.drag{cursor:grabbing}
-.bar button{appearance:none;margin:0;border:0;background:transparent;color:var(--text);font:600 11px/1 system-ui,'Segoe UI',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px}
+.bar button{appearance:none;margin:0;border:0;background:transparent;color:var(--text);font:600 11px/1 system-ui,'Segoe UI',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;padding-block:4px;padding-inline:4px 10px;border-radius:999px}
 .bar button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 .bar .x{padding:4px 9px;color:var(--muted);font-weight:400}
 .bar .x .hd-ic{width:10px;height:10px}

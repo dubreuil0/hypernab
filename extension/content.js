@@ -2,7 +2,8 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   const DS = globalThis.HypernabDS, T = (key, vars) => globalThis.HypernabText.t(key, vars); // shared design system and texts (strings.js, ds.js)
-  globalThis.HypernabText.follow?.(api); // the panel speaks the app's language
+  const retexts = new Set(); // every drawn button writes its words again when the language changes (a further language arrives a moment after the page)
+  globalThis.HypernabText.follow?.(api, () => { for (const again of retexts) again(); }); // the panel speaks the app's language
   const videos = new WeakSet();
   let last = '', drm = false, queued = false;
   // Capture switched off on the toolbar icon: no button, no panel. Read once, then followed through storage changes.
@@ -33,8 +34,8 @@
     host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;top:0;left:0;width:0;height:0;';
     const root = host.attachShadow({ mode: 'closed' });
     const bar = document.createElement('div'); bar.className = 'bar';
-    const start = document.createElement('button'); start.className = 'start';
-    { const dot = document.createElement('span'); dot.className = 'dot'; dot.append(DS.icon(document, 'download')); const label = document.createElement('span'); label.textContent = T('panel.download'); start.append(dot, label); }
+    const start = document.createElement('button'); start.className = 'start'; let startLabel;
+    { const dot = document.createElement('span'); dot.className = 'dot'; dot.append(DS.icon(document, 'download')); const label = document.createElement('span'); label.textContent = T('panel.download'); start.append(dot, label); startLabel = label; }
     start.title = T('panel.download.title'); start.setAttribute?.('aria-label', T('panel.download.aria'));
     const close = document.createElement('button'); close.className = 'x'; close.append(DS.icon(document, 'close')); close.title = T('panel.hide'); close.setAttribute?.('aria-label', T('panel.hide'));
     const hint = document.createElement('div'); hint.className = 'hint'; hint.hidden = true;
@@ -50,6 +51,8 @@
       } else event.preventDefault();
     }, { passive: false });
     const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = T('panel.toast.queued'); toast.hidden = true;
+    const retext = () => { if (startLabel) startLabel.textContent = T('panel.download'); start.title = T('panel.download.title'); start.setAttribute?.('aria-label', T('panel.download.aria')); close.title = T('panel.hide'); close.setAttribute?.('aria-label', T('panel.hide')); };
+    retexts.add(retext);
     toast.setAttribute?.('role', 'status'); toast.setAttribute?.('aria-live', 'polite');
     bar.append(start, close); root.append(bar, panel, toast, hint);
     // A constructed stylesheet is not blocked by a page's Content-Security-Policy (an inline <style> can be); fall back to <style> only without it.
@@ -76,13 +79,14 @@
     closers.add(closer);
     removers.add(() => remove('disabled'));
     const remove = why => {
-      if (removed) return; removed = true; closers.delete(closer); refreshers.delete(refresher); clearInterval(timer); stopDrag(); closePanel(); host.remove(); if (why) onClose(why);
+      if (removed) return; removed = true; closers.delete(closer); refreshers.delete(refresher); retexts.delete(retext); clearInterval(timer); stopDrag(); closePanel(); host.remove(); if (why) onClose(why);
     };
     // The placement mode is decided ONCE from where the video sits in the page, then kept. Re-deciding on every tick made the
     // button jump left/right while scrolling. Vertically the button is never clamped to the window: it travels with the video,
     // slides out of the window and is simply hidden once fully out; scrolling back brings it up again in the same spot.
     let mode = null;
     const place = () => {
+      panel.dir = toast.dir = hint.dir = globalThis.HypernabText.dir?.() || 'ltr';
       const rect = getRect();
       if (!rect) { remove('gone'); return; }
       const width = win.innerWidth || 1200, height = win.innerHeight || 800;
@@ -171,14 +175,15 @@
     function showLoading() {
       panel.replaceChildren(el('div', 'ptitle', T('panel.preparing')), el('div', 'skel'));
     }
-    function showError(text, retry = true) {
+    function showError(text, retry = true, appProblem = false) {
       const children = [el('div', 'err', text)];
+      if (appProblem) { const get = el('a', 'sub hd-btn primary', T('panel.getApp')); get.href = 'https://github.com/dubreuil0/hypernab/releases/latest'; get.target = '_blank'; get.rel = 'noopener noreferrer'; children.push(get); }
       const open = el('button', 'sub hd-btn quiet', T('panel.openSettings')); open.addEventListener('click', () => { closePanel(); try { api.runtime.sendMessage({ type: 'hypernab:open-options' }); } catch { /* extension reloaded */ } }); children.push(open);
       panel.replaceChildren(...children);
     }
     function showResult(result) {
       shownSig = JSON.stringify(result);
-      if (!result.ok) { showError(result.error || T('panel.infoFailed'), result.code !== 'drm'); return; }
+      if (!result.ok) { showError(result.error || T('panel.infoFailed'), result.code !== 'drm', result.appProblem === true); return; }
       applyLook(result.look);
       const options = result.options || [], main = options.filter(option => option.recommended !== false), more = options.filter(option => option.recommended === false);
       const list = el('div', 'opts'), note = el('div', 'err'); note.hidden = true;
@@ -218,11 +223,12 @@
         errorNote.className = 'err'; errorNote.textContent = answer.error || T('panel.startFailed'); errorNote.hidden = false;
       }
       // The same source in the same quality is already in the app: say so, and let the user decide. Nothing is removed or replaced.
-      const states = Object.fromEntries(['running', 'queued', 'held', 'paused', 'interrupted', 'completed'].map(key => [key, T(`panel.status.${key}`)]));
+      // A download added for later (held) is shown as a paused one: that is all it is.
+      const stateText = status => ['running', 'queued', 'paused', 'interrupted', 'completed'].includes(status) ? T(`panel.status.${status}`) : status === 'held' ? T('panel.status.paused') : status;
       function askDuplicate(answer, optionId, mode) {
         panel.querySelector?.('.dupe')?.remove();
         const box = el('div', 'dupe'), actions = el('div', 'pactions');
-        for (const item of (answer.duplicates || []).slice(-2)) box.append(el('div', '', `• ${item.title === 'video' ? T('panel.unnamed') : item.title}${item.formatLabel ? ` · ${item.formatLabel}` : ''} — ${states[item.status] || item.status}`));
+        for (const item of (answer.duplicates || []).slice(-2)) box.append(el('div', '', `• ${item.title === 'video' ? T('panel.unnamed') : item.title}${item.formatLabel ? ` · ${item.formatLabel}` : ''} — ${stateText(item.status)}`));
         box.prepend(el('div', '', T('panel.dupe.title')));
         const again = el('button', 'go hd-btn primary', T('panel.dupe.again')), cancel = el('button', 'sub hd-btn quiet', T('panel.dupe.cancel'));
         again.addEventListener('click', () => { box.remove(); begin(optionId, mode, true); }); cancel.addEventListener('click', () => box.remove());
