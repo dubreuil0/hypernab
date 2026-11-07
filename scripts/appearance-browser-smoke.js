@@ -14,7 +14,7 @@ const data = path.join(dir, 'data'), downloads = path.join(dir, 'downloads');
 fs.mkdirSync(data); fs.mkdirSync(downloads);
 fs.writeFileSync(path.join(downloads, 'fixture.mp4'), 'test fixture');
 fs.writeFileSync(path.join(data, 'queue.json'), JSON.stringify([{ id: randomUUID(), title: 'Görünüm denemesi', engine: 'direct', status: 'completed', url: 'https://example.org/test.mp4', file: 'fixture.mp4', directory: downloads }]));
-const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
+const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
 let browser;
 try {
   await browserUntil(() => fetch(origin).then(r => r.ok, () => false));

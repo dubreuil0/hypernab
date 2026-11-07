@@ -11,6 +11,9 @@
   const removers = new Set(); // every overlay of this window can be taken down at once
   const closers = new Set(); // every open overlay of this window can close its panel
   const refreshers = new Set(); // ...and look the page up again when it changes
+  const placers = new Set(); // ...and be placed again at once (entering or leaving full screen)
+  const fullscreen = () => { try { return Boolean(document.fullscreenElement || document.webkitFullscreenElement); } catch { return false; } };
+  for (const type of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener?.(type, () => { for (const again of placers) again(); });
   // In Firefox a content script's globalThis is a sandbox, NOT the page window: comparing against it is always "different".
   // Every window identity check therefore uses the real window object.
   const win = globalThis.window ?? globalThis;
@@ -79,7 +82,7 @@
     closers.add(closer);
     removers.add(() => remove('disabled'));
     const remove = why => {
-      if (removed) return; removed = true; closers.delete(closer); refreshers.delete(refresher); retexts.delete(retext); clearInterval(timer); stopDrag(); closePanel(); host.remove(); if (why) onClose(why);
+      if (removed) return; removed = true; closers.delete(closer); refreshers.delete(refresher); retexts.delete(retext); placers.delete(place); clearInterval(timer); stopDrag(); closePanel(); host.remove(); if (why) onClose(why);
     };
     // The placement mode is decided ONCE from where the video sits in the page, then kept. Re-deciding on every tick made the
     // button jump left/right while scrolling. Vertically the button is never clamped to the window: it travels with the video,
@@ -89,6 +92,9 @@
       panel.dir = toast.dir = hint.dir = globalThis.HypernabText.dir?.() || 'ltr';
       const rect = getRect();
       if (!rect) { remove('gone'); return; }
+      // Full screen (the video, its player or the whole page): nothing of ours is drawn over the picture; it comes back on leaving.
+      if (fullscreen()) { host.style.display = 'none'; return; }
+      host.style.display = '';
       const width = win.innerWidth || 1200, height = win.innerHeight || 800;
       // The button stays while a good part of the video is still on screen (not only until its top edge leaves the window).
       const visible = rect.width >= 240 && rect.bottom > STAY_VISIBLE_PX && rect.top < height;
@@ -314,6 +320,7 @@
       });
     };
     refreshers.add(refresher);
+    placers.add(place);
     prefetch();
     timer = setInterval(place, 400); place();
     return { remove: () => remove(null), open: () => { if (panel.hidden) openPanel(); } };

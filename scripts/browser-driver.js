@@ -38,7 +38,10 @@ const parsed = value => value === undefined ? undefined : JSON.parse(value);
 
 export async function chromiumBrowser(binary, profile, extensions) {
   profileDirectory(profile); const port = await freePort();
-  const child = spawn(binary, [`--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1', '--headless=new', '--no-first-run', '--no-default-browser-check', `--load-extension=${extensions.join(',')}`, 'about:blank'], { windowsHide: true, stdio: 'ignore' });
+  // HD_HEADED=1 shows a real window: headless Chrome ignores full-screen requests and may stall on screenshots.
+  const child = spawn(binary, [`--user-data-dir=${profile}`, `--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1', ...(process.env.HD_HEADED === '1' ? [] : ['--headless=new']),
+    // A test window covered by others is "hidden" to Chrome on Windows: timers slow down, no frames are drawn. Keep it awake.
+    '--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--no-first-run', '--no-default-browser-check', `--load-extension=${extensions.join(',')}`, 'about:blank'], { windowsHide: true, stdio: 'ignore' });
   try {
   const version = await until(async () => { const response = await fetch(`http://127.0.0.1:${port}/json/version`); return response.ok && response.json(); }, 30000);
   const rpc = await connect(version.webSocketDebuggerUrl);
@@ -46,7 +49,12 @@ export async function chromiumBrowser(binary, profile, extensions) {
   async function session(id) { if (!sessions.has(id)) sessions.set(id, (await rpc.call('Target.attachToTarget', { targetId: id, flatten: true })).sessionId); return sessions.get(id); }
   return {
     name: version.Browser, child,
-    async create(url, background = false) { return (await rpc.call('Target.createTarget', { url, background })).targetId; },
+    async create(url, background = false) {
+      const id = (await rpc.call('Target.createTarget', { url, background })).targetId;
+      // A tab left behind about:blank is a background tab to Chrome: slowed timers, no frames for screenshots, full screen refused.
+      if (!background) { try { await rpc.call('Page.bringToFront', {}, await session(id)); } catch { /* older browsers: the tab is in front already */ } }
+      return id;
+    },
     async navigate(id, url) { await rpc.call('Page.navigate', { url }, await session(id)); await until(() => this.eval(id, 'document.readyState === "complete"')); },
     async eval(id, expression) {
       const result = await rpc.call('Runtime.evaluate', { expression: wrapped(expression), awaitPromise: true, returnByValue: true, userGesture: true }, await session(id));
@@ -56,6 +64,15 @@ export async function chromiumBrowser(binary, profile, extensions) {
     async click(id, x, y) { // a real mouse click at viewport coordinates (reaches closed shadow roots like a user would)
       const target = await session(id);
       for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await rpc.call('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, target);
+    },
+    async front(id) { await rpc.call('Target.activateTarget', { targetId: id }); await rpc.call('Page.bringToFront', {}, await session(id)); },
+    // The real window's page area, not an emulated one (Chrome refuses full screen while the size is emulated).
+    async windowSize(id, width, height) {
+      const { windowId } = await rpc.call('Browser.getWindowForTarget', { targetId: id });
+      await rpc.call('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+      await rpc.call('Browser.setWindowBounds', { windowId, bounds: { width, height } });
+      const inner = await this.eval(id, '({ w: innerWidth, h: innerHeight })');
+      await rpc.call('Browser.setWindowBounds', { windowId, bounds: { width: width * 2 - inner.w, height: height * 2 - inner.h } });
     },
     async viewport(id, width, height) { await rpc.call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false }, await session(id)); },
     async mouse(id, type, x, y) { await rpc.call('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: type === 'mouseMoved' ? 0 : 1 }, await session(id)); },

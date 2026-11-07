@@ -17,7 +17,7 @@ fs.writeFileSync(path.join(downloads, seed.at(-1).file), 'kept-bytes');
 fs.writeFileSync(path.join(data, 'queue.json'), JSON.stringify(seed));
 fs.writeFileSync(path.join(data, 'queue.json.meta.json'), JSON.stringify({ order: 2 }));
 const port = await freePort(), origin = `http://127.0.0.1:${port}`;
-const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
+const child = spawn(process.execPath, ['src/server.js'], { cwd: path.resolve(import.meta.dirname, '..'), env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads }, stdio: 'ignore' });
 let browser;
 try {
   await browserUntil(() => fetch(origin).then(r => r.ok, () => false));

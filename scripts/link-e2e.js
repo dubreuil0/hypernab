@@ -35,6 +35,8 @@ async function call(route, body) {
 
 async function run(name, open) {
   const browser = await open();
+  // Both browsers share one app: each sends its own address, or the second one's first file would rightly be a duplicate.
+  const asset = `${ASSET}${ASSET.includes('?') ? '&' : '?'}browser=${name}`;
   try {
     const setup = browser.extensionUrl ? await browser.create(`${browser.extensionUrl}options.html`) : await browserUntil(async () => (await browser.targets()).find(target => target.type === 'service_worker' && target.url === `chrome-extension://${chromiumId}/background.js`)?.targetId);
     await wait(800);
@@ -58,7 +60,7 @@ async function run(name, open) {
     check(name, 'tarayıcının indirme API\'si eklentiye hiç verilmemiş', (await ev(`typeof ${API}.downloads`)) === 'undefined');
 
     // 2. a real file through the handler
-    await runLink(ASSET);
+    await runLink(asset);
     await browserUntil(async () => (await ownJobs()).some(job => ['completed', 'failed'].includes(job.status)), 90000).catch(() => {});
     const job = (await ownJobs())[0], taken = job?.file && path.join(dir, 'app-downloads', job.file);
     check(name, 'bağlantı Hypernab tarafından gerçek adıyla indirildi ve doğrulandı', job?.status === 'completed' && /\.zip$/.test(job.file || '') && job.verification?.status === 'passed' && job.kind === 'file', `(${job?.status} ${job?.file} ${job?.error || ''})`);
@@ -67,7 +69,7 @@ async function run(name, open) {
     check(name, 'araç çubuğu: "OK" işareti ve eklendi ipucu', done.badge === 'OK' && /Added to Hypernab/.test(done.title), JSON.stringify(done));
 
     // 3. the same link again: already in the list
-    await runLink(ASSET);
+    await runLink(asset);
     const twice = await notice();
     check(name, 'aynı bağlantı: "=" işareti ve zaten var ipucu, ikinci iş açılmadı', twice.badge === '=' && /already in Hypernab/.test(twice.title) && (await ownJobs()).length === 1, JSON.stringify(twice));
 
@@ -83,7 +85,7 @@ async function run(name, open) {
     const status = await call('/api/status');
     await call('/api/app/shutdown', { confirm: true, instanceId: status.instanceId });
     await browserUntil(async () => !await fetch(origin).then(() => true, () => false), 20000);
-    await runLink(`${ASSET}?again=1`);
+    await runLink(`${asset}&again=1`);
     await browserUntil(async () => fs.existsSync(path.join(dir, 'data', 'pairing-token')) && await call('/api/status').then(() => true, () => false), 30000).catch(() => {});
     await browserUntil(async () => (await ownJobs()).length >= 2, 30000).catch(() => {});
     const afterStart = await notice();

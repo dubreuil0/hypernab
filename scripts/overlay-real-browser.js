@@ -30,7 +30,7 @@ const childPort = childServer.address().port;
 const topServer = await listen((req, res) => {
   const frameTop = Number(new URL(req.url, 'http://x').searchParams.get('top') || 200);
   res.setHeader('content-type', 'text/html; charset=utf-8');
-  res.end(`<!doctype html><meta charset="utf-8"><body style="margin:0;height:2500px;font:20px sans-serif"><div style="position:absolute;left:100px;top:120px;width:700px;line-height:28px">Üst sayfadaki yazı: düğmenin arkasında okunabilmeli.</div><iframe id="f" src="http://127.0.0.1:${childPort}/player" style="position:absolute;left:100px;top:${frameTop}px;width:640px;height:360px;border:0"></iframe><div style="position:absolute;left:900px;top:450px;width:300px">Sağdaki site alanı</div>`);
+  res.end(`<!doctype html><meta charset="utf-8"><body style="margin:0;height:2500px;font:20px sans-serif"><div style="position:absolute;left:100px;top:120px;width:700px;line-height:28px">Üst sayfadaki yazı: düğmenin arkasında okunabilmeli.</div><iframe id="f" src="http://127.0.0.1:${childPort}/player" style="position:absolute;left:100px;top:${frameTop}px;width:640px;height:360px;border:0"></iframe><div style="position:absolute;left:900px;top:450px;width:300px">Sağdaki site alanı</div><button id="fs-page" style="position:absolute;left:10px;top:450px;width:80px;height:36px" onclick="window.fsr='clicked';document.documentElement.requestFullscreen().then(()=>window.fsr='ok',e=>window.fsr='err:'+e.message)">page</button><button id="fs-frame" style="position:absolute;left:10px;top:510px;width:80px;height:36px" onclick="window.fsr='clicked';document.getElementById('f').requestFullscreen().then(()=>window.fsr='ok',e=>window.fsr='err:'+e.message)">frame</button>`);
 });
 const topUrl = `http://127.0.0.1:${topServer.address().port}/`;
 // The button lives in a closed shadow root, so its box is found by hit-testing: the host element answers for every point of the bar.
@@ -44,6 +44,11 @@ const barBox = `(() => {
   return box;
 })()`;
 const near = (a, b, tolerance = 6) => Math.abs(a - b) <= tolerance;
+// Pictures are for a person to look at, not part of the checks: headless Chrome 157 sometimes never answers a screenshot.
+const snap = async (browser, tab, file) => {
+  try { await Promise.race([browser.screenshot(tab, file), wait(10000).then(() => { throw new Error('zaman aşımı'); })]); console.log(`     ekran görüntüsü: ${file}`); }
+  catch (error) { console.log(`     ekran görüntüsü alınamadı (${error.message})`); }
+};
 const builds = buildExtensions(path.join(dir, 'extensions'));
 const results = [];
 const check = (browser, name, ok, detail = '') => { results.push({ browser, name, ok }); console.log(`${ok ? 'OK  ' : 'HATA'} [${browser}] ${name} ${detail}`); };
@@ -53,6 +58,10 @@ async function run(name, open) {
   const browser = await open();
   try {
     const tab = await browser.create(topUrl);
+    // A fresh install opens the settings page once and it takes the front: put the test page back in front (a tab behind is slowed
+    // down and refused full screen), then give it a usual desktop size (headless Chrome 157 opens 764x429).
+    if (browser.front) { await wait(1000); await browser.front(tab); }
+    if (browser.windowSize) { await browser.windowSize(tab, 1280, 800); await wait(300); }
     // Wait until the player frame has reported, then inspect the top page.
     await browserUntil(() => log.some(entry => entry?.startsWith('child-host:')), 30000);
     await wait(500);
@@ -68,8 +77,7 @@ async function run(name, open) {
     check(name, 'üst sayfada tek düğme çizildi', probe.hosts === 1, `(ana öğe sayısı=${probe.hosts})`);
     check(name, 'düğme iframe\'in dışında, sağ üst köşenin üstünde', probe.aboveFrame === true);
     check(name, 'iframe içinde düğme çizilmedi', log.includes('child-host:false'), `(iframe raporu=${log.filter(x => x?.startsWith('child-host:')).join(',')})`);
-    const shot = path.join(dir, `overlay-${name}.png`); await browser.screenshot(tab, shot);
-    console.log(`     ekran görüntüsü: ${shot}`);
+    const shot = path.join(dir, `overlay-${name}.png`); await snap(browser, tab, shot);
 
     // Floating panel: a REAL click on the button opens it under the button (no extension popup), Esc and an outside click close it.
     // (No app key is stored in this fresh profile, so the panel shows its "connect first" message; geometry and open/close are what is checked.)
@@ -78,7 +86,7 @@ async function run(name, open) {
     await browser.click(tab, clickX, clickY); await wait(1200);
     const opened = await browser.eval(tab, barBox);
     check(name, 'düğmeye tıklayınca yüzen panel düğmenin altında açılır', Boolean(opened) && opened.b - opened.t > (closed.b - closed.t) + 50 && near(opened.r, closed.r, 12), `(önce=${closed.b - closed.t}px, sonra=${opened?.b - opened?.t}px)`);
-    const shotPanel = path.join(dir, `panel-${name}.png`); await browser.screenshot(tab, shotPanel); console.log(`     ekran görüntüsü: ${shotPanel}`);
+    const shotPanel = path.join(dir, `panel-${name}.png`); await snap(browser, tab, shotPanel);
     await browser.key(tab, 'Escape'); await wait(800);
     const afterEsc = await browser.eval(tab, barBox);
     check(name, 'Esc paneli kapatır', Boolean(afterEsc) && afterEsc.b - afterEsc.t <= (closed.b - closed.t) + 6, `(${afterEsc?.b - afterEsc?.t}px)`);
@@ -100,6 +108,18 @@ async function run(name, open) {
     check(name, 'tamamen pencereden çıkınca kaybolur', gone === null, `(${JSON.stringify(gone)})`);
     await scrollTo(0); const back = await browser.eval(tab, barBox);
     check(name, 'yukarı dönünce aynı yerde yeniden belirir', Boolean(back && at0) && near(back.l, at0.l) && near(back.t, at0.t) && near(back.r, at0.r), `(${JSON.stringify(back)})`);
+
+    // Full screen (a real click, as the browser demands): the whole page, then the player frame. Nothing of ours over the picture;
+    // on leaving, the button is back in its spot.
+    for (const [button, what] of [['fs-page', 'tüm sayfa'], ['fs-frame', 'oynatıcı karesi']]) {
+      await browser.click(tab, 50, button === 'fs-page' ? 468 : 528); await wait(1200);
+      const state = await browser.eval(tab, `({ fsr: window.fsr, on: Boolean(document.fullscreenElement), host: [...document.body.children].some(e => e.style.zIndex === '2147483647' && e.style.display !== 'none') })`);
+      const shotFull = path.join(dir, `fullscreen-${button}-${name}.png`); await snap(browser, tab, shotFull);
+      check(name, `tam ekranda (${what}) düğme görünmez`, state.on === true && state.host === false && (await browser.eval(tab, barBox)) === null, `(tam ekran=${state.on}, istek=${state.fsr}, düğme görünür=${state.host})`);
+      await browser.eval(tab, `(document.exitFullscreen(), true)`); await wait(1500);
+      const restored = await browser.eval(tab, barBox);
+      check(name, `tam ekrandan (${what}) çıkınca aynı yerde geri gelir`, Boolean(restored && at0) && near(restored.l, at0.l) && near(restored.t, at0.t), `(${JSON.stringify(restored)})`);
+    }
 
     // Video close to the top of the page (no room above): the side must not flip while scrolling.
     log.length = 0; await browser.navigate(tab, `${topUrl}?top=10`);

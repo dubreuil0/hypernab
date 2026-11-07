@@ -10,7 +10,7 @@
   globalThis.HypernabText?.follow?.(api); // the background speaks the app's language too (its messages reach the panel)
   const H = globalThis.Hypernab;
   if (!api?.runtime?.onMessage || !H) return;
-  const CACHE_OK_MS = 900000, CACHE_FAIL_MS = 120000, MASTER_BYTES = 3000;
+  const CACHE_OK_MS = 900000, CACHE_FAIL_MS = 120000, MASTER_BYTES = 3000, PAGE_HEDGE_MS = 2000;
   const inflight = new Map(); // `${tabId}|${cookies}` -> Promise, so a prefetch and the click share one look-up
   let nativeChannel;
   const starts = new Map();
@@ -205,9 +205,21 @@
     // are not that are kept as the way out, so an odd page still gets its answer as before.
     const fits = info => !(playerDuration > 0) || !(info.duration > 0) || Math.abs(info.duration - playerDuration) <= playerDuration * 0.1;
     let firstError = null, pageError = null, fallback = null;
+    // The page's own resolver is last in line, yet it is often the answer. Once a captured candidate fails or keeps us waiting
+    // (a silent CDN can hold an inspection for a minute), it is started alongside; the order of preference stays the same.
+    const page = list.find(item => item.kind === 'PAGE');
+    let pageRun = null;
+    const startPage = () => { if (page && !pageRun) pageRun = inspectOne(client, tab, page, withCookies, fresh).then(held => ({ held }), error => ({ error })); };
+    const early = (source, work) => {
+      if (!page || source === page || pageRun) return work;
+      let timer = null;
+      return Promise.race([work, new Promise(resolve => { timer = setTimeout(() => { startPage(); resolve(); }, PAGE_HEDGE_MS); })]).then(() => work).finally(() => clearTimeout(timer));
+    };
     for (const [index, source] of list.entries()) {
       try {
-        const held = await inspectOne(client, tab, source, withCookies, fresh);
+        let held;
+        if (source === page && pageRun) { const run = await pageRun; if (run.error) throw run.error; held = run.held; }
+        else held = await early(source, inspectOne(client, tab, source, withCookies, fresh).catch(error => { startPage(); throw error; }));
         const { info } = held, qualities = (info.options || []).length;
         const master = qualities >= 2 && fits(info);
         const settled = !info.audioOnly && (master || !list.slice(index + 1).some(item => item.master));

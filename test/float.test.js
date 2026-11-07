@@ -121,8 +121,10 @@ test('çok sayıda bilinmeyen aday sayfa çözümlemesini bütçe dışına item
   const answer = await app.send({ type: 'hypernab:float', action: 'inspect', cookies: false });
   assert.equal(answer.ok, true, answer.error);
   const attempts = app.requests.filter(r => ['/api/inspect', '/api/sniff'].includes(r.route));
-  assert.equal(attempts.length, 4); assert.equal(attempts.at(-1).route, '/api/inspect');
-  assert.ok(attempts.at(-1).body.url.startsWith('https://example.org/watch'));
+  assert.equal(attempts.length, 4);
+  const page = attempts.filter(r => r.body.url.startsWith('https://example.org/watch'));
+  assert.equal(page.length, 1); assert.equal(page[0].route, '/api/inspect');
+  assert.ok(attempts.indexOf(page[0]) < 3, 'the page is not left until every sniff has failed');
   assert.equal(app.cookieCalls.length, 0);
 });
 

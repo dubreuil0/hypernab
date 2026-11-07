@@ -64,6 +64,22 @@ test('the small master list wins even when it was captured first (oldest) and a 
   assert.equal(app.requests.filter(r => r.route === '/api/inspect').length, 1, 'and nothing else needs to be asked');
 });
 
+test('once a captured list fails, the page itself is looked at alongside the next one instead of after it', async () => {
+  const log = [];
+  const entries = [stream('a/broken.m3u8', 0), stream('b/silent.m3u8', 0)];
+  const app = setup({ entries, frames: { 0: { duration: 6000 } }, inspect: async body => {
+    log.push(`start ${body.url}`);
+    if (body.url.includes('/a/')) return { httpError: 'gone' };
+    if (body.url.includes('/b/')) { await new Promise(resolve => setTimeout(resolve, 150)); log.push('silent done'); return { httpError: 'timed out' }; }
+    return master;
+  } });
+  const answer = await ask(app);
+  assert.equal(answer.ok, true, answer.error);
+  assert.deepEqual(answer.options.map(item => item.id), ['v2', 'v1'], 'the page answered');
+  assert.ok(log.indexOf('start https://example.org/watch?v=1') < log.indexOf('silent done'), log.join(' | '));
+  assert.equal(log.filter(line => line === 'start https://example.org/watch?v=1').length, 1, 'the page is asked once');
+});
+
 test('a sound-only list is never the answer when something with a picture exists', async () => {
   const entries = [stream('m2/snd', 6121), stream('mg/pic', 4608)];
   const app = setup({ entries, inspect: body => body.url.endsWith('/snd') ? { title: 'Film', audioOnly: true, options: [] } : { title: 'Film', silentStream: true, options: [option('x', 360)] } });

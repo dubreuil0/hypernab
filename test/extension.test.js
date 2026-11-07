@@ -165,15 +165,26 @@ function overlayContext({ top, alreadyPlaying = false }) {
   const video = { paused: !alreadyPlaying, ended: false, readyState: 4, currentSrc: '', isConnected: true, videoHeight: 360, videoWidth: 640, duration: 60, addEventListener(event, fn) { events[event] = fn; }, getBoundingClientRect() { return { left: 100, top: 200, right: 740, bottom: 560, width: 640, height: 360 }; } };
   const page = { innerWidth: 1280, innerHeight: 800, addEventListener() {}, removeEventListener() {} };
   page.self = page; page.parent = { postMessage(message) { posted.push(message); } }; page.top = top ? page : { elsewhere: true };
-  const created = [];
-  const document = { title: 'Sayfa', body: { append(el) { created.push(el); } }, documentElement: {}, querySelectorAll() { return [video]; }, querySelector() { return video; },
+  const created = [], docEvents = {};
+  const document = { title: 'Sayfa', body: { append(el) { created.push(el); } }, documentElement: {}, fullscreenElement: null, addEventListener(type, fn) { docEvents[type] = fn; }, querySelectorAll() { return [video]; }, querySelector() { return video; },
     createElement() { return { style: {}, className: '', classList: { add() {}, remove() {} }, append() {}, addEventListener() {}, attachShadow() { return { append() {} }; }, remove() {}, offsetWidth: 150, offsetHeight: 30 }; },
     createElementNS() { return { setAttribute() {}, append() {} }; } };
   // globalThis (the sandbox) deliberately differs from `window`, like in Firefox.
   const context = vm.createContext({ document, window: page, browser: { runtime: { async sendMessage() { return { ok: true }; } } }, MutationObserver: class { observe() {} }, setTimeout() {}, setInterval(fn) { timers.push(fn); return 1; }, clearInterval() {} });
   load(context, 'content.js');
-  return { posted, events, video, created, timers };
+  return { posted, events, video, created, timers, document, docEvents };
 }
+test('tam ekranda (video, oynatıcı ya da tüm sayfa) düğme görünmez; çıkınca aynı yerde geri gelir', () => {
+  const ctx = overlayContext({ top: true, alreadyPlaying: true });
+  const host = ctx.created[0];
+  assert.equal(host.style.display, '');
+  ctx.document.fullscreenElement = ctx.document.documentElement; ctx.docEvents.fullscreenchange();
+  assert.equal(host.style.display, 'none', 'tam ekrana geçer geçmez gizlenir');
+  for (const tick of ctx.timers) tick();
+  assert.equal(host.style.display, 'none', 'zamanlayıcı onu geri getirmez');
+  ctx.document.fullscreenElement = null; ctx.docEvents.fullscreenchange();
+  assert.equal(host.style.display, '');
+});
 test('Firefox sandbox: en üst sayfa kendini iframe sanmaz ve düğmeyi kendisi çizer; iframe konumu ebeveyne bildirir', () => {
   const topLevel = overlayContext({ top: true });
   topLevel.events.playing();

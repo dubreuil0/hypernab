@@ -18,13 +18,18 @@ const results = [];
 const check = (browser, name, ok, detail = '') => { results.push(ok); console.log(`${ok ? 'OK  ' : 'HATA'} [${browser}] ${name} ${detail}`); };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const port = await freePort(), origin = `http://127.0.0.1:${port}`;
-const server = spawn(process.execPath, ['src/server.js'], { cwd: root, windowsHide: true, stdio: 'ignore',
-  env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads') } });
-for (let n = 0; n < 50; n++) { try { if ((await fetch(origin + '/ds.js')).ok) break; } catch { /* starting */ } await sleep(200); }
+// Each browser gets its own engine with fresh settings: the first browser's choices must not be the second one's "defaults".
+let origin = '', server = null;
+async function startServer(name) {
+  const port = await freePort(); origin = `http://127.0.0.1:${port}`;
+  server = spawn(process.execPath, ['src/server.js'], { cwd: root, windowsHide: true, stdio: 'ignore',
+    env: { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, `data-${name}`), HYPERNAB_DOWNLOAD_DIR: path.join(dir, `downloads-${name}`) } });
+  for (let n = 0; n < 50; n++) { try { if ((await fetch(origin + '/ds.js')).ok) break; } catch { /* starting */ } await sleep(200); }
+}
 
 async function run(name, launch) {
   let browser;
+  await startServer(name);
   try {
     browser = await launch();
     const tab = await browser.create(origin + '/');
@@ -88,13 +93,12 @@ async function run(name, launch) {
     await browser.screenshot(tab, path.join(shots, `${name}-extension-help.png`));
     await browser.screenshot(tab, path.join(shots, `${name}-language-settings.png`));
   } catch (error) { check(name, 'run', false, error.message); }
-  finally { await browser?.close(); }
+  finally { await browser?.close(); server.kill(); await sleep(300); }
 }
 
 const builds = buildExtensions(path.join(dir, 'ext'));
 if (wanted.includes('firefox')) await run('firefox', () => firefoxBrowser('C:/Program Files/Mozilla Firefox/firefox.exe', tools.geckodriver, path.join(dir, 'profile-firefox'), zipFolder(builds.firefox, path.join(dir, 'hypernab.xpi'))));
 if (wanted.includes('chrome')) await run('chrome', () => chromiumBrowser(tools.chrome, path.join(dir, 'profile-chrome'), []));
-server.kill();
 await sleep(500);
 try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* temp */ }
 console.log(`\n${results.filter(Boolean).length}/${results.length} geçti`);
