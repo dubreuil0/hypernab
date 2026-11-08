@@ -12,6 +12,9 @@ const { t, setLanguage } = require('./texts.cjs');
 const readWindows = { run: (file, args) => new Promise((resolve, reject) => execFile(file, args, { windowsHide: true, timeout: 5000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)))) };
 if (process.env.HD_DESKTOP_TEST === '1' && process.env.HD_DESKTOP_PROFILE) app.setPath('userData', process.env.HD_DESKTOP_PROFILE);
 app.setAppUserModelId('com.hypernab.desktop'); // Windows shows the app's own name and icon on notifications and the taskbar
+// The window is a plain list: drawing it without the graphics card was measured just as fast (scrolling, opening, CPU) and saves ~80 MB
+// (the graphics process alone held 100-130 MB, even in the tray). Must be called before the app is ready.
+app.disableHardwareAcceleration();
 
 const port = Number(process.env.HYPERNAB_PORT || 17846);
 const origin = `http://127.0.0.1:${port}`;
