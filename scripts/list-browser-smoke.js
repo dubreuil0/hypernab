@@ -110,7 +110,7 @@ try {
   assert.notEqual(await ev(`document.querySelector('#jobs .job-title').textContent`), firstAsc);
   assert.match(await ev(`document.querySelector('#list-notice').textContent`), /Sıralama: Ad/);
   await ev(`document.querySelector('#jobs .reorder-handle').dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true,pointerId:1}))`);
-  assert.match(await ev(`document.querySelector('#queue-message').textContent`), /Kuyruk sırasına dön/);
+  assert.match(await ev(`document.querySelector('#queue-message').textContent`), /Liste sırasına dön/);
   assert.deepEqual((await api('/api/jobs')).map(j => j.id), initial.map(j => j.id));
   await ev(`document.querySelector('#sort-reset').click()`);
   assert.equal(await ev(`document.querySelector('#jobs .job-title').textContent.trim()`), initial[0].title.trim());
