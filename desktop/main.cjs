@@ -39,7 +39,9 @@ async function startEngine() {
   // A listener with a different data directory must never be replaced or killed.
   if (await fetch(origin, { signal: AbortSignal.timeout(1500) }).then(() => true, () => false)) throw new Error(t('desk.err.otherEngine'));
   fs.mkdirSync(data, { recursive: true });
-  engine = spawn(node, [path.join(root, 'src/server.js')], { cwd: root, env: { ...process.env, HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads, HYPERNAB_VERSION: app.getVersion(), HYPERNAB_LOCALE: process.env.HYPERNAB_LOCALE || app.getLocale() }, windowsHide: true, stdio: 'ignore' });
+  // Node keeps a pool of helper threads for file and name-lookup work; on Windows each one holds ~8 MB from the first file write on.
+  // Two are plenty for downloads (measured: same speed, no steady growth over many downloads) and keep ~16 MB free. A user's own value wins.
+  engine = spawn(node, [path.join(root, 'src/server.js')], { cwd: root, env: { ...process.env, UV_THREADPOOL_SIZE: process.env.UV_THREADPOOL_SIZE || '2', HYPERNAB_DATA_DIR: data, HYPERNAB_DOWNLOAD_DIR: downloads, HYPERNAB_VERSION: app.getVersion(), HYPERNAB_LOCALE: process.env.HYPERNAB_LOCALE || app.getLocale() }, windowsHide: true, stdio: 'ignore' });
   let error; engine.on('error', e => { error = e; });
   owned = true;
   for (let i = 0; i < 80; i++) {
