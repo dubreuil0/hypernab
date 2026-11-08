@@ -21,5 +21,38 @@ tools/*.zip
 *.crx
 *.xpi
 
+# Gorsel, video, ses ve arsiv dosyalari depoya girmez (ekran goruntusu, fotograf, deneme indirmeleri);
+# yalniz uygulamanin kendi simgeleri izinli. scripts/privacy-check.js --repo de ayni kurali denetler.
+*.png
+*.jp*g
+*.gif
+*.webp
+*.bmp
+*.heic
+*.avif
+*.ico
+*.mp4
+*.m4s
+*.m4a
+*.m4v
+*.mkv
+*.webm
+*.mov
+*.avi
+*.mp3
+*.wav
+*.ogg
+*.opus
+*.flac
+*.zip
+*.7z
+*.rar
+*.pdf
+*.har
+!desktop/icon.png
+!desktop/icon-32.png
+!desktop/icon.ico
+!extension/icons/*.png
+
 # Yerel gizlilik terimleri (asla yayinlanmaz)
 .privacy-terms

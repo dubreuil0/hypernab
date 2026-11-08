@@ -63,6 +63,11 @@ export function check({ repo = false, pkg = false, history = false, text = [] } 
   if (repo) {
     const names = execFileSync('git', ['ls-files', '-co', '--exclude-standard'], { cwd: root, encoding: 'utf8' }).split(/\r?\n/).filter(Boolean);
     for (const name of names) if (fs.existsSync(path.join(root, name))) scanFile(path.join(root, name), `depo/${name}`, ruleList, findings);
+    // Pictures, video, sound, archives and documents never belong in the repository (a screenshot or a photo could show a person or a
+    // screen; test downloads are junk). Only the app's own icons are allowed. Text scanning cannot judge a picture, so none gets in.
+    const allowed = /^(?:desktop\/icon(?:-32)?\.(?:png|ico|svg)|extension\/icons\/icon(?:-off)?-\d+\.png|public\/icon\.svg)$/;
+    const media = /\.(?:png|jpe?g|gif|webp|bmp|ico|heic|tiff?|svg|avif|mp4|m4s|m4a|m4v|ts|mkv|webm|mov|avi|flv|mp3|wav|ogg|opus|flac|aac|zip|7z|rar|tar|gz|exe|dll|msi|pdf|docx?|xlsx?|pptx?|har|crx|xpi|psd)$/i;
+    for (const name of names) if (media.test(name) && !allowed.test(name)) findings.push(`depo/${name} [izin verilmeyen görsel/medya/arşiv dosyası]`);
   }
   if (pkg) {
     const resources = path.join(root, 'dist/win-unpacked/resources');
