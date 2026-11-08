@@ -61,7 +61,22 @@ async function offerClipboard() {
   lastOffered = text;
   window.webContents.send('desktop:clipboard', links);
 }
-function show() { clearTimeout(trayClickTimer); trayPanel?.close(); if (window) { window.show(); if (window.isMinimized()) window.restore(); window.focus(); } }
+// The window exists only while it is wanted: it is built when it is first shown (a start in the tray builds none), and one that has stayed
+// hidden in the tray for a minute is closed for real, which frees its memory (~45 MB). Showing it again builds it in about 0.15 s, in its
+// remembered place and size; the engine and downloads never depend on it.
+const DROP_HIDDEN_MS = process.env.HD_DESKTOP_TEST === '1' && Number(process.env.HD_WINDOW_DROP_MS) > 0 ? Number(process.env.HD_WINDOW_DROP_MS) : 60000;
+let dropTimer = null, pendingShow = false, buildWindow = null;
+function reveal() { if (!window || window.isDestroyed()) return; window.show(); if (window.isMinimized()) window.restore(); window.focus(); }
+function show() {
+  clearTimeout(trayClickTimer); clearTimeout(dropTimer); trayPanel?.close();
+  if (!buildWindow) return;
+  if (!window || window.isDestroyed()) { pendingShow = true; buildWindow(); return; }
+  if (window.hypernabReady) reveal(); else pendingShow = true;
+}
+function dropLater() {
+  clearTimeout(dropTimer);
+  dropTimer = setTimeout(() => { if (window && !window.isDestroyed() && !window.isVisible() && !quitting) { saveWindowState(window); window.destroy(); } }, DROP_HIDDEN_MS);
+}
 async function quit(finish) {
   if (quitting) return;
   clearTimeout(trayClickTimer);
@@ -148,28 +163,34 @@ else {
   app.whenReady().then(async () => {
     await startEngine();
     await loadSettings();
-    const start = initialWindow();
-    window = new BrowserWindow({ ...start.bounds, minWidth: 720, minHeight: 520, show: false, title: 'Hypernab', icon: iconFile, autoHideMenuBar: true, backgroundColor: '#0e1113', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, devTools: !app.isPackaged } });
-    if (start.maximized) window.maximize();
-    let saveTimer = null;
-    const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveWindowState(window), 400); };
-    for (const name of ['resize', 'move', 'maximize', 'unmaximize']) window.on(name, remember);
-    window.on('focus', offerClipboard);
-    window.on('close', event => {
-      clearTimeout(saveTimer); saveWindowState(window);
-      if (quitting) return;
-      event.preventDefault();
-      if (settings.closeToTray) window.hide(); else void quit();
-    });
-    // F11 toggles real full screen; Escape leaves it. (Maximizing with the title-bar button is a separate, normal window state.)
-    window.webContents.on('before-input-event', (event, input) => {
-      if (input.type !== 'keyDown' || input.control || input.alt || input.meta) return;
-      if (input.key === 'F11') { event.preventDefault(); window.setFullScreen(!window.isFullScreen()); }
-      else if (input.key === 'Escape' && window.isFullScreen()) { event.preventDefault(); window.setFullScreen(false); }
-    });
-    window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    window.webContents.on('will-navigate', (event, url) => { if (new URL(url).origin !== origin) event.preventDefault(); });
-    window.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
+    buildWindow = () => {
+      const start = initialWindow();
+      const win = new BrowserWindow({ ...start.bounds, minWidth: 720, minHeight: 520, show: false, title: 'Hypernab', icon: iconFile, autoHideMenuBar: true, backgroundColor: '#0e1113', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true, devTools: !app.isPackaged } });
+      window = win;
+      if (start.maximized) win.maximize();
+      let saveTimer = null;
+      const remember = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => saveWindowState(win), 400); };
+      for (const name of ['resize', 'move', 'maximize', 'unmaximize']) win.on(name, remember);
+      win.on('focus', offerClipboard);
+      win.on('close', event => {
+        clearTimeout(saveTimer); saveWindowState(win);
+        if (quitting) return;
+        event.preventDefault();
+        if (settings.closeToTray) { win.hide(); dropLater(); } else void quit();
+      });
+      win.on('closed', () => { clearTimeout(saveTimer); if (window === win) window = null; });
+      // F11 toggles real full screen; Escape leaves it. (Maximizing with the title-bar button is a separate, normal window state.)
+      win.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown' || input.control || input.alt || input.meta) return;
+        if (input.key === 'F11') { event.preventDefault(); win.setFullScreen(!win.isFullScreen()); }
+        else if (input.key === 'Escape' && win.isFullScreen()) { event.preventDefault(); win.setFullScreen(false); }
+      });
+      win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+      win.webContents.on('will-navigate', (event, url) => { if (new URL(url).origin !== origin) event.preventDefault(); });
+      win.webContents.session.setPermissionRequestHandler((_web, _permission, callback) => callback(false));
+      win.once('ready-to-show', () => { win.hypernabReady = true; if (pendingShow && window === win) { pendingShow = false; reveal(); } });
+      win.loadURL(origin).catch(() => { /* the engine went away; the next show builds the window again */ });
+    };
     const fromApp = event => {
       const url = new URL(event.senderFrame.url);
       if (url.origin !== origin || url.pathname !== '/') throw new Error(t('desk.err.window'));
@@ -219,7 +240,7 @@ else {
     });
     tray.on('double-click', () => { lastTrayDoubleClick = Date.now(); show(); });
     // Automated acceptance uses only this isolated instance's native tray event.
-    if (process.env.HD_DESKTOP_TEST === '1') { globalThis.__hypernabTestTray = tray; globalThis.__hypernabTestWatching = () => settings.watchClipboard === true; globalThis.__hypernabTestOffered = () => lastOffered; }
+    if (process.env.HD_DESKTOP_TEST === '1') { globalThis.__hypernabTestTray = tray; globalThis.__hypernabTestWatching = () => settings.watchClipboard === true; globalThis.__hypernabTestOffered = () => lastOffered; globalThis.__hypernabTestShow = show; }
     rebuildMenu = () => {
       if (!tray) return;
       tray.setContextMenu(Menu.buildFromTemplate([{ label: t('desk.menu.quick'), click: quickPanel }, { label: t('desk.menu.open'), click: show }, { label: t('app.dir'), click: async () => shell.openPath(await currentDownloads()) }, { type: 'separator' },
@@ -227,7 +248,6 @@ else {
         { label: t('desk.menu.update'), click: () => { if (updater) void updater.check(true); else void dialog.showMessageBox({ type: 'info', message: t('desk.update.installedOnly') }); } }, { label: t('desk.menu.quit'), click: () => quit() }]));
     };
     rebuildMenu();
-    await window.loadURL(origin);
     engine?.once('exit', code => { if (code === 0 && !quitting) { quitting = true; app.quit(); } }); // explicit Native shutdown must also close the owning desktop
     windowReady = true;
     if (showRequested || (!nativeBackground && !(startedByWindows && settings.startMinimized))) show();

@@ -50,7 +50,7 @@ function rpcClient(url) {
 async function launch(label, extra = []) {
   const dir = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA, 'Temp/opencode/hypernab-appperf-'));
   const port = await freePort(), debug = await freePort(), inspector = await freePort();
-  const env = { ...process.env, HYPERNAB_LOCALE: 'en-US', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile') };
+  const env = { ...process.env, HYPERNAB_LOCALE: 'en-US', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile'), HD_WINDOW_DROP_MS: '5000' };
   const child = spawn(exe, ['--native-background', `--remote-debugging-port=${debug}`, `--inspect=${inspector}`, ...extra], { env, stdio: 'ignore' });
   await browserUntil(() => fs.existsSync(path.join(dir, 'data/pairing-token')), 30000);
   const token = fs.readFileSync(path.join(dir, 'data/pairing-token'), 'utf8').trim();
@@ -121,7 +121,8 @@ async function scenario(label, extra = [], { affinity = null, downloads = true }
       out.trayAfterPanel = await sample(app.child.pid, 8); console.log(`  tray after the quick panel: ${JSON.stringify(out.trayAfterPanel)}`);
     }
     // the window: from hidden to drawn
-    const shown = await app.mainEval(`new Promise(resolve => { const w = ${app.appWindow}; const t = Date.now(); w.show(); w.focus(); w.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))').then(() => resolve(Date.now() - t)); })`);
+    const showWindow = () => app.mainEval(`new Promise(resolve => { const t = Date.now(); globalThis.__hypernabTestShow(); const wait = () => { const w = ${app.appWindow}; if (w && w.isVisible()) w.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))').then(() => resolve(Date.now() - t)); else setTimeout(wait, 10); }; wait(); })`);
+    const shown = await showWindow();
     out.showHiddenWindowMs = shown;
     const view = await app.renderer();
     await view.call('Emulation.setFocusEmulationEnabled', { enabled: true });
@@ -155,13 +156,14 @@ async function scenario(label, extra = [], { affinity = null, downloads = true }
     } else { await app.mainEval(`(${app.appWindow}).hide(), true`); }
     await wait(5000);
     out.trayAfterUse = await sample(app.child.pid); console.log(`  back in the tray after use: ${JSON.stringify(out.trayAfterUse)}`);
-    // what a closed (not hidden) window would give: the window is destroyed, then built again the way the app builds it
-    const t0 = Date.now();
-    await app.mainEval(`(() => { globalThis.__perfBounds = (${app.appWindow}).getBounds(); globalThis.__perfUrl = (${app.appWindow}).webContents.getURL(); (${app.appWindow}).destroy(); return true; })()`);
+    // the real flow: the window is closed to the tray, freed a moment later (5 s in this test, 60 s for users), then opened again
+    if (!(await app.mainEval(`Boolean(${app.appWindow})`))) await showWindow();
+    await app.mainEval(`(${app.appWindow}).close(), true`);
     await wait(8000);
-    out.trayWindowDestroyed = await sample(app.child.pid); console.log(`  tray, window destroyed: ${JSON.stringify(out.trayWindowDestroyed)}`);
-    out.rebuildWindowMs = await app.mainEval(`new Promise(resolve => { const { BrowserWindow } = ${app.electron}; const t = Date.now(); const w = new BrowserWindow({ ...globalThis.__perfBounds, show: false, backgroundColor: '#0e1113', webPreferences: { preload: process.mainModule.require('path').join(process.resourcesPath, 'app.asar', 'desktop', 'preload.cjs'), contextIsolation: true, sandbox: true } }); w.once('ready-to-show', () => { w.show(); w.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))').then(() => resolve(Date.now() - t)); }); w.loadURL(globalThis.__perfUrl); })`);
-    console.log(`  window built again and shown in ${out.rebuildWindowMs} ms (hidden window: ${out.showHiddenWindowMs} ms) ${Date.now() - t0}`);
+    out.trayWindowFreed = await sample(app.child.pid); out.trayWindowFreed.windows = await app.mainEval(`${app.electron}.BrowserWindow.getAllWindows().length`);
+    console.log(`  tray, window freed: ${JSON.stringify(out.trayWindowFreed)}`);
+    out.reopenFreedMs = await showWindow();
+    console.log(`  freed window opened again in ${out.reopenFreedMs} ms (first show ${out.showHiddenWindowMs} ms)`);
   } catch (error) { console.log(`  ERROR ${error.stack}`); out.error = error.message; }
   finally { await app.stop(); }
 }

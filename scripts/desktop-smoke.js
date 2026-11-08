@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const dir = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA, 'Temp/opencode/hypernab-desktop-'));
 const port = await freePort(), debug = await freePort(), inspector = await freePort();
 const exe = path.join(root, 'dist/win-unpacked/Hypernab.exe');
-const env = { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile') };
+const env = { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile'), HD_WINDOW_DROP_MS: '5000' };
 const child = spawn(exe, ['--native-background', `--remote-debugging-port=${debug}`, `--inspect=${inspector}`], { env, stdio: 'ignore' });
 const connections = [];
 async function connect(url) {
@@ -28,6 +28,20 @@ try {
     const response = await fetch(`http://127.0.0.1:${port}${route}`, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     const data = await response.json(); if (!response.ok) throw new Error(data.error); return data;
   };
+  const mainTarget = (await (await fetch(`http://127.0.0.1:${inspector}/json/list`)).json())[0];
+  const main = await connect(mainTarget.webSocketDebuggerUrl);
+  const mainEval = async expression => { const r = await main('Runtime.evaluate', { expression, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text); return r.result.value; };
+  const electron = 'process.mainModule.require("electron")';
+  const appWindows = () => mainEval(`${electron}.BrowserWindow.getAllWindows().filter(w=>!w.webContents.getURL().endsWith('/tray.html')).length`);
+  const visible = () => mainEval(`(()=>{const w=${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html'));return Boolean(w&&w.isVisible())})()`);
+  assert.equal((await call('/api/settings')).startMinimized, false);
+  assert.equal(await visible(), false, 'Native indirme başlangıcı ayardan bağımsız tepside kalır');
+  assert.equal(await appWindows(), 0, 'a start in the tray builds no window at all (memory)');
+  const silentSecond = spawn(exe, ['--native-background'], { env, stdio: 'ignore' });
+  await new Promise((resolve, reject) => { silentSecond.on('error', reject); silentSecond.on('close', resolve); });
+  assert.equal(await visible(), false, 'arka plan komutu mevcut pencereyi de öne getirmez');
+  // The window is built when first shown; it shows the one-time extension window of a new install.
+  await mainEval('globalThis.__hypernabTestShow(), true'); await browserUntil(visible);
   const target = await browserUntil(async () => (await (await fetch(`http://127.0.0.1:${debug}/json/list`)).json()).find(item => item.type === 'page' && item.url.startsWith(`http://127.0.0.1:${port}`)), 30000);
   const rpc = await connect(target.webSocketDebuggerUrl);
   await rpc('Runtime.enable');
@@ -50,16 +64,7 @@ try {
   assert.match(await evaluate(`document.getElementById('settings-saved').textContent`), /Mağaza sayfası açıldı/, 'the store page was asked for (a test opens no real browser)');
   await browserUntil(async () => (await call('/api/settings')).extensionPromptDone === true, 10000);
   console.log('OK one-time extension window on a new install: shown, store button opens the store page, window closes and the answer is saved');
-  const mainTarget = (await (await fetch(`http://127.0.0.1:${inspector}/json/list`)).json())[0];
-  const main = await connect(mainTarget.webSocketDebuggerUrl);
-  const mainEval = async expression => { const r = await main('Runtime.evaluate', { expression, returnByValue: true }); if (r.exceptionDetails) throw new Error(r.exceptionDetails.text); return r.result.value; };
-  const electron = 'process.mainModule.require("electron")';
-  const visible = () => mainEval(`${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html')).isVisible()`);
-  assert.equal((await call('/api/settings')).startMinimized, false);
-  assert.equal(await visible(), false, 'Native indirme başlangıcı ayardan bağımsız tepside kalır');
-  const silentSecond = spawn(exe, ['--native-background'], { env, stdio: 'ignore' });
-  await new Promise((resolve, reject) => { silentSecond.on('error', reject); silentSecond.on('close', resolve); });
-  assert.equal(await visible(), false, 'arka plan komutu mevcut pencereyi de öne getirmez');
+  await mainEval(`${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html')).hide()`);
   const registration = installNative({ directory: path.join(dir, 'native'), register: false, port, dataDirectory: env.HYPERNAB_DATA_DIR, downloadDirectory: env.HYPERNAB_DOWNLOAD_DIR, desktopExecutable: exe });
   const gateway = new NativeGateway(readNativeConfig(registration.configFile));
   const previousTest = process.env.HD_DESKTOP_TEST, previousProfile = process.env.HD_DESKTOP_PROFILE;
@@ -339,6 +344,17 @@ try {
   await browserUntil(() => mainEval(`${electron}.BrowserWindow.getAllWindows()[0].isVisible()`));
   assert.equal((await call('/api/status')).processId, before);
   console.log('OK close-to-tray, reopen and single engine');
+  const placeBefore = await mainEval(`${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html')).getBounds()`);
+  await mainEval(`${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html')).close()`);
+  await browserUntil(async () => await appWindows() === 0, 15000);
+  assert.equal((await call('/api/status')).processId, before, 'freeing the window never touches the engine');
+  const reopenStarted = Date.now();
+  await mainEval(`globalThis.__hypernabTestTray.emit('double-click')`);
+  await browserUntil(visible, 15000);
+  const reopenMs = Date.now() - reopenStarted;
+  const placeAfter = await mainEval(`${electron}.BrowserWindow.getAllWindows().find(w=>!w.webContents.getURL().endsWith('/tray.html')).getBounds()`);
+  assert.deepEqual(placeAfter, placeBefore, 'the window comes back in its place and size');
+  console.log(`OK a window left in the tray is freed, the engine keeps running, and it comes back in place (${reopenMs} ms)`);
   await mainEval(`${electron}.app.quit()`);
   for (const socket of connections) socket.close(); // Node inspector holds process exit until the debugger detaches.
   await browserUntil(() => child.exitCode !== null, 20000);
@@ -359,6 +375,9 @@ try {
     assert.ok((await call('/api/history')).entries.some(entry => entry.id === job.id));
     assert.equal(fs.statSync(path.join(dir, 'downloads', job.file)).size, 1128375);
     console.log('OK history survives packaged restart and queue clear while downloaded bytes remain untouched');
+    await wait(3000);
+    assert.ok(!(await (await fetch(`http://127.0.0.1:${debug}/json/list`)).json()).some(p => p.type === 'page' && p.url.startsWith(`http://127.0.0.1:${port}`)), 'a restart in the tray builds no window');
+    const showIt = spawn(exe, [], { env, stdio: 'ignore' }); await new Promise((resolve, reject) => { showIt.on('error', reject); showIt.on('close', resolve); });
     const reopenedPage = await browserUntil(async () => (await (await fetch(`http://127.0.0.1:${debug}/json/list`)).json()).find(p => p.type === 'page' && p.url.startsWith(`http://127.0.0.1:${port}`)), 30000);
     const reopenedRpc = await connect(reopenedPage.webSocketDebuggerUrl);
     await browserUntil(async () => (await reopenedRpc('Runtime.evaluate', { expression: 'document.readyState === "complete" && document.querySelector("#connection")?.textContent.includes("aktif")', returnByValue: true })).result.value);
