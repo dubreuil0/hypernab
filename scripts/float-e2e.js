@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { setTimeout as wait } from 'node:timers/promises';
 import { buildExtensions } from './build-extensions.js';
 import { chromiumBrowser, firefoxBrowser, browserUntil } from './browser-driver.js';
@@ -89,6 +90,26 @@ async function run(name, open) {
     if (!process.env.HD_PAGE_URL) await browserUntil(async () => { const box = await browser.eval(tab, barBox); return box && box.b - box.t > 130; }, 45000);
     const opened = await browser.eval(tab, barBox);
     check(name, 'panel açıldı ve içerik geldi', Boolean(opened) && opened.b - opened.t > 90, `(${opened?.b - opened?.t}px)`);
+    if (!process.env.HD_PAGE_URL) {
+      // The connection helper is let go after a quiet moment (60 s for users, 3 s here for the background; the settings page keeps 60 s) and comes back by itself when the panel asks again.
+      const bridge = () => Number(spawnSync('powershell.exe', ['-NoProfile', '-Command', `@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like '*native-host.js*' -and $_.CommandLine -like '*${registration.directory.replace(/'/g, "''")}*' }).Count`], { encoding: 'utf8', windowsHide: true }).stdout.trim());
+      const quiet = 'globalThis.HypernabNativeIdleMs = 3000';
+      await browser.eval(setup, `(${quiet}, true)`);
+      if (name === 'firefox') await browser.eval(setup, `browser.runtime.getBackgroundPage().then(w => { w.HypernabNativeIdleMs = 3000; return true; })`);
+      const toggle = async () => { const box = await browser.eval(tab, barBox); await browser.click(tab, box.l + 18, box.t + 14); };
+      await browser.key(tab, 'Escape'); await wait(500); await toggle();
+      await browserUntil(async () => { const box = await browser.eval(tab, barBox); return box && box.b - box.t > 130; }, 45000);
+      await browser.key(tab, 'Escape'); await wait(500);
+      const running = bridge();
+      const gone = await browserUntil(() => bridge() === 0, 80000).then(() => true, () => false);
+      check(name, 'bağlantı köprüsü sessiz kalınca kapanır', running > 0 && gone, `(önce ${running} süreç, sonra ${bridge()})`);
+      // a fresh page asks the app again (an already open page reuses its answer and needs no connection)
+      await browser.navigate(tab, pageUrl); await browserUntil(async () => Boolean(await browser.eval(tab, barBox)), 30000);
+      const t0 = Date.now(); await toggle();
+      await browserUntil(async () => { const box = await browser.eval(tab, barBox); return box && box.b - box.t > 130; }, 45000).catch(() => null);
+      const back = await browser.eval(tab, barBox);
+      check(name, 'panel yeniden istenince köprü kendiliğinden açılır ve içerik gelir', Boolean(back) && back.b - back.t > 130 && bridge() > 0, `(${Date.now() - t0} ms, ${bridge()} süreç)`);
+    }
     if (noisy && !process.env.HD_PAGE_URL) {
       const evidence = await browser.eval(setup, `(async()=>{const api=globalThis.browser||globalThis.chrome;const t=(await api.tabs.query({})).find(t=>t.url===${JSON.stringify(pageUrl)});const s=await api.storage.session.get(['tab:'+t.id,'float:'+t.id]);return {unknown:(s['tab:'+t.id]||[]).filter(e=>e.kind==='UNKNOWN').length,engine:s['float:'+t.id]?.sourceInput?.engine,url:s['float:'+t.id]?.sourceInput?.url};})()`);
       check(name, 'gerçek ağdan sekiz bilinmeyen yanıt içinde oynatılan MP4 doğrudan seçildi', evidence.unknown >= 4 && evidence.engine === 'direct' && evidence.url === VIDEO, `(${evidence.unknown} UNKNOWN, ${evidence.engine})`);

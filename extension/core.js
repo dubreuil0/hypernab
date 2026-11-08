@@ -141,6 +141,8 @@
     }
     async request(route, options = {}) {
       if (!/^\/api\/(?:status|prefs|jobs(?:\/[a-f0-9-]+\/(?:pause|resume|cancel|retry))?|inspect|sniff|subtitles|duplicates|files\/take|hls\/active-audio|submissions\/[a-f0-9-]+(?:\/abandon)?|app\/shutdown)$/.test(route)) throw new Error(T('x.invalid-app-command'));
+      // A connection closed after a quiet minute (native.js) is opened again for the next request.
+      if (this.native?.closed) this.native = new globalThis.HypernabNativeChannel(globalThis.browser?.runtime || globalThis.chrome?.runtime);
       if (this.native) return this.native.request({ action: 'request', route, method: options.method || 'GET', ...(options.body ? { body: JSON.parse(options.body) } : {}) });
       if (!this.token) throw new Error(T('x.first-pair-with-the-key-of'));
       let response;

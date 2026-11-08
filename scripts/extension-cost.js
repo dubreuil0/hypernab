@@ -66,6 +66,9 @@ async function measure(label, extensions) {
     await wait(3000); const before = served;
     out.storm = await sample(browser.child.pid, SECONDS);
     out.storm.requestsPerSecond = +((served - before) / SECONDS).toFixed(1);
+    // a quiet minute later (the pages stay open, nothing asks the app): the connection helper should be gone
+    await browser.closeTab(storm); await wait(70000);
+    out.quiet = await sample(browser.child.pid, 10);
   } finally { await browser.close(); }
   return out;
 }
@@ -75,6 +78,7 @@ const line = (name, a, b) => console.log(`${name.padEnd(34)} | without: ${String
 line('browser, no page', without.empty, withExt.empty);
 line('ordinary page + video page', without.twoPages, withExt.twoPages);
 line(`busy page (${withExt.storm.requestsPerSecond} requests/s)`, without.storm, withExt.storm);
+line('same pages, after a quiet minute', without.quiet, withExt.quiet);
 console.log(`JavaScript memory per page (ordinary, video): without ${without.pageHeapMB.join(' / ')} MB | with ${withExt.pageHeapMB.join(' / ')} MB`);
 fs.writeFileSync(path.join(base, `extension-cost-${Date.now()}.json`), JSON.stringify({ without, withExt }, null, 2));
 server.close();

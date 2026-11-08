@@ -82,6 +82,27 @@ vm.runInContext(fs.readFileSync(new URL('../extension/native.js', import.meta.ur
   message({ version: 1, id: posted[0].id, ok: true, data: { works: true } }); assert.deepEqual(await promise, { works: true });
   const waiting = channel.request({ action: 'launch' }); disconnect(); await assert.rejects(waiting, /bağlantısı kesildi/);
 });
+test('Native kanal sessiz kalınca kendini kapatır (köprü programı da kapanır); bekleyen istek varken asla; istemci kapanan kanalı yeniden açar', async () => {
+  const ports = [];
+  const runtime = { connectNative() { let message; const port = { posted: [], disconnected: false, postMessage(value) { port.posted.push(value); }, onMessage: { addListener(fn) { message = fn; } }, onDisconnect: { addListener() {} }, disconnect() { port.disconnected = true; }, answer(data) { message({ version: 1, id: port.posted.at(-1).id, ok: true, data }); } }; ports.push(port); return port; } };
+  const context = vm.createContext({ crypto: webcrypto, setTimeout, clearTimeout, HypernabNativeIdleMs: 60, browser: { runtime } });
+  context.globalThis = context;
+  vm.runInContext(fs.readFileSync(new URL('../public/strings.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../extension/native.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../extension/core.js', import.meta.url), 'utf8'), context);
+  const channel = new context.HypernabNativeChannel(runtime);
+  // a long request (a video being looked at) keeps the connection, however long it takes
+  const slow = channel.request({ action: 'request', route: '/api/inspect', method: 'POST' });
+  await wait(150); assert.equal(channel.closed, false, 'never closed while something is waiting');
+  ports[0].answer({ ok: true }); await slow;
+  await wait(150); assert.equal(channel.closed, true, 'closed after a quiet moment'); assert.equal(ports[0].disconnected, true, 'the helper program is let go');
+  // the next request opens a new connection by itself
+  const client = new context.Hypernab.Client({ native: channel });
+  const again = client.request('/api/status'); await wait(5);
+  assert.equal(ports.length, 2, 'a new connection'); ports[1].answer({ extensionProtocol: 1 });
+  assert.deepEqual({ ...(await again) }, { extensionProtocol: 1 });
+  client.native.close();
+});
 test('derlenen Windows native exe binary stdio ile gerçek Node köprüsüne bağlanır', { skip: process.platform !== 'win32' }, async t => {
   const preferred = process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Temp/opencode') : os.tmpdir();
   const root = fs.mkdtempSync(path.join(preferred, 'hypernab-native-exe-'));
