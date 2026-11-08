@@ -202,6 +202,31 @@ test('betik yüklenmeden önce zaten oynayan video için de düğme çizilir (ol
   assert.equal(ctx.created.length, 1);
 });
 
+test('sayfa değişince yalnız eklenen kısım taranır (bütün sayfa değil); sonradan gelen gölge kökteki video yine bulunur', () => {
+  const sent = [], timeouts = [], intervals = [];
+  let observerCallback = null; const observed = [];
+  let wholePage = 0;
+  const node = (extra = {}) => ({ nodeType: 1, isConnected: true, localName: 'div', querySelectorAll() { return []; }, ...extra });
+  const document = { title: 'Sohbet', documentElement: {}, querySelectorAll(selector) { if (selector === '*') wholePage++; return []; }, querySelector() { return null; } };
+  const context = vm.createContext({ document, browser: { runtime: { async sendMessage(value) { sent.push(value); } } },
+    MutationObserver: class { constructor(fn) { observerCallback = fn; } observe(root) { observed.push(root); } },
+    setTimeout(fn) { timeouts.push(fn); }, setInterval(fn) { intervals.push(fn); return 1; } });
+  load(context, 'content.js');
+  assert.equal(wholePage, 1, 'one whole-page look at the start');
+  const flush = () => { while (timeouts.length) timeouts.shift()(); };
+  // a busy page: many small changes
+  for (let round = 0; round < 20; round++) { observerCallback([{ addedNodes: [node(), node(), { nodeType: 3 }] }]); flush(); }
+  for (const tick of intervals) tick();
+  assert.equal(wholePage, 1, 'small changes and the 2 s check never look at the whole page');
+  // a player element with its own shadow root, its <video> inside
+  const video = { localName: 'video', isConnected: true, currentSrc: 'https://cdn.example.org/a.mp4', videoHeight: 720, videoWidth: 1280, duration: 90, paused: true, ended: false, readyState: 4, addEventListener() {} };
+  const shadowRoot = { querySelectorAll(selector) { return selector === 'video' ? [video] : []; } };
+  observerCallback([{ addedNodes: [node({ localName: 'my-player', shadowRoot })] }]); flush();
+  assert.equal(sent.at(-1).height, 720, 'the video in the shadow root was found');
+  assert.ok(observed.includes(shadowRoot), 'and that shadow root is watched from now on');
+  assert.equal(wholePage, 1);
+});
+
 test('içerik betiği blob adresini dosya diye göndermez, çerez veya DRM anahtarlarını okumaz', () => {
   const sent = [], events = {};
   const video = { currentSrc: 'blob:https://example.org/opaque', videoHeight: 720, videoWidth: 1280, duration: 90, addEventListener(event, listener) { events[event] = listener; } };

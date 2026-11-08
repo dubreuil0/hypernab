@@ -398,35 +398,64 @@
       if (isChild) share(video); else showLocal(video);
     } catch { /* Overlay is optional. */ }
   }
-  // All <video> elements of the page, including those inside open shadow roots (many modern players use them).
-  function allVideos(root = document, depth = 0, found = []) {
+  // Finding the page's <video> elements costs the page as little as possible, since this runs on every page and in every frame: only
+  // what was just added is looked at (a busy page such as a long chat or an endless feed changes many times a second), open shadow roots
+  // (many modern players use them) are watched once found, and the few known videos are checked now and then. A whole-page look happens
+  // only at the start and, as a safety net for a shadow root opened after its element was placed, every 10 s while the tab is in view.
+  const known = new Set(), watchedRoots = new WeakSet();
+  let added = [], everything = false;
+  const SMALL_BATCH = 400; // more new nodes than this at once: one whole-page look is cheaper than many small ones
+  const observer = new MutationObserver(records => {
+    if (!everything) for (const record of records) for (const node of record.addedNodes) { if (node.nodeType === 1) added.push(node); }
+    if (added.length > SMALL_BATCH) { everything = true; added = []; }
+    if (!queued) { queued = true; setTimeout(scan, 250); }
+  });
+  function watch(root) { if (watchedRoots.has(root)) return; watchedRoots.add(root); try { observer.observe(root, { subtree: true, childList: true }); } catch { /* detached tree */ } }
+  function adopt(video) {
+    if (videos.has(video)) return;
+    videos.add(video); known.add(video);
+    for (const event of ['loadedmetadata', 'play', 'emptied', 'resize', 'durationchange']) video.addEventListener(event, () => report(video));
+    video.addEventListener('playing', () => onPlaying(video));
+    video.addEventListener('timeupdate', () => onPlaying(video)); // catches players whose size is only known after start
+    video.addEventListener('encrypted', () => { drm = true; report(video); });
+    report(video);
+  }
+  // Every <video> in this element or tree, including those in open shadow roots inside it; the shadow roots found are watched from now on.
+  function look(root, depth = 0) {
     try {
-      for (const video of root.querySelectorAll('video')) found.push(video);
-      if (depth < 6) for (const element of root.querySelectorAll('*')) if (element.shadowRoot) allVideos(element.shadowRoot, depth + 1, found);
+      if (root.localName === 'video') adopt(root);
+      if (root.shadowRoot) { watch(root.shadowRoot); look(root.shadowRoot, depth + 1); }
+      for (const video of root.querySelectorAll('video')) adopt(video);
+      if (depth < 6) for (const element of root.querySelectorAll('*')) if (element.shadowRoot) { watch(element.shadowRoot); look(element.shadowRoot, depth + 1); }
     } catch { /* detached or restricted tree */ }
-    return found;
   }
   const isPlaying = video => !video.paused && !video.ended && video.readyState >= 2;
-  function scan() {
-    queued = false;
-    const found = allVideos();
-    for (const video of found) {
-      if (!videos.has(video)) {
-        videos.add(video);
-        for (const event of ['loadedmetadata', 'play', 'emptied', 'resize', 'durationchange']) video.addEventListener(event, () => report(video));
-        video.addEventListener('playing', () => onPlaying(video));
-        video.addEventListener('timeupdate', () => onPlaying(video)); // catches players whose size is only known after start
-        video.addEventListener('encrypted', () => { drm = true; report(video); });
-        report(video);
-      }
-      // Already playing before this script attached (autoplay, late-loaded script): no 'playing' event will ever come again.
-      if (isPlaying(video)) onPlaying(video);
+  // The known videos only: gone ones are dropped; one already playing gets its button (autoplay, or started before this script came:
+  // no 'playing' event will ever come again); the background hears which one plays.
+  function check() {
+    let playing = null, first = null;
+    for (const video of known) {
+      if (!video.isConnected) { known.delete(video); continue; }
+      first ??= video;
+      if (isPlaying(video)) { playing ??= video; onPlaying(video); }
     }
-    const video = found.find(isPlaying) ?? found[0];
+    const video = playing ?? first;
     if (video) report(video);
   }
-  new MutationObserver(() => { if (!queued) { queued = true; setTimeout(scan, 250); } }).observe(document.documentElement, { subtree: true, childList: true });
-  setInterval(scan, 2000); // shadow-root content and late starts do not trigger the observer
+  function scan() {
+    queued = false;
+    const nodes = added; added = [];
+    if (everything) { everything = false; look(document); }
+    else for (const node of nodes) if (node.isConnected) look(node);
+    check();
+  }
+  let lastWhole = 0;
+  function whole() { lastWhole = Date.now(); look(document); check(); }
+  observer.observe(document.documentElement, { subtree: true, childList: true });
+  setInterval(() => {
+    if (document.hidden) return;
+    if (Date.now() - lastWhole >= 10000) whole(); else check();
+  }, 2000);
   // ---- Subtitles of this frame's players. Read ONLY when the user has asked for a download (the background asks), never passively.
   // The browser already decoded every track the player loaded (any site, any format, even blob/obfuscated sources), so the text
   // comes from the player's own TextTrack cues. A track that was off is switched to "hidden" for a moment (nothing becomes visible)
@@ -443,7 +472,8 @@
   };
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   async function collectSubtitles(serial) {
-    const found = allVideos(); if (!found.length) return;
+    whole(); // the user asked for a download: a fresh look at the whole page
+    const found = [...known].filter(video => video.isConnected); if (!found.length) return;
     const tracks = [], urls = [], seenUrl = new Set();
     for (const video of found) {
       for (const element of video.querySelectorAll?.('track') || []) {
@@ -476,7 +506,8 @@
     if (isChild || captureOff || !document.body) return;
     let overlay = localOverlay || [...remote.values()].map(entry => entry.overlay).find(Boolean);
     if (!overlay) {
-      const video = allVideos().find(isPlaying) ?? allVideos()[0];
+      whole(); // the user asked: a fresh look at the whole page
+      const live = [...known].filter(item => item.isConnected), video = live.find(isPlaying) ?? live[0];
       const getRect = video ? () => (video.isConnected ? video.getBoundingClientRect() : null) : () => { const w = win.innerWidth || 1200; return { left: w - 340, top: 90, width: 320, height: 180, right: w - 20, bottom: 270 }; };
       try { localOverlay = overlay = drawOverlay(getRect, why => { localOverlay = null; if (why === 'closed') dismissedLocal = true; }); } catch { return; }
     }
@@ -487,11 +518,11 @@
     api.storage?.onChanged?.addListener?.((changes, area) => {
       if (area !== 'local' || !changes.captureEnabled) return;
       captureOff = changes.captureEnabled.newValue === false;
-      if (captureOff) for (const remove of [...removers]) remove(); else scan();
+      if (captureOff) for (const remove of [...removers]) remove(); else whole();
     });
   } catch { /* storage is optional for the content script */ }
   // Single-page sites change the address without reloading.
   let seenHref = String(win.location?.href || '');
   setInterval(() => { const now = String(win.location?.href || ''); if (now !== seenHref) { seenHref = now; for (const refresh of refreshers) refresh(); } }, 1000);
-  scan();
+  whole();
 })();

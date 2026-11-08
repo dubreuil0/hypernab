@@ -65,6 +65,7 @@ export async function chromiumBrowser(binary, profile, extensions) {
       const target = await session(id);
       for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await rpc.call('Input.dispatchMouseEvent', { type, x, y, button: 'left', buttons: type === 'mousePressed' ? 1 : 0, clickCount: type === 'mouseMoved' ? 0 : 1 }, target);
     },
+    async cdp(id, method, params = {}) { return rpc.call(method, params, await session(id)); },
     async front(id) { await rpc.call('Target.activateTarget', { targetId: id }); await rpc.call('Page.bringToFront', {}, await session(id)); },
     // The real window's page area, not an emulated one (Chrome refuses full screen while the size is emulated).
     async windowSize(id, width, height) {
