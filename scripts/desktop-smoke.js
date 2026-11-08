@@ -18,7 +18,7 @@ async function connect(url) {
   const socket = new WebSocket(url); await new Promise((resolve, reject) => { socket.onopen = resolve; socket.onerror = reject; });
   connections.push(socket); let id = 0; const pending = new Map();
   socket.onmessage = event => { const m = JSON.parse(event.data), p = pending.get(m.id); if (!p) return; pending.delete(m.id); clearTimeout(p.timer); m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result); };
-  return (method, params = {}) => new Promise((resolve, reject) => { const n = ++id, timer = setTimeout(() => { pending.delete(n); reject(new Error(method + ' timeout')); }, 15000); pending.set(n, { resolve, reject, timer }); socket.send(JSON.stringify({ id: n, method, params })); });
+  return (method, params = {}) => new Promise((resolve, reject) => { const n = ++id, timer = setTimeout(() => { pending.delete(n); reject(new Error(`${method} timeout${params.expression ? `: ${String(params.expression).slice(0, 160)}` : ''} (called at ${where})`)); }, 15000); const where = new Error().stack.split('\n').filter(line => /\.js:(?!21:)\d+/.test(line)).map(line => line.trim().replace(/^at /, '')).join(' <- '); pending.set(n, { resolve, reject, timer }); socket.send(JSON.stringify({ id: n, method, params })); });
 }
 let call;
 try {

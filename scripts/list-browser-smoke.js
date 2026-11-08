@@ -30,7 +30,8 @@ try {
   browser = await chromiumBrowser(tools.chrome, path.join(dir, 'profile'), []);
   const tab = await browser.create(origin);
   const ev = expression => browser.eval(tab, expression);
-  const ready = () => browserUntil(() => ev('document.querySelectorAll("#jobs .job").length > 0'));
+  // rows AND the column header: right after a navigation the old page can still answer for a moment
+  const ready = () => browserUntil(() => ev('document.readyState === "complete" && document.querySelectorAll("#jobs .job").length > 0 && Boolean(document.querySelector(\'.col-head[data-col="name"]\'))'));
   const rect = selector => ev(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height,r:r.right,b:r.bottom}})()`);
   await browser.viewport(tab, 1900, 900); await browser.navigate(tab, origin); await ready();
 
