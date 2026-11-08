@@ -59,6 +59,10 @@ const selectedShown = () => { const ids = new Set(shownJobs().map(job => job.id)
 let lastPaint = '';
 // phaseSeconds is an internal stopwatch that ticks for finished jobs too and is never shown.
 const paintKey = () => JSON.stringify([jobs, filter, search, sortKey, sortDir, queueBusy, [...selected], [...expandedJobs], layout, effective.hidden, document.documentElement.dataset.appearance], (name, value) => name === 'phaseSeconds' ? undefined : value);
+// ...and then only the rows whose own download changed are built again: one running download in a list of hundreds rebuilds one row,
+// the others stay as they are (and only move when their place changes).
+const rows = new Map(); let rowsFor = '';
+const rowKey = job => JSON.stringify([job, selected.has(job.id), expandedJobs.has(job.id)], (name, value) => name === 'phaseSeconds' ? undefined : value);
 function render(force = false) {
   if (dragging) return; // polling keeps receiving data, but must not replace the captured handle
   const key = paintKey();
@@ -77,15 +81,39 @@ function render(force = false) {
   const total = visibleJobs(jobs, filter).length;
   $('queue-count').textContent = search.trim() ? `${visible.length} / ${total}` : visible.length;
   renderListNotice(visible.length, total);
-  const fragment = document.createDocumentFragment();
+  const box = $('jobs');
   if (!visible.length) {
     const empty = el('div', 'empty');
     const tile = el('div', 'empty-icon'); tile.append(icon(search.trim() ? 'search' : 'download'));
     if (search.trim() && total) empty.append(tile, el('strong', '', T('app.empty.searchTitle')), el('p', '', T('app.empty.searchHint')));
     else empty.append(tile, el('strong', '', filter === 'all' ? T('app.empty.ready') : T('app.empty.view')), el('p', '', T('app.empty.hint')));
-    fragment.append(empty);
+    box.replaceChildren(empty); rows.clear();
+  } else {
+    // Something every row shows changed (lock, sorting allowed, look, language, columns): every row is built again.
+    const everyRow = JSON.stringify([queueBusy, reorderAllowed(), document.documentElement.dataset.appearance, LOCALE(), layout, effective.hidden, Boolean(globalThis.hypernabDesktop)]);
+    if (force || everyRow !== rowsFor) { rows.clear(); rowsFor = everyRow; }
+    const wanted = [], shownIds = new Set();
+    for (const job of visible) {
+      shownIds.add(job.id);
+      const key = rowKey(job); let row = rows.get(job.id);
+      if (!row || row.key !== key) { row = { key, card: buildRow(job) }; rows.set(job.id, row); }
+      wanted.push(row.card);
+    }
+    for (const id of rows.keys()) if (!shownIds.has(id)) rows.delete(id);
+    // Rows that stay are only moved when their place changed; nothing else is touched.
+    const keep = new Set(wanted);
+    for (const child of [...box.children]) if (!keep.has(child)) child.remove();
+    wanted.forEach((card, index) => { if (box.children[index] !== card) box.insertBefore(card, box.children[index] || null); });
   }
-  for (const job of visible) {
+  renderSelection();
+  if (focusedJob) $('jobs').querySelector(`[data-job-select="${focusedJob}"]`)?.focus({ preventScroll: true });
+  if (focusedMove) $('jobs').querySelector(`[data-job-move="${focusedMove}"]`)?.focus({ preventScroll: true });
+  if (focusedLocation) $('jobs').querySelector(`[data-job-location="${focusedLocation}"]`)?.focus({ preventScroll: true });
+  if (focusedAction) $('jobs').querySelector(`[data-job-action="${focusedAction}"]`)?.focus({ preventScroll: true });
+}
+// One row of the list, built from scratch (render() decides when a row needs it).
+function buildRow(job) {
+  {
     const view = progressView(job, fmt);
     const card = el('article', 'job'), top = el('div', 'job-top'), info = el('div', 'job-info');
     card.dataset.jobId = job.id;
@@ -245,14 +273,8 @@ function render(force = false) {
     }
     if (job.file) details.append(el('div', 'job-file', job.directory ? `${job.directory}\\${job.file}` : job.file));
     card.append(details);
-    fragment.append(card);
+    return card;
   }
-  $('jobs').replaceChildren(fragment);
-  renderSelection();
-  if (focusedJob) $('jobs').querySelector(`[data-job-select="${focusedJob}"]`)?.focus({ preventScroll: true });
-  if (focusedMove) $('jobs').querySelector(`[data-job-move="${focusedMove}"]`)?.focus({ preventScroll: true });
-  if (focusedLocation) $('jobs').querySelector(`[data-job-location="${focusedLocation}"]`)?.focus({ preventScroll: true });
-  if (focusedAction) $('jobs').querySelector(`[data-job-action="${focusedAction}"]`)?.focus({ preventScroll: true });
 }
 
 async function commitOrder(ids, focusId) {
