@@ -37,10 +37,10 @@ The owner made these calls, mostly after trying the alternative. Read this befor
 - Translations were not reviewed by native speakers.
 - Subtitles drawn only as a page overlay cannot be captured.
 
-## Open work (as of 12 November 2026)
+## Open work (as of 13 November 2026)
 
-- **Extension 0.12.2** is built (`npm run package:extensions`) but was not yet uploaded to the stores on 12 November 2026; check the live versions (see `release.md`) before building 0.12.3.
-- The Firefox Add-ons description still says "English and Turkish"; it should list the 8 languages.
+- Extension 0.12.2 is live on both stores (checked 13 November 2026 with the URLs in `release.md`).
+- The Firefox Add-ons description still says "English and Turkish" (checked 13 November 2026); it should list the 8 languages.
 - Code signing (needs the owner's certificate).
 - Real-world check of non-Latin content: subtitle detection (30+ languages) and legacy code pages are covered by tests and `scripts/smoke/subtitle-scripts-check.js`, but not yet tried on real foreign-language sites and players.
 - Optional: find the cause of the freeze with hardware acceleration off (see above).
