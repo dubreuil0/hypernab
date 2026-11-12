@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import { randomUUID, webcrypto } from 'node:crypto';
 import { NativeDecoder, nativeFrame, validateNativeRequest, validateNativeCaller } from '../src/native-protocol.js';
 import { NativeGateway } from '../src/native-host.js';
-import { chromiumExtensionId, nativeRegistryKeys, installNative } from '../scripts/install-native.js';
+import { chromiumExtensionId, nativeRegistryKeys, installNative } from '../scripts/setup/install-native.js';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import net from 'node:net';

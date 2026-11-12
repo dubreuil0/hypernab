@@ -218,7 +218,7 @@ else {
         return result.canceled ? null : result.filePaths[0] || null;
       }
       if (command === 'native') {
-        const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/install-native.js')).href);
+        const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/setup/install-native.js')).href);
         return installNative({ rootDirectory: root, nodePath: node, dataDirectory: data, downloadDirectory: downloads, desktopExecutable: app.isPackaged ? process.execPath : undefined });
       }
       throw new Error(t('desk.err.command'));
@@ -252,7 +252,7 @@ else {
     if (showRequested || (!nativeBackground && !(startedByWindows && settings.startMinimized))) show();
     await watchJobs(); setInterval(watchJobs, 2000).unref();
     if (app.isPackaged && process.env.HD_DESKTOP_TEST !== '1') {
-      try { const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/install-native.js')).href); installNative({ rootDirectory: root, nodePath: node, dataDirectory: data, downloadDirectory: downloads, desktopExecutable: process.execPath }); }
+      try { const { installNative } = await import(require('node:url').pathToFileURL(path.join(root, 'scripts/setup/install-native.js')).href); installNative({ rootDirectory: root, nodePath: node, dataDirectory: data, downloadDirectory: downloads, desktopExecutable: process.execPath }); }
       catch { /* Repair is available in Settings; HTTP pairing remains available. */ }
     }
   }).catch(error => { dialog.showErrorBox(t('desk.err.startTitle'), error.message); quitting = true; app.quit(); });

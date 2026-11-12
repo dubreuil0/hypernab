@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import vm from 'node:vm';
 import { webcrypto, randomUUID } from 'node:crypto';
-import { buildExtensions } from '../scripts/build-extensions.js';
+import { buildExtensions } from '../scripts/release/build-extensions.js';
 
 function load(context, file) { return vm.runInContext(fs.readFileSync(new URL(`../extension/${file}`, import.meta.url), 'utf8'), context); }
 

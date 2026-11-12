@@ -15,7 +15,7 @@ A local download manager for Windows, with a media-capture extension for Firefox
 - **Automatic recovery:** limited, cancellable retries after temporary server errors, drops and missing data; only the damaged part is downloaded again. For HLS downloads, pausing, restarting and retrying keep the finished segments; only the missing ones are downloaded. Downloads made by the media engine (yt-dlp) also carry on from their half-written files after a pause, a lost connection or closing the app, as long as the source is the same; a changed source starts afresh so no wrong piece ends up in a file. Cancelling deletes the half-written files.
 - **Streams:** HLS and separate picture/sound streams are merged with FFmpeg; the result is verified with ffprobe.
 - **Subtitles (embedded by default, no extra file):** a subtitle captured from the player or the stream is put inside the video (choose it in the subtitle menu of VLC and most players). If you like, the default subtitle is also written next to it as a `.srt` with the same name, so VLC, Media Player and Films & TV show it by themselves. A subtitle file without a name is recognised by its words in 30 languages, and files in old code pages (Windows-125x, GBK, Shift_JIS, EUC-KR, Big5, UTF-16...) are read correctly. In Settings you can choose embed only (default), embed and side file, side file only or off.
-- **Language:** the app and the extension come in English and Turkish. By default they follow the language of Windows (English when the app has no text in it); you can choose in Settings. The default subtitle language and the sound language are separate settings. A subtitle the page says it showed wins; if there is no track in the chosen language, none is marked. The sound does not follow the subtitle language: the sound playing in the player, otherwise your sound preference, otherwise the site's default is selected, and the panel says which.
+- **Language:** the app and the extension come in English, Turkish, Spanish, German, French, Russian, Portuguese and Arabic (right to left). By default they follow the language of Windows (English when the app has no text in it); you can choose in Settings. The default subtitle language and the sound language are separate settings. A subtitle the page says it showed wins; if there is no track in the chosen language, none is marked. The sound does not follow the subtitle language: the sound playing in the player, otherwise your sound preference, otherwise the site's default is selected, and the panel says which.
 - **Video format with subtitles:** VLC does not switch on a subtitle embedded in an mp4 by itself (it does load the side `.srt`). If you like, choose “Save as mkv” in Settings: the video is copied without loss into an mkv and VLC opens the default subtitle by itself. The default keeps the mp4.
 - **Playlists:** see the list and add the episodes you want to the list (they start when you resume them).
 - **Several links at once:** the button next to the link box takes up to 100 links, one per line. A file is taken like a browser download (real name, size and structure checked); a page goes to the media engine at its best quality; links already in the list are skipped. Optionally (Settings > Desktop, off by default) the app offers to add links it finds in the clipboard when its window gets focus; the clipboard is only read while that is on, and nothing is stored or sent.
@@ -42,7 +42,7 @@ The extension is on both stores: the [Chrome Web Store](https://chromewebstore.g
 
 For development, the extension is built from source: `npm run build:extensions` produces the Firefox and Chromium packages under `build/extensions`. Load the Chromium one through the browser's extensions page (Developer mode → *Load unpacked* → `build/extensions/chromium`) and the Firefox one through `about:debugging#/runtime/this-firefox` → *Load Temporary Add-on* → `build/extensions/firefox/manifest.json`.
 
-In the desktop app the same section starts with a **Set up in <browser>** button for every supported browser found on the computer: it opens that browser's extensions page and the extension folder and copies the path to pick; the browser itself always asks you to confirm, nothing is installed behind your back. A green mark shows when the extension has reached the app.
+The row at the top of **Settings** shows whether the extension has reached the app; when it has not, it offers a repair.
 
 **Use:** there is no pop-up. **Clicking** the Hypernab icon in the toolbar **turns capture on or off** (when off, the icon turns grey with a red slash; no button or panel appears on pages and nothing is captured). **Right-clicking** opens a menu: *Open Hypernab*, *Inspect this page*, *Capture videos*, *Settings and diagnostics*. On a link, right-click shows *Download with Hypernab*. The **Download** button that appears on the page when a video plays is the main place to download.
 
@@ -79,10 +79,12 @@ npm test                  # unit tests
 npm run check             # syntax check
 npm run build:extensions  # extension packages
 npm run dist              # Windows installer (dist/)
-node scripts/desktop-smoke.js   # end-to-end check of the packaged app
+node scripts/e2e/desktop-smoke.js   # end-to-end check of the packaged app
 ```
 
-Texts live in `public/strings.js` (English and Turkish side by side); new text is never written into the code. Before a release, `node scripts/privacy-check.js --repo --package --history` is run; if it finds personal information or a private term, the release stops.
+Texts live in `public/strings.js` (English and Turkish side by side); new text is never written into the code. Before a release, `node scripts/release/privacy-check.js --repo --package --history` is run; if it finds personal information or a private term, the release stops.
+
+Developer guide: [AGENTS.md](AGENTS.md) (overview, repository map, rules) and [docs/](docs/README.md).
 
 ## License and third-party components
 

@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { packageExtensions } from '../scripts/package-extensions.js';
-import { buildExtensions } from '../scripts/build-extensions.js';
+import { packageExtensions } from '../scripts/release/package-extensions.js';
+import { buildExtensions } from '../scripts/release/build-extensions.js';
 
 test('a rebuild never carries a file of an older version into the package', () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-stale-'));

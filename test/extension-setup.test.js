@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { chromiumExtensionId } from '../scripts/install-native.js';
+import { chromiumExtensionId } from '../scripts/setup/install-native.js';
 import { STORES } from '../public/extension-setup.js';
 
 const { STORE_PAGES } = createRequire(import.meta.url)('../desktop/browsers.cjs');

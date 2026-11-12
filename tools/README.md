@@ -1,13 +1,10 @@
-# Medya araçları
+# Media tools
 
-`yt-dlp.exe`, `ffmpeg.exe` ve `ffprobe.exe` bu klasöre konur. Uygulama sistem PATH'inden rastgele araç çalıştırmaz.
+`yt-dlp.exe`, `ffmpeg.exe` and `ffprobe.exe` go into this folder. They are not in git (`.gitignore`); the installer bundles them. The app never runs a tool from the system PATH.
 
-yt-dlp: https://github.com/yt-dlp/yt-dlp/releases
+- yt-dlp: https://github.com/yt-dlp/yt-dlp/releases — helper: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup\install-ytdlp.ps1`
+- FFmpeg / ffprobe (Windows builds): https://ffmpeg.org/download.html#build-windows — helper: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup\install-ffmpeg.ps1`. It uses the Gyan.dev build listed on the FFmpeg site and checks the archive's SHA-256 (build and licence details: https://www.gyan.dev/ffmpeg/builds/). Existing tools are never overwritten.
 
-FFmpeg Windows derlemeleri: https://ffmpeg.org/download.html#build-windows
+By hand: copy only `bin/ffmpeg.exe` and `bin/ffprobe.exe` from the FFmpeg archive here. The tools keep their own licences (see `THIRD_PARTY_NOTICES.md`). yt-dlp is a third-party program and connects to the target sites while downloading.
 
-yt-dlp kurulum yardımcısı: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-ytdlp.ps1`
-
-FFmpeg/ffprobe kurulum yardımcısı: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install-ffmpeg.ps1`. FFmpeg'in sitesinde listelenen Gyan.dev derlemesi kullanılır; arşiv SHA256 doğrulaması yapılır. Bu sağlayıcının derleme/lisans bilgileri: https://www.gyan.dev/ffmpeg/builds/ . Var olan araçların üzerine yazılmaz.
-
-FFmpeg arşivinden yalnızca `bin/ffmpeg.exe` ve `bin/ffprobe.exe` dosyalarını buraya kopyala. Araçların kendi lisansları geçerlidir. yt-dlp üçüncü taraf bir programdır ve indirme sırasında hedef sitelere bağlanır.
+Check them with `npm run verify-tools`.

@@ -34,7 +34,7 @@ test('the extension keeps no address of a visited page in its key names, and the
 });
 
 test('the installer\'s staging folder is emptied before it is filled (no file of an older version ships)', () => {
-  const script = read('scripts/prepare-desktop.js');
+  const script = read('scripts/release/prepare-desktop.js');
   assert.ok(script.indexOf('fs.rmSync(engine, { recursive: true, force: true })') > 0 && script.indexOf('fs.rmSync(engine') < script.indexOf('fs.cpSync(path.join(root, name), path.join(engine, name)'));
 });
 

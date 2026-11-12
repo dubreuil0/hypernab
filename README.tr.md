@@ -15,13 +15,13 @@ Windows için yerel indirme yöneticisi ve Firefox, Chrome, Edge, Brave ve Opera
 - **Otomatik toparlanma:** geçici sunucu hatalarında, kopmalarda ve eksik verilerde sınırlı ve iptal edilebilir yeniden deneme; yalnızca bozuk parça yeniden indirilir. HLS indirmelerinde duraklatma, yeniden başlatma ve yeniden deneme bitmiş parçaları korur; yalnızca eksikler indirilir.
 - **Akışlar:** HLS ve ayrı görüntü/ses akışları FFmpeg ile birleştirilir; sonuç ffprobe ile doğrulanır.
 - **Alt yazı:** oynatıcıdan veya akıştan yakalanan alt yazı videoya gömülür ve varsayılan alt yazı ayrıca aynı adla `.srt` olarak yanına yazılır; böylece VLC, Media Player ve Films & TV kendiliğinden gösterir. Adı olmayan alt yazı dosyalarının dili 30 dilde içindeki kelimelerden anlaşılır; eski kod sayfalarındaki dosyalar (Windows-125x, GBK, Shift_JIS, EUC-KR, Big5, UTF-16...) doğru okunur. Ayarlar'dan yalnız gömme, yalnız yan dosya ya da kapalı seçilebilir.
-- **Dil:** uygulama ve eklenti İngilizce ve Türkçe gelir. Varsayılan olarak Windows'un dilini izler (uygulamada o dilin metni yoksa İngilizce); Ayarlar'dan seçilir.
+- **Dil:** uygulama ve eklenti İngilizce, Türkçe, İspanyolca, Almanca, Fransızca, Rusça, Portekizce ve Arapça (sağdan sola) gelir. Varsayılan olarak Windows'un dilini izler (uygulamada o dilin metni yoksa İngilizce); Ayarlar'dan seçilir.
 - **Dil tercihleri:** Ayarlar'dan varsayılan altyazı dili (varsayılan: arayüz dili) ve ses dili seçilir. Sayfa kendi altyazısını söylediyse o kazanır; seçtiğin dilde parça yoksa hiçbiri işaretlenmez. Ses, altyazı diline bağlı değildir: oynatıcıda çalan ses, yoksa ayardaki ses tercihi, yoksa sitenin varsayılanı seçilir ve panelde yazılır.
 - **Altyazılı video biçimi:** mp4 içindeki gömülü altyazıyı VLC kendiliğinden açmaz (yan `.srt` dosyasını açar). İstersen Ayarlar'dan "mkv olarak kaydet" seçilir: video kayıpsız mkv'ye kopyalanır ve VLC varsayılan altyazıyı kendisi açar. Varsayılan: mp4 kalır.
-- **Oynatma listeleri:** listeyi görüp istediğin bölümleri kuyruğa ekleme.
+- **Oynatma listeleri:** listeyi görüp istediğin bölümleri indirme listesine ekleme (sürdürünce başlarlar).
 - **Birden çok bağlantı:** bağlantı kutusunun yanındaki düğme, her satıra bir bağlantı olacak şekilde en çok 100 bağlantı alır. Dosya tarayıcı indirmesi gibi alınır (gerçek ad, boyut ve yapı doğrulanır); sayfa medya motoruna en iyi kaliteyle gider; listede olanlar atlanır. İstersen (Ayarlar > Masaüstü, varsayılan kapalı) uygulama, penceresi öne gelince panoda bulduğu bağlantıları eklemeyi önerir; pano yalnızca bu açıkken okunur, hiçbir şey saklanmaz veya gönderilmez.
 - **Akıllı adlandırma ve klasörleme:** her alfabede güvenli Windows dosya adları, isteğe bağlı klasör düzeni; mevcut dosyalar üzerine yazılmaz. Her şey Windows gibi tek indirme klasörüne iner; Ayarlar'daki tek bir anahtar yeni indirmeleri Video, Music, Images, Documents, Archives, Programs ve Other klasörlerine ayırır (indirilmiş dosyalar hiçbir zaman taşınmaz).
-- **Geçmiş:** kuyruğu temizlesen de silinmeyen, aranabilir geçmiş. Kuyruğu temizlemek dosyaları silmez.
+- **Geçmiş:** listeden kaldırsan da silinmeyen, aranabilir geçmiş. Listeden kaldırmak dosyaları hiçbir zaman silmez ve kısa bir süre geri alınabilir.
 - **Tepsi hızlı paneli:** toplam hız ve ilk işler; tekli ve toplu duraklat/sürdür.
 - **Arayüz:** koyu, açık ve sistem teması; dört vurgu rengi; küçük/normal/büyük yazı; kompakt veya normal liste. Düşük donanımda akıcı kalması için bulanıklık, büyük gölge ve sürekli animasyon kullanılmaz.
 
@@ -43,7 +43,7 @@ Eklenti iki mağazada da var: [Chrome Web Store](https://chromewebstore.google.c
 
 Geliştirme için eklenti kaynaktan derlenir: `npm run build:extensions` komutu `build/extensions` altında Firefox ve Chromium paketlerini üretir. Chromium olanı tarayıcının eklentiler sayfasından (Geliştirici modu → *Paketlenmemiş öğe yükle* → `build/extensions/chromium`), Firefox olanı `about:debugging#/runtime/this-firefox` → *Geçici eklenti yükle* → `build/extensions/firefox/manifest.json` ile yüklenir.
 
-Masaüstü uygulamasında aynı bölüm, bilgisayarda bulunan her desteklenen tarayıcı için bir **<tarayıcı> için kur** düğmesiyle başlar: o tarayıcının eklentiler sayfasını ve eklenti klasörünü açar, seçilecek yolu panoya kopyalar; onay her zaman tarayıcının kendisinden gelir, arkandan hiçbir şey kurulmaz. Eklenti uygulamaya ulaşınca yeşil bir işaret çıkar.
+**Ayarlar**'ın en üstündeki satır, eklentinin uygulamaya ulaşıp ulaşmadığını gösterir; ulaşmadıysa onarmayı önerir.
 
 **Kullanım:** Açılır pencere yoktur. Araç çubuğundaki Hypernab simgesine **tıklamak yakalamayı açar/kapatır** (kapalıyken simge gri olur ve üstünde kırmızı çapraz çizgi görünür; sayfada düğme ve panel çıkmaz, hiçbir şey kaydedilmez). **Sağ tıklayınca** menü açılır: *Hypernab'ı aç*, *Bu sayfayı incele*, *Videoları yakala*, *Ayarlar ve teşhis*. Bir bağlantıda sağ tık *Hypernab ile indir* gösterir. Video oynayınca sayfada çıkan **İndir** düğmesi asıl indirme yeridir.
 
@@ -80,10 +80,12 @@ npm test                  # birim testleri
 npm run check             # sözdizimi denetimi
 npm run build:extensions  # eklenti paketleri
 npm run dist              # Windows kurulum paketi (dist/)
-node scripts/desktop-smoke.js   # paketlenmiş uygulamada uçtan uca kontrol
+node scripts/e2e/desktop-smoke.js   # paketlenmiş uygulamada uçtan uca kontrol
 ```
 
-Metinler `public/strings.js` içinde (İngilizce ve Türkçe yan yana); koda yeni metin yazılmaz. Yayından önce `node scripts/privacy-check.js --repo --package --history` çalıştırılır; kişisel bilgi veya özel terim bulursa yayın durur.
+Metinler `public/strings.js` içinde (İngilizce ve Türkçe yan yana); koda yeni metin yazılmaz. Yayından önce `node scripts/release/privacy-check.js --repo --package --history` çalıştırılır; kişisel bilgi veya özel terim bulursa yayın durur.
+
+Geliştirici rehberi (İngilizce): [AGENTS.md](AGENTS.md) ve [docs/](docs/README.md).
 
 ## Lisans ve üçüncü taraf bileşenler
 

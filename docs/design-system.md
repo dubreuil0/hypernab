@@ -36,7 +36,7 @@ Extension window: link `ds.css`, add `<style>` with `HypernabDS.tokens('auto', a
 ## Checking a change
 
 - `node --test test/design-system.test.js` — palette parity, stylesheet hygiene, list keyboard logic.
-- `node scripts/visual-matrix.js firefox chrome` — the app window in dark/light, compact/normal, small/large text, and right-to-left: sideways overflow, text contrast, keyboard-only use of the lists, and a scan of every stylesheet for blur, endless animation and big shadows.
-- `node scripts/panel-visual.js chrome` — the on-page panel in the real browser (dark, light, accents) with the sound list open; screenshots only.
-- `node scripts/language-settings-check.js firefox chrome` — the Settings lists, language choices and the subtitle chips of a job.
-- `node scripts/ds-check.js firefox chrome` — draws every part in dark, light, four accents, right-to-left and inside a shadow root, drives the list with real mouse and keyboard, and saves screenshots to look at.
+- `node scripts/e2e/visual-matrix.js firefox chrome` — the app window in dark/light, compact/normal, small/large text, and right-to-left: sideways overflow, text contrast, keyboard-only use of the lists, and a scan of every stylesheet for blur, endless animation and big shadows.
+- `node scripts/e2e/panel-visual.js chrome` — the on-page panel in the real browser (dark, light, accents) with the sound list open; screenshots only.
+- `node scripts/e2e/language-settings-check.js firefox chrome` — the Settings lists, language choices and the subtitle chips of a job.
+- `node scripts/e2e/ds-check.js firefox chrome` — draws every part in dark, light, four accents, right-to-left and inside a shadow root, drives the list with real mouse and keyboard, and saves screenshots to look at.

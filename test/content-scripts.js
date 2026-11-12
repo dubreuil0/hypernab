@@ -2,7 +2,7 @@
 // content script itself. (Not a test file: it has no tests.)
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { panelCssScript } from '../scripts/build-extensions.js';
+import { panelCssScript } from '../scripts/release/build-extensions.js';
 
 const read = relative => fs.readFileSync(new URL(relative, import.meta.url), 'utf8');
 export function runContentScripts(context) {

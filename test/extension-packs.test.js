@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { extensionPack, buildExtensions } from '../scripts/build-extensions.js';
+import { extensionPack, buildExtensions } from '../scripts/release/build-extensions.js';
 
 const read = file => fs.readFileSync(new URL(file, import.meta.url), 'utf8');
 const load = () => { const g = {}, context = vm.createContext({ globalThis: g }); vm.runInContext(read('../public/strings.js'), context); return { T: g.HypernabText, context }; };

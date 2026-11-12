@@ -1,4 +1,4 @@
-﻿# Kullanici verisi, indirmeler, ayarlar
+# Kullanici verisi, indirmeler, ayarlar
 data/
 downloads/
 reports/
@@ -22,7 +22,7 @@ tools/*.zip
 *.xpi
 
 # Gorsel, video, ses ve arsiv dosyalari depoya girmez (ekran goruntusu, fotograf, deneme indirmeleri);
-# yalniz uygulamanin kendi simgeleri izinli. scripts/privacy-check.js --repo de ayni kurali denetler.
+# yalniz uygulamanin kendi simgeleri izinli. scripts/release/privacy-check.js --repo de ayni kurali denetler.
 *.png
 *.jp*g
 *.gif
@@ -53,6 +53,9 @@ tools/*.zip
 !desktop/icon-32.png
 !desktop/icon.ico
 !extension/icons/*.png
+
+# Devir notlari: eski planlar ve oturum notlari (yerel, asla yayinlanmaz)
+handover/
 
 # Yerel gizlilik terimleri (asla yayinlanmaz)
 .privacy-terms
