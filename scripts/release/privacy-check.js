@@ -12,7 +12,8 @@ const skipExtensions = new Set(['.exe', '.dll', '.node', '.png', '.ico', '.jpg',
 const emailAllowed = /(?:users\.noreply\.github\.com|example\.(?:com|org|net)|local\.invalid|localhost)$/i;
 const generic = [
   ['windows-yolu', /[A-Za-z]:[\\/]+Users[\\/]+(?!Public\b|Default\b|All Users\b|<|%|\$|\{)[^\\/\s'"`]+/i],
-  ['e-posta', /[A-Za-z0-9._+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/],
+  // The local part starts with a letter or digit: "+@AGENTS.md" (a diff line of an @-import) is not an address.
+  ['e-posta', /(?<![A-Za-z0-9._+-])[A-Za-z0-9][A-Za-z0-9._+-]*@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/],
   ['gizli-anahtar', /(?:gh[pousr]_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/]
 ];
 
