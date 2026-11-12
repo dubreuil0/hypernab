@@ -39,7 +39,7 @@ The owner made these calls, mostly after trying the alternative. Read this befor
 
 ## Open work (as of 12 November 2026)
 
-- **Extension 0.12.2** is built (`npm run package:extensions`) but was not yet uploaded to the stores when the project changed hands; check the live versions (see `release.md`) before building 0.12.3.
+- **Extension 0.12.2** is built (`npm run package:extensions`) but was not yet uploaded to the stores on 12 November 2026; check the live versions (see `release.md`) before building 0.12.3.
 - The Firefox Add-ons description still says "English and Turkish"; it should list the 8 languages.
 - Code signing (needs the owner's certificate).
 - Real-world check of non-Latin content: subtitle detection (30+ languages) and legacy code pages are covered by tests and `scripts/smoke/subtitle-scripts-check.js`, but not yet tried on real foreign-language sites and players.

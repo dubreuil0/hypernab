@@ -76,7 +76,8 @@ These were decided by the owner and enforced by tests or review. Do not relax th
 - Plan larger changes first and get approval; small fixes can go straight in.
 - Verify before you claim (run the test, read the output, check the published state).
 - A bug found along the way is fixed first, then the planned work continues.
-- Communication with the original owner was in Turkish, short and plain.
+- Talk to the owner in Turkish, short and plain.
+- Long work is tracked in a plan that is updated after every step, so a new session can continue where the last one stopped.
 
 ## Quick start
 
