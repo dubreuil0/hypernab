@@ -54,6 +54,16 @@ test('folder changes affect new jobs only; history and partial data stay in thei
   assert.equal(restored.currentDirectory(), config.directory);
   assert.equal(restored.dirOf(restored.jobs[0]), next);
 });
+test('a default folder the user moved away from is not created again at start', t => {
+  const { queue, config, root } = fixture(t);
+  assert.ok(fs.existsSync(config.directory), 'the default folder is made while it is the one in use');
+  fs.rmSync(config.directory, { recursive: true, force: true });
+  const chosen = path.join(root, 'chosen'); queue.setSettings({ downloadDirectory: chosen });
+  const restored = new DownloadQueue(config); t.after(() => restored.stop());
+  assert.equal(fs.existsSync(config.directory), false, 'the old default folder stays gone');
+  assert.ok(fs.existsSync(chosen));
+  assert.equal(restored.currentDirectory(), chosen);
+});
 test('quality preferences preselect real offers without changing same-height FPS or HDR', () => {
   const offers = [
     { id: '4k', height: 2160, fps: 60, codec: 'AV1', ext: 'mp4', hdr: true },

@@ -19,7 +19,7 @@ let window, tray, trayPanel, updater, engine, quitting = false, owned = false, t
 let settings = { closeToTray: true, startMinimized: false, notifyOnFinish: true, watchClipboard: false }; // refreshed from the engine's Settings
 const root = app.isPackaged ? path.join(process.resourcesPath, 'engine') : path.resolve(__dirname, '..');
 const data = process.env.HYPERNAB_DATA_DIR || (app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(root, 'data'));
-const downloads = process.env.HYPERNAB_DOWNLOAD_DIR || (app.isPackaged ? path.join(app.getPath('downloads'), 'Hypernab') : path.join(root, 'downloads'));
+const downloads = process.env.HYPERNAB_DOWNLOAD_DIR || (app.isPackaged ? app.getPath('downloads') : path.join(root, 'downloads'));
 const node = app.isPackaged ? path.join(process.resourcesPath, 'runtime', 'node.exe') : process.env.HYPERNAB_NODE || 'node.exe';
 const iconFile = path.join(__dirname, 'icon.ico');
 const startedByWindows = process.argv.includes('--startup');

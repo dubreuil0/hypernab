@@ -173,7 +173,6 @@ export class DownloadQueue {
     this.meters = new WeakMap();
     this.observedTransfers = new WeakSet();
     this.stopping = false;
-    fs.mkdirSync(directory, { recursive: true });
     try {
       this.jobs = JSON.parse(fs.readFileSync(stateFile, 'utf8')).map(job => ({
         ...job, resumeRequested: false, speed: 0, status: ['queued', 'running'].includes(job.status) ? 'interrupted' : job.status,
@@ -218,6 +217,8 @@ export class DownloadQueue {
       // A person who already used the app is not welcomed with the one-time extension window: only a brand-new install sees it.
       if (!('extensionPromptDone' in saved)) this.settings.extensionPromptDone = true;
     } catch { /* defaults: one at a time */ }
+    // Only the folder in use is created: a default folder the user moved away from must not come back at every start.
+    try { fs.mkdirSync(this.currentDirectory(), { recursive: true }); } catch { /* the first download reports an unusable folder */ }
     setMessageLanguage(this.interfaceLanguage());
     this.limiters = new Map();
     for (const job of this.jobs) if (job.status === 'cancelled') this.discardPartial(job); // pieces left by versions that kept them
