@@ -14,7 +14,7 @@ export function setupAdvanced(api, refreshStatus) {
   $('open-settings').onclick = () => { $('view-downloads').hidden = true; $('view-history').hidden = true; $('open-history').setAttribute('aria-pressed', 'false'); $('view-settings').hidden = false; $('tabs').hidden = true; $('open-settings').setAttribute('aria-pressed', 'true'); };
   $('close-settings').onclick = () => { $('view-downloads').hidden = false; $('view-settings').hidden = true; $('tabs').hidden = false; $('open-settings').setAttribute('aria-pressed', 'false'); };
   for (let n = 1; n <= 16; n++) $('set-maxConnections').add(new Option(String(n), String(n)));
-  const keys = ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'sortByType', 'watchClipboard', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized'];
+  const keys = ['interfaceLanguage', 'appearance', 'textSize', 'theme', 'accent', 'subtitleMode', 'smartNames', 'sortByType', 'watchClipboard', 'folderLayout', 'maxQuality', 'preferCompatible', 'maxConnections', 'autoRetries', 'deepVerifyDefault', 'notifyOnFinish', 'closeToTray', 'startMinimized', 'checkUpdatesOnStart'];
   for (const key of keys) {
     const node = $(`set-${key}`);
     node.onchange = run(async () => {
@@ -56,7 +56,20 @@ export function setupAdvanced(api, refreshStatus) {
   if (desktop) {
     for (const id of ['s-desktop', 'nav-desktop', 'desktop-settings', 'open-downloads']) $(id).hidden = false;
     $('dir-edit').hidden = true;
-    desktop.settings().then(info => { $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; }).catch(error => show(error.message, true));
+    desktop.settings().then(info => { $('desktop-startup').checked = info.startup; $('desktop-startup').disabled = !info.packaged; $('app-version').textContent = info.version; if (!updateChecked) showUpdate(T.t('app.updates.version', { version: info.version })); }).catch(error => show(error.message, true));
+    // Settings → Updates: "Check now" shows the outcome inline (no box); a newer version still asks before it downloads anything.
+    let updateChecked = false;
+    const showUpdate = (text, error = false) => { $('update-result').textContent = text; $('update-result').classList.toggle('error', error); };
+    $('set-checkUpdatesOnStart').setAttribute('aria-label', T.t('app.updates.atStart'));
+    $('check-update').onclick = async () => {
+      const button = $('check-update'); button.disabled = true; updateChecked = true; showUpdate(T.t('app.updates.checking'));
+      try {
+        const r = await desktop.action('check-update'), version = r.latest || r.version;
+        const keys = { current: 'app.updates.current', available: 'app.updates.available', downloading: 'app.updates.downloading', ready: 'app.updates.ready', busy: 'app.updates.busy', unavailable: 'app.updates.unavailable' };
+        showUpdate(T.t(keys[r.state] || 'app.updates.failed', { version }), !keys[r.state]);
+      } catch { showUpdate(T.t('app.updates.failed'), true); }
+      finally { button.disabled = false; }
+    };
     $('desktop-startup').onchange = run(() => desktop.action('startup', $('desktop-startup').checked));
     for (const [id, action] of [['open-downloads', 'downloads'], ['repair-native', 'native']]) $(id).onclick = run(() => desktop.action(action));
   }
@@ -76,7 +89,7 @@ export function setupAdvanced(api, refreshStatus) {
   const SECTION_KEYS = {
     general: ['interfaceLanguage', 'appearance', 'theme', 'accent', 'textSize'],
     download: ['downloadDirectory', 'maxQuality', 'preferCompatible', 'speedLimitKiB', 'subtitleMode', 'subtitleLanguage', 'audioLanguage', 'subtitleContainer', 'maxConnections', 'autoRetries', 'smartNames', 'sortByType', 'folderLayout', 'deepVerifyDefault'],
-    desktop: ['closeToTray', 'startMinimized', 'watchClipboard', 'notifyOnFinish']
+    desktop: ['closeToTray', 'startMinimized', 'watchClipboard', 'notifyOnFinish', 'checkUpdatesOnStart']
   };
   let resetting = null;
   for (const button of document.querySelectorAll('[data-reset]')) {

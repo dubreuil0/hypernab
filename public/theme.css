@@ -46,6 +46,10 @@ html[data-appearance="compact"] #view-history { flex:1;min-height:0;overflow:aut
 .setting { padding:11px 0;gap:16px; }
 .setting.has-help .hint { display:none;margin-top:4px; }
 .setting.has-help.hint-open .hint { display:block; }
+.setting .update-result { margin:4px 0 0;font-size:12px;color:var(--muted); }
+.setting .update-result.error { color:var(--danger); }
+.setting .update-start { font-size:12px;color:var(--muted);margin-inline-end:8px; }
+.setting-control:has(.update-start) { display:flex;align-items:center;gap:8px; }
 .setting .btn.icon-only.help { width:22px;height:22px;padding:3px;margin-left:6px;vertical-align:middle;border-radius:50%; }
 .setting .btn.icon-only.help .ic { width:14px;height:14px; }
 .setting .btn.icon-only.help[aria-expanded="true"] { color:var(--accent); }

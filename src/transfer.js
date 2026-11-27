@@ -110,12 +110,12 @@ export function validateRange(response, start, end, total) {
 
 // Checkpoint v2 stores an exact partition plus hashes of committed segments.
 // v1/malformed/changed checkpoints are archived, never guessed or discarded.
-export async function downloadParallel({ url, headers = {}, destination, sourceKey, signal, connections = 8, blockSize = 2 * 1024 * 1024, request = requestRemote, sourceProbe, onProgress = () => {}, verify = async () => {}, overlap = 64, minSplitBytes = 128 * 1024, retryDelay = 250, maxResumeSamples = 12, resumeRetryDelay = 1500, onThrottle = () => {}, throttle = async () => {} }) {
+export async function downloadParallel({ url, headers = {}, destination, sourceKey, signal, connections = 8, blockSize = 2 * 1024 * 1024, request = requestRemote, sourceProbe, onProgress = () => {}, verify = async () => {}, overlap = 64, minSplitBytes = 128 * 1024, retryDelay = 250, maxResumeSamples = 12, resumeRetryDelay = 1500, onThrottle = () => {}, throttle = async () => {}, contended = () => false, throughputWindowMs = 3000, plateauHoldMs = 60000, clock = () => performance.now() }) {
   signal?.throwIfAborted();
   const { total, validator } = sourceProbe || await probeRange({ url, headers, signal, request });
   if (!Number.isInteger(overlap) || overlap < 1 || overlap > 4096) throw new Error(m('e.invalid-overlap-size'));
   const maximum = Math.min(Math.max(1, Math.trunc(connections) || 1), 8);
-  const window = new AdaptiveWindow(maximum);
+  const window = new AdaptiveWindow(maximum, 2, { plateauHoldMs, contended });
   const partial = `${destination}.parallel.part`, checkpoint = `${destination}.ranges.json`;
   const identity = { version: 2, total, blockSize, sourceKey, validator, overlap };
   let parts = planRanges(total, blockSize).map(p => ({ id: p.index, start: p.start, end: p.end, cursor: p.start, reservedEnd: p.start, state: 'pending', hash: null, leftHash: null }));
@@ -205,11 +205,24 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     fs.writeFileSync(`${checkpoint}.tmp`, JSON.stringify({ identity, parts: snapshot, completed: parts.filter(p => p.state === 'done').map(p => p.id).sort((a, b) => a - b) }));
     fs.renameSync(`${checkpoint}.tmp`, checkpoint);
   }
+  // Total throughput of the file over fixed windows; only windows where the connections stayed at the target are judged.
+  let thrStart = clock(), thrLast = thrStart, thrBytes = networkBytes, thrAtTarget = 0, thrConnMs = 0, thrTarget = window.target;
+  function throughput() {
+    const now = clock(), step = now - thrLast; thrLast = now;
+    if (phase !== 'downloading') { thrStart = now; thrBytes = networkBytes; thrAtTarget = 0; thrConnMs = 0; thrTarget = window.target; return; }
+    if (step > 0) { thrConnMs += networkActive * step; if (networkActive >= thrTarget) thrAtTarget += step; }
+    if (window.target !== thrTarget) { thrStart = now; thrBytes = networkBytes; thrAtTarget = 0; thrConnMs = 0; thrTarget = window.target; return; }
+    const elapsed = now - thrStart; if (elapsed < throughputWindowMs) return;
+    const sustained = thrAtTarget >= elapsed * 0.9;
+    window.observe((networkBytes - thrBytes) * 1000 / elapsed, sustained ? thrTarget : Math.min(thrTarget - 1, Math.floor(thrConnMs / elapsed)), now);
+    thrStart = now; thrBytes = networkBytes; thrAtTarget = 0; thrConnMs = 0; thrTarget = window.target;
+  }
   function progress(force = false) {
+    throughput();
     const now = performance.now(); if (!force && now - lastTime < 300) return;
     onProgress({ received: parts.reduce((sum, p) => sum + (p.state === 'done' ? p.end - p.start + 1 : p.cursor - p.start), 0), total,
       speed: phase === 'downloading' ? (networkBytes - lastBytes) * 1000 / Math.max(1, now - lastTime) : 0,
-      connections: networkActive, targetConnections: window.target, maxConnections: maximum, splits, reductions: window.reductions,
+      connections: networkActive, targetConnections: window.target, ceilingConnections: window.ceiling, maxConnections: maximum, splits, reductions: window.reductions,
       resumedBytes, resumeSupported: Boolean(validator), resumeReason, phase, elapsedSeconds: (now - started) / 1000, networkBytes, payloadBytes, verificationBytes });
     lastTime = now; lastBytes = networkBytes;
   }
@@ -235,7 +248,7 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       try {
         const h = { ...headers, Range: `bytes=${requestStart}-${requestEnd}` }; if (validator) h['If-Range'] = validator.value;
         const reply = await request(url, combined, h); response = reply.response; effectiveUrl = String(reply.url || url);
-        networkActive++; counted = true; peak = Math.max(peak, networkActive);
+        throughput(); networkActive++; counted = true; peak = Math.max(peak, networkActive);
         progress(true);
         checkValidator(response, validator); validateRange(response, requestStart, requestEnd, total);
         let wire = 0; const prefixes = [];
@@ -265,15 +278,15 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
         if (part.end === requestEnd && wire !== requestEnd - requestStart + 1) throw new Error(m('e.the-server-sent-the-part-incompletely'));
         part.leftHash = part.start ? createHash('sha256').update(Buffer.concat(prefixes)).digest('hex') : null;
         await file.sync(); part.hash = await hashRange(partial, part.start, part.end, combined);
-        part.state = 'done'; save(); window.sample(part.end - part.start + 1, performance.now() - attemptStart); return;
+        part.state = 'done'; save(); throughput(); window.sample(part.end - part.start + 1, performance.now() - attemptStart); return;
       } catch (error) {
-        response?.destroy(); part.cursor = part.start; part.reservedEnd = part.start; window.failure();
+        response?.destroy(); part.cursor = part.start; part.reservedEnd = part.start; throughput(); window.failure();
         if (combined.aborted || error instanceof RangeUnsupportedError || error instanceof SourceChangedError || error instanceof SourceExpiredError || error instanceof IntegrityError || attempt >= 2) throw error;
         if (error instanceof RemoteResponseError && (!error.retryable || error.retryAfter > 30000)) throw error;
         const wait = Math.max(retryDelay * (attempt + 1), error instanceof RemoteResponseError ? error.retryAfter ?? 0 : 0);
         if (error instanceof RateLimitedError) onThrottle(new URL(effectiveUrl).hostname, wait);
         await delay(wait, null, { signal: combined });
-      } finally { if (counted) { networkActive--; progress(true); } response?.destroy(); }
+      } finally { if (counted) { throughput(); networkActive--; progress(true); } response?.destroy(); }
     }
   }
   try {
@@ -298,7 +311,7 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     await file.close(); phase = 'verifying'; progress(true); await verify(partial, combined); combined.throwIfAborted();
     const publication = await publishFile(partial, destination, combined); fs.rmSync(checkpoint, { force: true });
     phase = 'completed'; progress(true);
-    return { total, connections: peak, maxConnections: maximum, targetConnections: window.target, splits, reductions: window.reductions, resumedBytes, resumeSupported: Boolean(validator), resumeReason, networkBytes, payloadBytes, verificationBytes, elapsedSeconds: (performance.now() - started) / 1000, ...publication };
+    return { total, connections: peak, maxConnections: maximum, targetConnections: window.target, plateaus: window.plateaus, splits, reductions: window.reductions, resumedBytes, resumeSupported: Boolean(validator), resumeReason, networkBytes, payloadBytes, verificationBytes, elapsedSeconds: (performance.now() - started) / 1000, ...publication };
   } finally {
     if (active.size) { localAbort.abort(); await Promise.allSettled(active.values()); }
     await file.close().catch(() => {});

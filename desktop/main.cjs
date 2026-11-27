@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawn, execFile } = require('node:child_process');
 const { openJobLocation, playJob } = require('./job-location.cjs');
 const { TrayPanel } = require('./tray-panel.cjs');
-const { Updater } = require('./updater.cjs');
+const { Updater, checkAtStart } = require('./updater.cjs');
 const { t, setLanguage } = require('./texts.cjs');
 // runs a Windows tool and gives its output (reading the default browser from the registry)
 const readWindows = { run: (file, args) => new Promise((resolve, reject) => execFile(file, args, { windowsHide: true, timeout: 5000 }, (error, stdout) => (error ? reject(error) : resolve(stdout)))) };
@@ -16,7 +16,7 @@ app.setAppUserModelId('com.hypernab.desktop'); // Windows shows the app's own na
 const port = Number(process.env.HYPERNAB_PORT || 17846);
 const origin = `http://127.0.0.1:${port}`;
 let window, tray, trayPanel, updater, engine, quitting = false, owned = false, token, instanceId;
-let settings = { closeToTray: true, startMinimized: false, notifyOnFinish: true, watchClipboard: false }; // refreshed from the engine's Settings
+let settings = { closeToTray: true, startMinimized: false, notifyOnFinish: true, watchClipboard: false, checkUpdatesOnStart: true }; // refreshed from the engine's Settings
 const root = app.isPackaged ? path.join(process.resourcesPath, 'engine') : path.resolve(__dirname, '..');
 const data = process.env.HYPERNAB_DATA_DIR || (app.isPackaged ? path.join(app.getPath('userData'), 'data') : path.join(root, 'data'));
 const downloads = process.env.HYPERNAB_DOWNLOAD_DIR || (app.isPackaged ? app.getPath('downloads') : path.join(root, 'downloads'));
@@ -213,6 +213,9 @@ else {
       }
       if (command === 'startup' && typeof value === 'boolean' && app.isPackaged) { app.setLoginItemSettings({ openAtLogin: value, args: ['--startup'] }); return true; }
       if (command === 'settings-changed') { await loadSettings(); return true; }
+      // Settings → Updates → "Check now": the result goes back to the window (no "up to date" box); a newer version still asks before downloading.
+      // Without an updater (development, tests, not installed) nothing is contacted.
+      if (command === 'check-update') return updater ? updater.check(true, true) : { state: 'unavailable', version: app.getVersion() };
       if (command === 'pick-folder') {
         const result = await dialog.showOpenDialog(window, { title: t('desk.pickFolder'), defaultPath: await currentDownloads(), properties: ['openDirectory', 'createDirectory'] });
         return result.canceled ? null : result.filePaths[0] || null;
@@ -228,7 +231,9 @@ else {
     if (app.isPackaged && process.env.HD_DESKTOP_TEST !== '1') {
       const { autoUpdater } = require('electron-updater');
       updater = new Updater({ autoUpdater, dialog, version: app.getVersion(), onInstall: finish => quit(finish) });
-      setTimeout(() => { void updater.check(false); }, 60000).unref(); // one quiet check after start; installing always needs a click
+      // One quiet check after start; installing always needs a click. The setting is read when the timer fires (Settings may have changed
+      // in the meantime); when it is off nothing contacts GitHub at start.
+      setTimeout(() => { if (checkAtStart(settings)) void updater.check(false); }, 60000).unref();
     }
     ipcMain.handle('tray:command', (event, command, id) => trayPanel.command(event, command, id));
     tray = new Tray(nativeImage.createFromPath(iconFile)); tray.setToolTip('Hypernab');

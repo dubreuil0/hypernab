@@ -7,12 +7,12 @@ import { resolveRemote } from './security.js';
 export class NetworkStallError extends Error {}
 
 // Shared by sequential and range transfers. Every redirect gets its own DNS check.
-export async function requestRemote(raw, signal, headers = {}, redirects = 0, budget = null) {
+export async function requestRemote(raw, signal, headers = {}, redirects = 0, budget = null, options = {}) {
   if (redirects > 5) throw new Error(m('e.too-many-redirects'));
   const { url, records } = await resolveRemote(raw);
   signal?.throwIfAborted();
   const transport = url.protocol === 'https:' ? https : http;
-  const release = budget ? await budget.acquire(url.hostname, signal) : () => {};
+  const release = budget ? await budget.acquire(url.hostname, signal, 1, { priority: options.priority, owner: options.owner }) : () => {};
   const response = await new Promise((resolve, reject) => {
     let req;
     try { req = transport.get(url, {
@@ -31,7 +31,7 @@ export async function requestRemote(raw, signal, headers = {}, redirects = 0, bu
     const next = new URL(location, url);
     // A session cookie belongs to the origin it was issued for: never forward it to another host or scheme.
     const forward = next.origin === url.origin ? headers : Object.fromEntries(Object.entries(headers).filter(([name]) => !/^(?:cookie|authorization)$/i.test(name)));
-    return requestRemote(next.href, signal, forward, redirects + 1, budget);
+    return requestRemote(next.href, signal, forward, redirects + 1, budget, options);
   }
   return { response, url };
 }

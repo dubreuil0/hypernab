@@ -81,6 +81,7 @@ const SETTING_DEFAULTS = {
   notifyOnFinish: true,     // desktop notification when a download finishes or fails
   closeToTray: true,        // desktop window close button keeps the app in the tray
   startMinimized: false,    // when Windows starts the app, keep it in the tray
+  checkUpdatesOnStart: true, // desktop app: one quiet look for a newer version a minute after start (nothing is downloaded without a click); off = no contact at start
   extensionPromptDone: false // the one-time "add the browser extension" window was shown and closed (a settings file from before it counts as done)
 };
 const bool = nameKey => value => typeof value === 'boolean' || m('e.must-be-on-or-off', { name: m(nameKey) });
@@ -118,6 +119,7 @@ const SETTING_CHECKS = {
   notifyOnFinish: bool('e.name.notification'),
   closeToTray: bool('e.name.tray'),
   startMinimized: bool('e.name.hidden'),
+  checkUpdatesOnStart: bool('e.name.update-check'),
   extensionPromptDone: bool('e.name.extension-prompt')
 };
 // A chosen folder must exist (or be creatable) and accept files, before any download is sent there.
@@ -155,10 +157,18 @@ export class DownloadQueue {
     this.toolsDirectory = toolsDirectory;
     this.concurrency = concurrency;
     this.budget = budget;
-    this.remoteOpener = remoteOpener === openRemote ? async (url, signal, redirects = 0, headers = {}) => {
-      const result = await requestRemote(url, signal, headers, redirects, budget); assertCompleteResponse(result.response); return result;
+    // `options` = { priority, owner }: look-ups use the budget's interactive reserve, transfers name their job so slots are shared fairly.
+    const opener = remoteOpener === openRemote ? async (url, signal, redirects = 0, headers = {}, options = {}) => {
+      const result = await requestRemote(url, signal, headers, redirects, budget, options); assertCompleteResponse(result.response); return result;
     } : remoteOpener;
-    this.rangeRequest = rangeRequest === requestRemote ? (url, signal, headers) => requestRemote(url, signal, headers, 0, budget) : (url, signal, headers) => budget.request(rangeRequest, url, signal, headers);
+    const ranger = rangeRequest === requestRemote ? (url, signal, headers, options) => requestRemote(url, signal, headers, 0, budget, options) : (url, signal, headers, options) => budget.request(rangeRequest, url, signal, headers, options);
+    this.remoteOpener = opener;
+    this.rangeRequest = (url, signal, headers, options = {}) => ranger(url, signal, headers, options);
+    // Look-ups also resolve through this.remoteOpener / this.rangeRequest at call time (an injected or replaced function is honoured).
+    this.lookupOpener = (url, signal, redirects, headers) => this.remoteOpener(url, signal, redirects, headers, { priority: true });
+    this.lookupRequest = (url, signal, headers) => this.rangeRequest(url, signal, headers, { priority: true });
+    // Resolved at call time through this.rangeRequest, so a replaced this.rangeRequest still sees every transfer request.
+    this.rangeRequestFor = job => (url, signal, headers) => this.rangeRequest(url, signal, headers, { owner: job.id });
     this.infoExtractor = infoExtractor;
     this.mediaInspector = mediaInspector;
     this.mediaVerifier = mediaVerifier;
@@ -431,7 +441,7 @@ export class DownloadQueue {
     const key = createHash('sha256').update(JSON.stringify([url, headers, cookies])).digest('hex');
     let entry = this.hlsInspections.get(key);
     if (!entry || Date.now() - entry.at > 900000) {
-      const request = (target, requestSignal, extra = {}) => this.rangeRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target));
+      const request = (target, requestSignal, extra = {}) => this.lookupRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target));
       playlist ||= await readHls({ url, headers, signal, request });
       if (!playlist) throw new Error(m('e.the-captured-source-is-not-a'));
       const raw = hlsInfo(playlist, url, input.title);
@@ -510,7 +520,7 @@ export class DownloadQueue {
       this.rememberOffered(url, info.options, usedCookies, rawInfo);
       return { ...publicInfo, sessionUsed: usedCookies.length > 0, engine: 'extractor', warning: this.capabilities().ffmpeg ? null : m('e.ffmpeg-is-missing-separate-sound-and') };
     }
-    const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, withCookie(headers, cookies, url));
+    const { response, url: finalUrl } = await this.lookupOpener(url, signal, 0, withCookie(headers, cookies, url));
     this.rememberOffered(url, [], cookies);
     try {
       const mime = String(response.headers['content-type'] || '');
@@ -528,7 +538,7 @@ export class DownloadQueue {
     const url = parseRemoteUrl(input.url).href;
     const cookies = sanitizeCookies(input.cookies, [url, input.pageUrl]);
     const headers = mediaHeaders(input);
-    const playlist = await readHls({ url, signal, request: (target, requestSignal, extra) => this.rangeRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target)) });
+    const playlist = await readHls({ url, signal, request: (target, requestSignal, extra) => this.lookupRequest(target, requestSignal, withCookie({ ...headers, ...extra }, cookies, target)) });
     if (!playlist) throw new Error(m('e.the-response-is-not-an-hls'));
     return this.inspectHls(input, cookies, signal, playlist);
   }
@@ -858,7 +868,7 @@ export class DownloadQueue {
   // byte ranges are still fine: one connection is used. Nothing is created unless the file is really reachable.
   async probeFile(url, headers, signal) {
     try {
-      const probe = await probeRange({ url, headers, signal, request: this.rangeRequest });
+      const probe = await probeRange({ url, headers, signal, request: this.lookupRequest });
       return { url: probe.url, total: probe.total, contentType: probe.contentType, disposition: probe.disposition || '', ranges: true, raw: probe };
     } catch (error) {
       if (signal.aborted) throw error;
@@ -871,7 +881,7 @@ export class DownloadQueue {
         return { url: seen.url, total: Number.isSafeInteger(length) && length > 0 ? length : null, contentType: String(seen.headers['content-type'] || ''), disposition: String(seen.headers['content-disposition'] || ''), ranges: false };
       }
     }
-    const { response, url: finalUrl } = await this.remoteOpener(url, signal, 0, headers);
+    const { response, url: finalUrl } = await this.lookupOpener(url, signal, 0, headers);
     try {
       const status = response.statusCode;
       if (status && (status < 200 || status >= 300)) throw Object.assign(new Error(status === 401 || status === 403 ? m('e.the-server-refused-access-a-sign') : m('e.the-server-answered-with-http-status', { status })), { code: [401, 403].includes(status) ? 'ACCESS_DENIED' : 'HTTP_ERROR' });
@@ -928,7 +938,7 @@ export class DownloadQueue {
     const recent = (Array.isArray(input.recent) ? input.recent : []).slice(-200).map(item => ({ url: normal(item?.url), at: Number(item?.at) || 0 })).filter(item => item.url);
     if (!recent.length) return { active: null };
     const headers = mediaHeaders(input), cookies = offered.cookies || [];
-    const request = (target, signal, extra = {}) => this.rangeRequest(target, signal, withCookie({ ...headers, ...extra }, cookies, target));
+    const request = (target, signal, extra = {}) => this.lookupRequest(target, signal, withCookie({ ...headers, ...extra }, cookies, target));
     this.audioLists ??= new Map();
     const pieces = new Map();
     await Promise.all(tracks.map(async track => {
@@ -1217,13 +1227,14 @@ export class DownloadQueue {
     return true;
   }
 
-  async probeSource(url, headers, signal, job) {
+  async probeSource(url, headers, signal, job, owner = job) {
     const started = performance.now();
+    const request = owner ? this.rangeRequestFor(owner) : this.rangeRequest;
     return recoverRead(async parent => {
       // The first look at a source must be quick: a source that does not answer within 10 s is treated as stalled right away
       // (the caller then switches to another way) instead of making the user wait for the 30 s socket timeout.
       const quick = AbortSignal.any([parent, AbortSignal.timeout(10000)]);
-      try { return await probeRange({ url, headers, signal: quick, request: this.rangeRequest }); }
+      try { return await probeRange({ url, headers, signal: quick, request }); }
       catch (error) {
         parent.throwIfAborted();
         if (quick.aborted) throw new NetworkStallError(m('e.the-source-did-not-answer-within'));
@@ -1272,7 +1283,7 @@ export class DownloadQueue {
       let seed = job.kind === 'file' ? this.probeSeeds?.get(job.url) : null; this.probeSeeds?.delete(job.url);
       if (seed && Date.now() - seed.at >= 30000) seed = null;
       if (seed && !seed.probe) throw new RangeUnsupportedError(m('e.the-source-does-not-support-byte-range')); // the file look already asked
-      const probe = seed ? seed.probe : await this.probeSource(job.url, this.requestHeaders(job, job.url), signal);
+      const probe = seed ? seed.probe : await this.probeSource(job.url, this.requestHeaders(job, job.url), signal, null, job);
       job.measurementKey = sourceMeasureKey([{ url: probe.url, protocol: 'https' }]);
       if (isManifest(probe.contentType, probe.url)) return this.routeManifest(job, signal);
       if (/text\/html/i.test(probe.contentType)) throw new RangeUnsupportedError(m('e.the-source-returned-an-html-page'));
@@ -1280,11 +1291,11 @@ export class DownloadQueue {
       const isVideo = isVideoFile(filename, probe.contentType);
       const result = await downloadParallel({
         throttle: this.limiters.get(job.id), connections: this.settings.maxConnections,
-        url: job.url, headers: this.requestHeaders(job, job.url), sourceProbe: probe, signal, request: this.rangeRequest,
+        url: job.url, headers: this.requestHeaders(job, job.url), sourceProbe: probe, signal, request: this.rangeRequestFor(job),
         // Keyed to the first address: a refreshed address of the same file (same size and validator, checked again by samples) resumes the bytes already on disk.
         sourceKey: createHash('sha256').update(`${job.originUrl || job.url}|direct`).digest('hex'),
         destination: path.join(this.dirOf(job), filename),
-        onThrottle: (host, ms) => this.budget.cooldown(host, ms),
+        onThrottle: (host, ms) => this.budget.cooldown(host, ms), contended: () => this.budget.waitingOthers(job.id) > 0,
         onProgress: progress => this.updateTransfer(job, progress),
         verify: async (file, verifySignal) => {
           await this.verifyOutput(job, file, probe.total, isVideo ? { requireVideo: true, requireAudio: false } : null, verifySignal);
@@ -1467,7 +1478,7 @@ export class DownloadQueue {
     recordRecovery(job, 'hls-selected');
     const started = performance.now();
     const result = await downloadHls({ sources, directory: this.dirOf(job), toolsDirectory: this.toolsDirectory, signal,
-      request: this.rangeRequest, headersFor: url => this.requestHeaders(job, url), spawn: this.processSpawner,
+      request: this.rangeRequestFor(job), headersFor: url => this.requestHeaders(job, url), spawn: this.processSpawner,
       connections: this.settings.maxConnections, throttle: this.limiters.get(job.id), stagingName: `hls-${job.id}`, // pieces survive a pause, a restart and a retry
       onPhase: phase => this.phase(job, phase),
       onRetry: detail => recordRecovery(job, 'hls-retry', detail),
@@ -1534,10 +1545,10 @@ export class DownloadQueue {
     };
     const downloadSource = (source, index) => downloadParallel({
       throttle: this.limiters.get(job.id),
-      url: source.url, headers: headers[index], sourceProbe: probes[index], request: this.rangeRequest,
+      url: source.url, headers: headers[index], sourceProbe: probes[index], request: this.rangeRequestFor(job),
       sourceKey: createHash('sha256').update(`${job.url}|${source.format_id || 'single'}`).digest('hex'),
       destination: files[index], signal: combined, connections: Math.max(1, Math.floor(maxConnections / sources.length)),
-      onThrottle: (host, ms) => this.budget.cooldown(host, ms),
+      onThrottle: (host, ms) => this.budget.cooldown(host, ms), contended: () => this.budget.waitingOthers(job.id) > 0,
       onProgress: value => progress(index, value),
       verify: async (file, verifySignal) => {
         if (sources.length === 1) await this.verifyOutput(job, file, probes[index].total, mediaExpectation(info), verifySignal);
@@ -1587,7 +1598,7 @@ export class DownloadQueue {
     const hosts = selectedSources.map(source => { try { return new URL(source.url).hostname; } catch { return null; } }).filter(Boolean);
     if (!hosts.length) hosts.push(new URL(job.url).hostname);
     const slots = job.speedLimitKiB ? 1 : Math.min(2, this.budget.perHost);
-    const release = await this.budget.acquire(hosts, signal, slots);
+    const release = await this.budget.acquire(hosts, signal, slots, { owner: job.id });
     try { return await this.extractNativeStage(job, signal, selectedFormat, info, slots, release); }
     finally { release(); }
   }

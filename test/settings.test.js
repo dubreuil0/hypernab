@@ -83,13 +83,22 @@ test('quality preferences preselect real offers without changing same-height FPS
 test('the engine reports the default of every preference, and applying them restores a fresh queue\'s settings', t => {
   const { queue, config } = fixture(t);
   const fresh = JSON.parse(JSON.stringify(queue.settings)), defaults = queue.settingDefaults();
-  const keys = ['interfaceLanguage', 'appearance', 'theme', 'accent', 'textSize', 'downloadDirectory', 'maxQuality', 'preferCompatible', 'speedLimitKiB', 'subtitleMode', 'subtitleLanguage', 'audioLanguage', 'subtitleContainer', 'maxConnections', 'autoRetries', 'smartNames', 'sortByType', 'folderLayout', 'deepVerifyDefault', 'closeToTray', 'startMinimized', 'watchClipboard', 'notifyOnFinish'];
+  const keys = ['interfaceLanguage', 'appearance', 'theme', 'accent', 'textSize', 'downloadDirectory', 'maxQuality', 'preferCompatible', 'speedLimitKiB', 'subtitleMode', 'subtitleLanguage', 'audioLanguage', 'subtitleContainer', 'maxConnections', 'autoRetries', 'smartNames', 'sortByType', 'folderLayout', 'deepVerifyDefault', 'closeToTray', 'startMinimized', 'watchClipboard', 'notifyOnFinish', 'checkUpdatesOnStart'];
+  assert.equal(defaults.checkUpdatesOnStart, true, 'the quiet update check at start is on by default');
   for (const key of keys) assert.ok(key in defaults, `no default for ${key}`);
   for (const key of keys) assert.deepEqual(defaults[key], fresh[key], `${key}: the default is what a fresh queue starts with`);
   queue.setSettings({ theme: 'light', accent: 'blue', maxQuality: 720, speedLimitKiB: 2048, autoRetries: 5, smartNames: false, subtitleMode: 'sidecar', maxConnections: 2, folderLayout: 'site', sortByType: true, subtitleLanguage: 'de', startMinimized: true });
   queue.setSettings(Object.fromEntries(keys.map(key => [key, defaults[key]])));
   for (const key of keys) assert.deepEqual(queue.settings[key], fresh[key], `${key} is back to its default`);
   const restored = new DownloadQueue(config); for (const key of keys) assert.deepEqual(restored.settings[key], fresh[key], `${key} stays at its default after a restart`); restored.stop();
+});
+
+test('checkUpdatesOnStart: only on/off is accepted and the choice survives a restart', t => {
+  const { queue, config } = fixture(t);
+  assert.throws(() => queue.setSettings({ checkUpdatesOnStart: 'no' }));
+  queue.setSettings({ checkUpdatesOnStart: false });
+  assert.equal(queue.settings.checkUpdatesOnStart, false);
+  const again = new DownloadQueue(config); assert.equal(again.settings.checkUpdatesOnStart, false); again.stop();
 });
 
 test('the one-time "add the browser extension" window: a brand-new install sees it, an existing settings file never does, and an answer stays', t => {

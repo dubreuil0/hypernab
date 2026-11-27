@@ -11,33 +11,44 @@ class Updater {
     this.state = 'idle'; // idle | checking | available | downloading | ready
     this.pending = false; this.asked = false; this.manual = false;
   }
-  async check(manual = false) {
+  // `inline` (the Settings row): no "up to date" / "check failed" / "busy" boxes; the outcome is returned for the window to show:
+  // { state: 'current' | 'available' | 'ready' | 'busy' | 'failed', version, latest?, error? }. A newer version still asks before downloading.
+  // Otherwise the new state of the updater is returned (the tray menu and the quiet start check ignore it).
+  async check(manual = false, inline = false) {
+    const out = (outcome, extra = {}) => (inline ? { state: outcome, version: this.version, ...extra } : this.state);
     if (this.state === 'checking' || this.state === 'downloading') {
-      if (manual) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.busy') });
-      return this.state;
+      if (manual && !inline) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.busy') });
+      return out('busy');
     }
-    if (this.state === 'ready') { this.pending = true; return this.state; }
+    if (this.state === 'ready') { this.pending = true; return out('ready', { latest: this.latest }); }
     this.state = 'checking'; this.manual = manual;
     try {
       const result = await this.autoUpdater.checkForUpdates();
       const next = result?.updateInfo?.version;
       if (!next || !this.newer(next)) {
         this.state = 'idle';
-        if (manual) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.current'), detail: t('desk.update.installed', { version: this.version }) });
-        return this.state;
+        if (manual && !inline) await this.dialog.showMessageBox({ type: 'info', message: t('desk.update.current'), detail: t('desk.update.installed', { version: this.version }) });
+        return out('current');
       }
-      this.state = 'available';
+      this.state = 'available'; this.latest = next;
       const answer = await this.dialog.showMessageBox({ type: 'question', buttons: [t('app.download'), t('desk.update.later')], defaultId: 0, cancelId: 1,
         message: t('desk.update.available', { version: next }), detail: t('desk.update.availableDetail') });
-      if (answer.response !== 0) { this.state = 'idle'; return this.state; }
+      if (answer.response !== 0) { this.state = 'idle'; return out('available', { latest: next }); }
       this.state = 'downloading';
+      // The Settings row must not sit on "Checking…" while ~200 MB arrive: it gets "downloading" at once and the download goes on here;
+      // when it is in, idle() offers the restart as usual. A failed download only returns the updater to idle (the next check retries).
+      if (inline) {
+        this.autoUpdater.downloadUpdate().then(() => { this.state = 'ready'; this.pending = true; this.asked = false; }, error => { this.state = 'idle'; this.log(error); });
+        return out('downloading', { latest: next });
+      }
       await this.autoUpdater.downloadUpdate();
       this.state = 'ready'; this.pending = true; this.asked = false;
+      return out('ready', { latest: next });
     } catch (error) {
       this.state = 'idle'; this.log(error);
-      if (manual) await this.dialog.showMessageBox({ type: 'warning', message: t('desk.update.checkFailed'), detail: t('desk.update.checkFailedDetail') });
+      if (manual && !inline) await this.dialog.showMessageBox({ type: 'warning', message: t('desk.update.checkFailed'), detail: t('desk.update.checkFailedDetail') });
+      return out('failed', { error: 'check-failed' }); // never the raw error text (it can hold addresses)
     }
-    return this.state;
   }
   newer(next) {
     const parts = value => String(value).split('.').map(Number);
@@ -57,4 +68,6 @@ class Updater {
     return true;
   }
 }
-module.exports = { Updater, busy };
+// The quiet check a minute after start runs unless the user turned it off in Settings (anything but an explicit false means on).
+const checkAtStart = settings => settings?.checkUpdatesOnStart !== false;
+module.exports = { Updater, busy, checkAtStart };
