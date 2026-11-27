@@ -43,4 +43,5 @@ Do not run development builds against the installed app's data: the dev engine u
 
 - Use `npm.cmd` in scripts launched from PowerShell 5 if `npm` is blocked by the execution policy.
 - Native tools write warnings to stderr, which PowerShell shows as red error records even when the exit code is 0; redirect to a file and read it, or check `$LASTEXITCODE`.
-- Write commit message files without a BOM: `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding $false))`.
+- Write commit message files without a BOM: `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding $false))`. `Set-Content -Encoding utf8` in PowerShell 5 adds one (it broke a version bump once).
+- If the owner opens the installed app while an update is replacing `Hypernab.exe`, Windows may silently re-target the Start-menu shortcut to another `Hypernab.exe` it finds, such as `dist\win-unpacked\Hypernab.exe`. Deleting `dist\win-unpacked` then leaves a shortcut that says "the item has been changed or moved". Before deleting build output, check that `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Hypernab.lnk` still points to `%LOCALAPPDATA%\Programs\Hypernab\Hypernab.exe`, and point it back if it doesn't.
