@@ -25,7 +25,7 @@ Prepare once per machine (and again when the temp folder is cleaned): `npm run t
 
 | After changing | Run |
 |---|---|
-| anything in `desktop/` or before a release | `npm run dist` then `node scripts/e2e/desktop-smoke.js` (19 OK lines expected) |
+| anything in `desktop/` or before a release | `npm run dist` then `node scripts/e2e/desktop-smoke.js`: 19 OK lines and a NOTE that the Start-menu shortcut was put back.<br>Known flaky step: the tray-panel double-click. The main process sometimes stops answering for 15 s (`Runtime.evaluate timeout ... tray.html`). On 28 Nov 2026 this happened in 3 of 9 runs with unchanged desktop code. Rerun it; it is not a reason to ship a change. The cause is not investigated; see the hardware-acceleration row in `decisions.md`. |
 | page capture / panel | `node scripts/e2e/float-e2e.js`, `capture-e2e.js`, `overlay-real-browser.js` |
 | link menu | `node scripts/e2e/link-e2e.js` |
 | subtitles | `node scripts/e2e/subtitle-e2e.js` |

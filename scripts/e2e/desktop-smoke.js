@@ -11,6 +11,11 @@ const root = path.resolve(import.meta.dirname, '../..');
 const dir = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA, 'Temp/opencode/hypernab-desktop-'));
 const port = await freePort(), debug = await freePort(), inspector = await freePort();
 const exe = path.join(root, 'dist/win-unpacked/Hypernab.exe');
+// The owner's Start-menu shortcut of the installed app: kept byte for byte and put back at the end, whatever happens. While this
+// test copy runs, Windows re-points that shortcut to dist\win-unpacked (seen 1-2 s after the first test download finishes; not caused
+// by the notification or the AppUserModelID, both ruled out). Only a PC with a second copy of the app is affected, i.e. a developer's.
+const startShortcut = path.join(process.env.APPDATA || '', 'Microsoft/Windows/Start Menu/Programs/Hypernab.lnk');
+const shortcutBefore = fs.existsSync(startShortcut) ? fs.readFileSync(startShortcut) : null;
 const env = { ...process.env, HYPERNAB_LOCALE: 'tr-TR', HYPERNAB_PORT: String(port), HYPERNAB_DATA_DIR: path.join(dir, 'data'), HYPERNAB_DOWNLOAD_DIR: path.join(dir, 'downloads'), HD_DESKTOP_TEST: '1', HD_DESKTOP_PROFILE: path.join(dir, 'profile'), HD_WINDOW_DROP_MS: '5000' };
 const child = spawn(exe, ['--native-background', `--remote-debugging-port=${debug}`, `--inspect=${inspector}`], { env, stdio: 'ignore' });
 const connections = [];
@@ -398,6 +403,12 @@ try {
   if (child.exitCode === null) {
     try { const status = await call('/api/status'); await call('/api/queue/bulk', { action: 'pause', all: true }); await wait(1500); await call('/api/app/shutdown', { confirm: true, instanceId: status.instanceId }); } catch {}
     child.kill();
+  }
+  if (shortcutBefore) {
+    const now = fs.existsSync(startShortcut) ? fs.readFileSync(startShortcut) : null;
+    if (!now || !now.equals(shortcutBefore)) fs.writeFileSync(startShortcut, shortcutBefore);
+    assert.ok(fs.readFileSync(startShortcut).equals(shortcutBefore), 'the Start-menu shortcut could not be put back');
+    console.log('NOTE the Start-menu shortcut of the installed app is as before (put back after the test)');
   }
   console.log('Test directory: ' + dir);
 }

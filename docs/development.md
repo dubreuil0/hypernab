@@ -44,4 +44,8 @@ Do not run development builds against the installed app's data: the dev engine u
 - Use `npm.cmd` in scripts launched from PowerShell 5 if `npm` is blocked by the execution policy.
 - Native tools write warnings to stderr, which PowerShell shows as red error records even when the exit code is 0; redirect to a file and read it, or check `$LASTEXITCODE`.
 - Write commit message files without a BOM: `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding $false))`. `Set-Content -Encoding utf8` in PowerShell 5 adds one (it broke a version bump once).
-- If the owner opens the installed app while an update is replacing `Hypernab.exe`, Windows may silently re-target the Start-menu shortcut to another `Hypernab.exe` it finds, such as `dist\win-unpacked\Hypernab.exe`. Deleting `dist\win-unpacked` then leaves a shortcut that says "the item has been changed or moved". Before deleting build output, check that `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Hypernab.lnk` still points to `%LOCALAPPDATA%\Programs\Hypernab\Hypernab.exe`, and point it back if it doesn't.
+- While `scripts/e2e/desktop-smoke.js` runs the `dist\win-unpacked` copy, Windows re-points the installed app's Start-menu shortcut (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Hypernab.lnk`) to that copy. This happens 1–2 s after the first test download finishes.
+  - Ruled out: the notification and the AppUserModelID.
+  - The smoke test now saves the shortcut and puts it back at the end, and prints a NOTE line about it.
+  - If an older run or another script ran the copy, deleting `dist\win-unpacked` leaves a shortcut that says "the item has been changed or moved". In that case point the shortcut back to `%LOCALAPPDATA%\Programs\Hypernab\Hypernab.exe`.
+  - Only a PC that also has a second copy of the app is affected.
