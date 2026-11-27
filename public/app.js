@@ -1,4 +1,4 @@
-import { canPause, canResume, canCancel, visibleJobs, selectionState, moveVisible } from './queue-state.js';
+import { canPause, canResume, canRetry, canCancel, visibleJobs, selectionState, moveVisible } from './queue-state.js';
 import { progressView, durationText } from './progress-view.js';
 import { setupAdvanced } from './advanced.js';
 import { setupHistory, canPlayFile } from './history-view.js';
@@ -367,9 +367,30 @@ function renderSelection() {
   const counted = (key, n) => `${T(key)} (${n})`;
   set('act-pause', some ? (state.pause ? counted('app.pause', state.pause) : T('app.pause')) : T('app.pauseAll'), some ? state.pause > 0 : jobs.some(canPause), T('app.pauseAll.title'));
   set('act-resume', some ? (state.resume ? counted('app.resume', state.resume) : T('app.resume')) : T('app.resumeAll'), some ? state.resume > 0 : jobs.some(canResume), T('app.resumeAll.title'));
+  // Shown only while there is something failed to try again (in the selection, or anywhere when nothing is selected).
+  const retryable = some ? state.retry : jobs.filter(canRetry).length;
+  const retryText = some ? counted('app.retryNow', state.retry) : counted('app.retryFailed', retryable);
+  set('act-retry', retryText, retryable > 0, `${retryText}: ${T('app.retryFailed.title')}`);
+  $('act-retry').hidden = !retryable;
+  fitActionBar();
   set('act-cancel', some && state.cancel ? `${counted('app.cancel', state.cancel)}…` : T('app.cancel'), some && state.cancel > 0, some ? T('app.cancel') : T('app.act.cancelNeedsSelection'));
   set('act-clear', some ? (state.clear ? counted('app.act.remove', state.clear) : T('app.act.remove')) : T('app.act.removeFinished'), some ? state.clear > 0 : jobs.some(job => job.canClear), T('app.clear.title'));
 }
+// The action bar stays one row in every language, text size and window width: when it would wrap, "Retry failed" first keeps only
+// its icon, then every button does (their names stay as tooltips), the same as in a narrow window.
+function fitActionBar() {
+  const bar = document.querySelector('.list-actions'), buttons = $('list-buttons');
+  if (!bar || $('view-downloads').hidden) return;
+  const wraps = () => {
+    const tops = [...bar.children].filter(child => child.getClientRects().length).map(child => child.getBoundingClientRect().top);
+    return Math.max(...tops) - Math.min(...tops) > 4 || buttons.getBoundingClientRect().height > $('act-pause').getBoundingClientRect().height + 4;
+  };
+  buttons.classList.remove('fit-retry', 'fit-all');
+  if (!wraps()) return;
+  buttons.classList.add('fit-retry');
+  if (wraps()) buttons.classList.add('fit-all');
+}
+addEventListener('resize', () => fitActionBar());
 async function runQueueCommand(command) {
   if (queueBusy) return;
   queueBusy = true; render();
@@ -378,10 +399,10 @@ async function runQueueCommand(command) {
     if (command.type === 'clear') result = await api('/api/queue/clear', { method: 'POST', body: JSON.stringify({ ids: command.ids }) });
     else if (command.type === 'single') result = await api(`/api/jobs/${command.id}/${command.action}`, { method: 'POST', body: '{}' });
     else result = await api('/api/queue/bulk', { method: 'POST', body: JSON.stringify({ action: command.action, ...(command.all ? { all: true } : { ids: command.ids }) }) });
-    const nothing = { pause: T('app.none.pause'), resume: T('app.none.resume'), cancel: T('app.none.cancel') };
+    const nothing = { pause: T('app.none.pause'), resume: T('app.none.resume'), cancel: T('app.none.cancel'), retry: T('app.none.retry') };
     if (command.type === 'bulk' && command.all && !result.changed) queueMessage(nothing[command.action]);
     else if (command.type === 'clear') { for (const id of result.removedIds || []) selected.delete(id); offerUndo(result); }
-    else queueMessage(command.action === 'retry' ? T('app.retry.queued') : `${TN(`app.done.${command.action}`, result.changed ?? 1)}${result.skipped ? ` ${TN('app.done.skipped', result.skipped)}` : ''}`);
+    else queueMessage(command.action === 'retry' && command.type === 'single' ? T('app.retry.queued') : `${TN(`app.done.${command.action}`, result.changed ?? 1)}${result.skipped ? ` ${TN('app.done.skipped', result.skipped)}` : ''}`);
     await Promise.all([refresh(), status()]);
   } catch (error) { queueMessage(error.message, true); }
   finally { queueBusy = false; render(); }
@@ -447,7 +468,7 @@ $('select-all').addEventListener('change', event => {
 $('deselect-all').addEventListener('click', () => { selected.clear(); render(); });
 // the actions of the bar: on the selection when there is one, else on every download
 const barIds = () => [...selectedShown()];
-for (const action of ['pause', 'resume']) $(`act-${action}`).addEventListener('click', () => runQueueCommand(selectedShown().size ? { type: 'bulk', action, ids: barIds() } : { type: 'bulk', action, all: true }));
+for (const action of ['pause', 'resume', 'retry']) $(`act-${action}`).addEventListener('click', () => runQueueCommand(selectedShown().size ? { type: 'bulk', action, ids: barIds() } : { type: 'bulk', action, all: true }));
 $('act-cancel').addEventListener('click', () => askCancel(barIds()));
 $('act-clear').addEventListener('click', () => {
   const scope = selectedShown(), ids = jobs.filter(job => job.canClear && (scope.size ? scope.has(job.id) : true)).map(job => job.id);

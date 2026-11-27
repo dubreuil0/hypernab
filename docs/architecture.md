@@ -72,7 +72,7 @@ Cookies are read only in `float.js`/`link-download.js` after the user's click, f
 
 | Where | What |
 |---|---|
-| `%APPDATA%\Hypernab\data` (packaged) or `./data` (dev, `HYPERNAB_DATA_DIR`) | `queue.json` (jobs; never cookies or request headers), `queue.json.settings.json`, `queue.json.history.sqlite`, `automation.json`, `pairing-token`, `window-state.json`, yt-dlp cache |
+| `%APPDATA%\Hypernab\data` (packaged) or `./data` (dev, `HYPERNAB_DATA_DIR`) | `queue.json` (jobs; never cookies. A job keeps its source address, the page address and the browser's User-Agent/Referer so an expired captured address can be renewed from its page; `list()` leaves all of them out of API responses), `queue.json.settings.json`, `queue.json.history.sqlite`, `automation.json`, `pairing-token`, `window-state.json`, yt-dlp cache |
 | `%USERPROFILE%\Downloads` (packaged; no sub-folder of its own, only the folder in use is created) or `./downloads` (dev, `HYPERNAB_DOWNLOAD_DIR`) | Downloaded files |
 | Windows temp folder | Short-lived cookie file for one yt-dlp run (deleted at the end; leftovers swept at start) |
 

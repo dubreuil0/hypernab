@@ -1,6 +1,7 @@
 export const canPause = job => ['running', 'queued'].includes(job.status);
 // A download added for later (held) is a download that has not been started: it is resumed like a paused one.
 export const canResume = job => ['paused', 'interrupted', 'held'].includes(job.status) && !job.resumeRequested;
+export const canRetry = job => job.status === 'failed';
 export const canCancel = job => ['running', 'queued', 'held', 'paused', 'interrupted', 'failed'].includes(job.status);
 export const visibleJobs = (jobs, filter) => jobs.filter(job => filter === 'all' ||
   (filter === 'running' ? ['running', 'queued', 'held', 'paused'].includes(job.status) :
@@ -23,7 +24,7 @@ export function selectionState(jobs, visible, selected) {
     count: chosen.length, hidden: chosen.length - visibleSelected,
     all: visible.length > 0 && visibleSelected === visible.length,
     mixed: visibleSelected > 0 && visibleSelected < visible.length,
-    pause: chosen.filter(canPause).length, resume: chosen.filter(canResume).length,
+    pause: chosen.filter(canPause).length, resume: chosen.filter(canResume).length, retry: chosen.filter(canRetry).length,
     cancel: chosen.filter(canCancel).length, clear: chosen.filter(job => job.canClear).length
   };
 }

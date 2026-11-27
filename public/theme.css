@@ -107,3 +107,6 @@ html .toasts>#message.error, html .toasts>#queue-message.error { color:var(--dan
 .toast { display:flex;align-items:center;gap:12px; }
 .toast[hidden] { display:none; }
 @media (max-width:860px) { #list-buttons .btn>span { display:none; } #list-buttons .btn { padding-inline:8px; } }
+/* set by fitActionBar() when the bar would wrap (long words, large text): first "Retry failed", then every button keeps only its icon */
+#list-buttons.fit-retry #act-retry>span, #list-buttons.fit-all .btn>span { display:none; }
+#list-buttons.fit-retry #act-retry, #list-buttons.fit-all .btn { padding-inline:8px; }

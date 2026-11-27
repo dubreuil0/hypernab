@@ -173,6 +173,7 @@ export class DownloadQueue {
     this.meters = new WeakMap();
     this.observedTransfers = new WeakSet();
     this.stopping = false;
+    this.pageResolves = 0; this.pageWaiters = []; // re-reading pages for expired addresses: a few at a time, never one per download
     try {
       this.jobs = JSON.parse(fs.readFileSync(stateFile, 'utf8')).map(job => ({
         ...job, resumeRequested: false, speed: 0, status: ['queued', 'running'].includes(job.status) ? 'interrupted' : job.status,
@@ -270,7 +271,7 @@ export class DownloadQueue {
     const filesIn = this.fileLister();
     // Signed source URLs are persisted locally but not exposed in queue responses.
     return this.jobs.map(original => {
-      const { url, headers, submissionFingerprint, audioUrl, subtitlePending, ...job } = original;
+      const { url, headers, submissionFingerprint, audioUrl, subtitlePending, pageUrl: _page, originUrl: _origin, ...job } = original;
       const settling = this.active.has(job.id) && job.status !== 'running';
       const phase = jobPhase(job, settling);
       const meter = this.meter(original); meter.stage(phase);
@@ -374,6 +375,8 @@ export class DownloadQueue {
       else job.status = 'queued';
       return true;
     }
+    // "Try again" on several rows: only failed downloads; the bytes already on disk are kept and used when the source still matches.
+    if (action === 'retry' && job.status === 'failed' && !this.active.has(job.id)) { this.requeue(job); return true; }
     if (action === 'cancel' && ['running', 'queued', 'held', 'paused', 'interrupted', 'failed'].includes(job.status)) {
       job.status = 'cancelled'; job.resumeRequested = false; job.speed = 0; this.dropSession(job);
       this.meter(job).stage('cancelled');
@@ -384,7 +387,7 @@ export class DownloadQueue {
   }
 
   batch(action, { ids, all = false } = {}) {
-    if (!['pause', 'resume', 'cancel'].includes(action)) throw new Error(m('e.invalid-bulk-action'));
+    if (!['pause', 'resume', 'cancel', 'retry'].includes(action)) throw new Error(m('e.invalid-bulk-action'));
     if (typeof all !== 'boolean' || (all && ids !== undefined) || (!all && ids === undefined)) throw new Error(m('e.specify-all-jobs-or-a-specific'));
     const selected = all ? null : this.validateIds(ids);
     let changed = 0, skipped = 0;
@@ -596,7 +599,8 @@ export class DownloadQueue {
     if (input.start !== undefined && !['now', 'queue'].includes(input.start)) throw new Error(m('e.invalid-start-choice-now-or-queue'));
     const toQueue = input.start === 'queue';
     let pageHost = null; // only a label; an unusable page address (local, odd port) must not block the download itself
-    try { pageHost = input.pageUrl ? parseRemoteUrl(input.pageUrl).hostname : null; } catch { /* label stays empty */ }
+    let pageUrl = null; // a captured media address may expire; the page it came from is where a fresh one is found
+    try { if (input.pageUrl) { const page = parseRemoteUrl(input.pageUrl); pageHost = page.hostname; pageUrl = page.href; } } catch { /* label stays empty */ }
     const fingerprint = sid ? createHash('sha256').update(JSON.stringify({ url, engine, pageHost, title: safeTitle(input.title), headers: mediaHeaders(input), quality: input.quality || 'best', audioUrl: input.audioUrl || null, audioTrack: input.audioTrack || null, formatId: input.formatId || null, deepVerify: input.deepVerify === true, expectedSha256: input.expectedSha256?.toLowerCase?.() || null })).digest('hex') : null;
     const receipt = this.findSubmission(sid, fingerprint);
     if (receipt?.abandoned) throw new Error(m('e.this-submission-was-dropped-by-the'));
@@ -635,7 +639,7 @@ export class DownloadQueue {
     const job = {
       id: randomUUID(), url, engine, title: safeTitle(fileName ? fileName.replace(/\.[^.]+$/, '') : input.title),
       ...(fileName ? { kind: 'file', fileName } : {}),
-      pageHost, submissionId: sid, submissionFingerprint: fingerprint,
+      pageHost, ...(engine === 'direct' && pageUrl && pageUrl !== url ? { pageUrl } : {}), submissionId: sid, submissionFingerprint: fingerprint,
       headers: mediaHeaders(input),
       deepVerify: input.deepVerify === true || (input.deepVerify === undefined && this.settings.deepVerifyDefault && this.capabilities().ffmpeg), expectedSha256: expectedSha256?.toLowerCase() || null,
       directory: layoutDirectory(this.currentDirectory(), this.settings.folderLayout, { host: pageHost || new URL(url).hostname, series: input.seriesTitle, category: this.settings.sortByType ? (fileName ? categoryFor(fileName).id : 'video') : null }),
@@ -984,12 +988,17 @@ export class DownloadQueue {
   retry(id) {
     const job = this.jobs.find(j => j.id === id);
     if (!job || !['failed', 'cancelled', 'interrupted'].includes(job.status) || this.active.has(id)) throw new Error(m('e.this-download-cannot-be-restarted-right'));
+    this.requeue(job);
+    this.save(); this.pump();
+  }
+
+  requeue(job) {
     if (['parallel-http', 'parallel-streams'].includes(job.transfer?.method) && job.transfer.networkBytes > 0 && job.transfer.elapsedSeconds > 0) {
       job.transferHistory = [...(job.transferHistory || []).slice(-9), { networkBytes: job.transfer.networkBytes, elapsedSeconds: job.transfer.elapsedSeconds }];
     }
-    job.notice = null;
+    if (job.total > 0) job.lastTotal = job.total; // the size of the file it was, to recognise the same file at a fresh address
+    job.notice = null; job.autoRetries = 0;
     job.status = 'queued'; job.resumeRequested = false; job.error = null; job.received = 0; job.speed = 0; job.total = null;
-    this.save(); this.pump();
   }
 
    // One global scheduler: every entry point shares the same limit and persisted row priority.
@@ -1128,12 +1137,84 @@ export class DownloadQueue {
     for (let attempt = 0; ; attempt++) {
       try { return await this.runAttempt(job, signal); }
       catch (error) {
+        // A captured address that expired (401/403/410): read its page again for a fresh address of the same file, then go on.
+        if (!signal.aborted && attempt < 1 && error instanceof SourceExpiredError && job.engine === 'direct' && await this.refreshDirectSource(job, signal)) {
+          job.sourceRefreshes++; job.speed = 0; recordRecovery(job, 'source-refresh', { attempt: job.sourceRefreshes }); continue;
+        }
         if (signal.aborted || attempt >= 1 || !(error instanceof SourceChangedError || (error instanceof SourceExpiredError && job.engine === 'extractor'))) throw error;
         job.sourceRefreshes++; job.speed = 0;
         recordRecovery(job, 'source-refresh', { attempt: job.sourceRefreshes });
         if (error instanceof SourceExpiredError && this.sessions.get(job.id)?.length) this.cookieless.add(job.id);
       }
     }
+  }
+
+  // The page a direct download was captured on (stored since 0.20.2; older rows carry it as their Referer).
+  sourcePage(job) {
+    for (const candidate of [job.pageUrl, job.headers?.Referer]) {
+      try { const page = parseRemoteUrl(candidate).href; if (page !== job.url && page !== job.originUrl) return page; } catch { /* not a usable page */ }
+    }
+    return null;
+  }
+
+  // Size and validator of the half-written file of this job, if one is on disk.
+  savedSourceIdentity(job) {
+    try {
+      const name = fs.readdirSync(this.dirOf(job)).find(n => n.startsWith(`${job.id}-`) && n.endsWith('.ranges.json'));
+      const identity = name ? JSON.parse(fs.readFileSync(path.join(this.dirOf(job), name), 'utf8')).identity : null;
+      return identity?.total > 0 ? { total: identity.total, validator: identity.validator } : null;
+    } catch { return null; }
+  }
+
+  // At most two pages are read again at the same time, however many downloads are waiting for a fresh address.
+  async pageGate(signal, work) {
+    while (this.pageResolves >= 2) {
+      await new Promise((resolve, reject) => {
+        if (signal.aborted) return reject(signal.reason);
+        const onAbort = () => { this.pageWaiters = this.pageWaiters.filter(entry => entry !== wake); reject(signal.reason); };
+        const wake = () => { signal.removeEventListener('abort', onAbort); resolve(); };
+        this.pageWaiters.push(wake); signal.addEventListener('abort', onAbort, { once: true });
+      });
+    }
+    this.pageResolves++;
+    try { return await work(); } finally { this.pageResolves--; this.pageWaiters.shift()?.(); }
+  }
+
+  // A captured media address often carries a time-limited signature. When it is refused, the page is read again (with the same
+  // browser identity) and a fresh address is chosen: the one with the half-written file's size and validator, so the bytes on disk
+  // are resumed; otherwise the best working one, from the start (the earlier data is kept aside, never deleted). No site is named.
+  async refreshDirectSource(job, signal) {
+    const page = this.sourcePage(job);
+    if (!page || !this.capabilities().ytDlp) return false;
+    this.phase(job, 'resolving');
+    let info;
+    try {
+      info = await this.pageGate(signal, async () => {
+        const jar = this.jarFor(job);
+        try { return await this.infoExtractor({ url: page, quality: 'best', toolsDirectory: this.toolsDirectory, headers: job.headers || {}, cookieFile: jar, signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) }); }
+        finally { removeCookieJar(jar); }
+      });
+    } catch (error) { if (signal.aborted) throw error; return false; }
+    const seen = new Set();
+    const candidates = [...[...(info?.formats || [])].reverse(), info].filter(f => {
+      if (!f || typeof f.url !== 'string' || !/^https?:\/\//i.test(f.url) || seen.has(f.url)) return false;
+      seen.add(f.url);
+      return !/m3u8|dash|f4m|ism/i.test(f.protocol || '') && !f.fragments && f.vcodec !== 'none' && f.has_drm !== true && !isManifest('', f.url);
+    }).slice(0, 4);
+    const target = this.savedSourceIdentity(job) || (job.total > 0 || job.lastTotal > 0 ? { total: job.total || job.lastTotal } : null);
+    let chosen = null;
+    for (const candidate of candidates) {
+      let probe;
+      try { probe = await this.probeSource(candidate.url, this.requestHeaders(job, candidate.url), signal); }
+      catch (error) { if (signal.aborted) throw error; continue; }
+      if (/text\/html/i.test(probe.contentType)) continue;
+      chosen ||= candidate;
+      if (!target || (probe.total === target.total && (!target.validator || JSON.stringify(probe.validator) === JSON.stringify(target.validator)))) { chosen = candidate; break; }
+    }
+    if (!chosen) return false;
+    job.originUrl ||= job.url;
+    job.url = parseRemoteUrl(chosen.url).href;
+    return true;
   }
 
   async probeSource(url, headers, signal, job) {
@@ -1200,7 +1281,8 @@ export class DownloadQueue {
       const result = await downloadParallel({
         throttle: this.limiters.get(job.id), connections: this.settings.maxConnections,
         url: job.url, headers: this.requestHeaders(job, job.url), sourceProbe: probe, signal, request: this.rangeRequest,
-        sourceKey: createHash('sha256').update(`${job.url}|direct`).digest('hex'),
+        // Keyed to the first address: a refreshed address of the same file (same size and validator, checked again by samples) resumes the bytes already on disk.
+        sourceKey: createHash('sha256').update(`${job.originUrl || job.url}|direct`).digest('hex'),
         destination: path.join(this.dirOf(job), filename),
         onThrottle: (host, ms) => this.budget.cooldown(host, ms),
         onProgress: progress => this.updateTransfer(job, progress),

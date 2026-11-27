@@ -88,6 +88,14 @@ async function run(name, launch) {
     await ev(`document.querySelector('#jobs [data-job-action$="-retry"]').click()`); await sleep(500);
     check(name, '"Try again" asks the engine to retry that download', /^\/api\/jobs\/00000000-0000-4000-8000-000000000005\/retry$/.test((await calls()).at(-1)?.[0] || ''), JSON.stringify(await calls()));
     await reset();
+    // ---------- "Retry failed": shown while something failed, counts it, and asks the engine to try every failed download again
+    const retryAll = await state('act-retry');
+    check(name, 'with a failed download the bar offers "Retry failed (1)" with an icon', retryAll.text === 'Retry failed (1)' && !retryAll.disabled && !retryAll.hidden && await ev(`Boolean(document.querySelector('#act-retry svg use'))`), JSON.stringify(retryAll));
+    await ev(`document.getElementById('act-retry').click()`); await sleep(500);
+    check(name, '"Retry failed" asks the engine to retry every failed download', JSON.stringify((await calls()).at(-1)) === JSON.stringify(['/api/queue/bulk', { action: 'retry', all: true }]), JSON.stringify((await calls()).at(-1)));
+    await act(`document.querySelectorAll('#jobs .job input[type=checkbox]')[0].click();`); await sleep(300);
+    check(name, 'selecting only a running row hides "Retry failed" (nothing in the selection to retry)', (await state('act-retry')).hidden, JSON.stringify(await state('act-retry')));
+    await reset();
     // ---------- no queue: "At the same time" sits in the header, a download added for later is a paused one (Resume starts it), Settings has a Schedule
     check(name, 'no queue row, no start/stop button, no named queues; "At the same time" is in the header', await ev(`(() => !document.querySelector('.queue-bar') && !document.getElementById('queue-toggle') && !document.getElementById('named-queue') && Boolean(document.querySelector('.queue-head #queue-limit')))()`));
     const resumable = await ev(`[...document.querySelectorAll('#jobs [data-job-action$="-resume"]')].map(b => b.closest('.job').querySelector('.job-title').textContent)`);
@@ -161,8 +169,11 @@ async function run(name, launch) {
     for (const lang of ['de', 'ru', 'ar']) {
       await api('/api/settings', { interfaceLanguage: lang });
       await browser.navigate(tab, origin + '/'); await sleep(2500); await ev(FAKE); await sleep(3500);
-      await act(`document.querySelectorAll('#jobs .job input[type=checkbox]')[0].click(); document.querySelectorAll('#jobs .job input[type=checkbox]')[3].click();`); await sleep(400);
-      const fit = await ev(`(() => { const bar = document.querySelector('.list-actions'), r = id => document.getElementById(id).getBoundingClientRect(); return { rows: Math.round(bar.getBoundingClientRect().height), pause: Math.round(r('act-pause').height), x: Math.round(r('act-pause').x), selectX: Math.round(r('select-all').x), sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth, widths: ['.select-group', '#list-buttons', '.list-actions .list-tools'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().width)), dir: document.documentElement.dir, labels: ['act-pause-label', 'act-cancel-label', 'act-clear-label'].map(id => document.getElementById(id).textContent) }; })()`);
+      // Widest bar first: nothing selected, so every button carries its "all" name and "Retry failed (1)" is shown too.
+      const wide = await ev(`(() => { const bar = document.querySelector('.list-actions'); return { rows: Math.round(bar.getBoundingClientRect().height), retry: document.getElementById('act-retry-label').textContent, shown: !document.getElementById('act-retry').hidden, sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth }; })()`);
+      check(name, `${lang}: with nothing selected and "Retry failed" shown the bar is still one row`, wide.shown && wide.rows < 60 && wide.sideways <= 1, JSON.stringify(wide));
+      await act(`for (const i of [0, 3, 4]) document.querySelectorAll('#jobs .job input[type=checkbox]')[i].click();`); await sleep(400);
+      const fit = await ev(`(() => { const bar = document.querySelector('.list-actions'), r = id => document.getElementById(id).getBoundingClientRect(); return { rows: Math.round(bar.getBoundingClientRect().height), pause: Math.round(r('act-pause').height), x: Math.round(r('act-pause').x), selectX: Math.round(r('select-all').x), sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth, widths: ['.select-group', '#list-buttons', '.list-actions .list-tools'].map(s => Math.round(document.querySelector(s).getBoundingClientRect().width)), dir: document.documentElement.dir, labels: ['act-pause-label', 'act-retry-label', 'act-cancel-label', 'act-clear-label'].map(id => document.getElementById(id).textContent) }; })()`);
       check(name, `${lang}: the action bar stays one tidy row (no wrapped buttons) and the page does not scroll sideways`, fit.pause < 40 && fit.rows < 60 && fit.sideways <= 1, JSON.stringify(fit));
       if (lang === 'ar') check(name, 'ar: right to left, the select box is on the right of the buttons', fit.dir === 'rtl' && fit.selectX > fit.x, JSON.stringify(fit));
       await browser.screenshot(tab, path.join(shots, `${name}-list-bar-${lang}.png`));
