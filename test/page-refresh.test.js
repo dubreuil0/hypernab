@@ -113,3 +113,26 @@ test('many expired downloads read their pages at most two at a time', async t =>
   assert.ok(queue.jobs.every(job => job.status === 'completed'), queue.jobs.map(job => job.error).join(' '));
   assert.equal(most, 2);
 });
+
+test('a fresh address with the same size but another validator is preferred over one of another size, and the content is compared before resuming', async t => {
+  const queue = fixture(t, {
+    infoExtractor: async () => pageInfo('https://cdn.example.net/file.mp4?sig=fresh'),
+    rangeRequest: async (url, signal, headers) => {
+      if (url.includes('sig=fresh')) { // probed first, but it is another (shorter) file
+        const reply = serve(url, headers, '"shorter"'); const m = /^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+        reply.response.headers['content-range'] = `bytes ${m[1]}-${m[2]}/${payload.length - 100}`; return reply;
+      }
+      if (url.includes('sig=new')) return serve(url, headers, '"67cd5b0d-other-node"'); // same file, another node: another ETag
+      const start = Number(/^bytes=(\d+)/.exec(headers.Range)[1]);
+      if (headers.Range === 'bytes=0-0' || start < 2 * 1024 * 1024) return serve(url, headers);
+      await wait(80); return refused();
+    }
+  });
+  queue.add({ url: 'https://cdn.example.net/file.mp4?sig=old', engine: 'direct', title: 'A video', pageUrl: PAGE, userAgent: AGENT });
+  await settled(queue);
+  const [job] = queue.jobs;
+  assert.equal(job.status, 'completed', job.error);
+  assert.match(job.url, /sig=new/, 'the same-size candidate was chosen');
+  assert.ok(job.transfer.resumedBytes > 0, 'the bytes on disk were kept');
+  assert.deepEqual(fs.readFileSync(path.join(queue.dirOf(job), job.file)), payload);
+});

@@ -4,6 +4,7 @@ import { requestRemote } from './network.js';
 import { parseRemoteUrl } from './security.js';
 import { recoverRead, RemoteResponseError, IncompleteResourceError } from './recovery.js';
 import { SourceExpiredError } from './transfer.js';
+import { Deadline, anySignal } from './deadline.js';
 
 const MAX = 2 * 1048576;
 export function hlsAttributes(text) {
@@ -78,7 +79,8 @@ export async function readHlsResponse(response, base, signal) {
 
 export async function readHls({ url, headers = {}, signal, request = requestRemote, recovery = {} }) {
   return recoverRead(async parent => {
-    const combined = AbortSignal.any([parent, AbortSignal.timeout(6000)]);
+    const limit = new Deadline(6000, () => new DOMException('timeout', 'TimeoutError'));
+    const combined = anySignal([parent, limit.signal]);
     try {
       const result = await request(url, combined, headers);
       if (result.response.statusCode !== 200) {
@@ -88,7 +90,7 @@ export async function readHls({ url, headers = {}, signal, request = requestRemo
         throw new RemoteResponseError(statusCode, responseHeaders, m('e.resource.hls-list'));
       }
       return await readHlsResponse(result.response, String(result.url || url), combined);
-    } catch (error) { combined.throwIfAborted(); throw error; }
+    } catch (error) { combined.throwIfAborted(); throw error; } finally { limit.stop(); }
   }, { ...recovery, signal });
 }
 

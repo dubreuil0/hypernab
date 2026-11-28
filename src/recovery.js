@@ -1,6 +1,7 @@
 import { m } from './messages.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { NetworkStallError } from './network.js';
+import { Deadline, anySignal } from './deadline.js';
 
 const transientStatuses = new Set([202, 408, 425, 429, 500, 502, 503, 504]);
 const networkCodes = new Set(['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'EPIPE', 'ERR_STREAM_PREMATURE_CLOSE', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT']);
@@ -25,12 +26,10 @@ export function isTransient(error) {
 // Only idempotent GET/reads belong here. No parsing, permission, disk or integrity failure is guessed transient.
 // The parent's cancellation always wins; neither server input nor a jitter can create an endless wait.
 export async function recoverRead(operation, { signal, retries = 2, maxElapsedMs = 20000, baseDelayMs = 500, sleep = delay, onRetry = () => {} } = {}) {
-  const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(new DOMException(m('e.the-request-exceeded-the-time-limit'), 'TimeoutError')), maxElapsedMs);
-  timer.unref?.();
-  const deadline = timeout.signal;
-  const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
-  const started = performance.now();
+  // The limit stops while a request waits for a slot in the app's own connection queue (see deadline.js).
+  const limit = new Deadline(maxElapsedMs, () => new DOMException(m('e.the-request-exceeded-the-time-limit'), 'TimeoutError'));
+  const deadline = limit.signal;
+  const combined = signal ? anySignal([signal, deadline]) : deadline;
   try {
     for (let attempt = 0; ; attempt++) {
       combined.throwIfAborted();
@@ -41,12 +40,12 @@ export async function recoverRead(operation, { signal, retries = 2, maxElapsedMs
         const backoff = Math.min(4000, baseDelayMs * 2 ** attempt);
         const milliseconds = Math.max(backoff, error.retryAfter ?? 0);
         // Never shorten a long Retry-After and hammer the server. Leave the error to the caller instead.
-        if (milliseconds >= maxElapsedMs - (performance.now() - started)) throw error;
+        if (milliseconds >= limit.left()) throw error;
         onRetry({ attempt: attempt + 1, delayMs: milliseconds, status: error.status || 0, reason: error instanceof IncompleteResourceError ? 'incomplete' : error.status ? 'http' : 'network' });
         await sleep(milliseconds, null, { signal: combined });
       }
     }
-  } finally { clearTimeout(timer); }
+  } finally { limit.stop(); }
 }
 
 const events = new Set(['resolve', 'source-refresh', 'probe-retry', 'fast-selected', 'hls-selected', 'hls-retry', 'native-selected', 'automatic-retry', 'transfer-observed']);

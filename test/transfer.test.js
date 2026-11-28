@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
-import { downloadParallel, planRanges, spreadIndexes, RangeUnsupportedError } from '../src/transfer.js';
+import { ConnectionBudget } from '../src/connection-budget.js';
+import { setTimeout as pause } from 'node:timers/promises';
+import { downloadParallel, planRanges, spreadIndexes, RangeUnsupportedError, SourceChangedError } from '../src/transfer.js';
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-range-test-'));
@@ -25,6 +27,8 @@ function source(data, { etag = '"stable-file"', requests = [], modify = () => {}
   };
 }
 const data = Buffer.from(Array.from({ length: 25000 }, (_, i) => i % 251));
+// Same size, every byte different: what a changed file (not another server of the same file) looks like.
+const altered = Buffer.from(data.map(b => (b + 1) % 251));
 
 test('byte aralıkları boşluksuz, çakışmasız ve dosyanın tam boyutunda planlanır', () => {
   const ranges = planRanges(10001, 1000);
@@ -152,10 +156,10 @@ test('video doğrulanmazsa dosya son adına taşınmaz; yeniden doğrulama byte 
 test('kaynak validator değişirse eski dosya korunur ve eski bloklarla karıştırılmaz', async t => {
   const destination = fixture(t);
   await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 2000, request: source(data), verify: async () => { throw new Error('stop'); } }));
-  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 2000, request: source(data, { etag: '"new-file"' }) });
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 2000, request: source(altered, { etag: '"new-file"' }) });
   assert.equal(result.resumedBytes, 0);
   assert.ok(fs.readdirSync(path.dirname(destination)).some(n => n.includes('.previous-')));
-  assert.deepEqual(fs.readFileSync(destination), data);
+  assert.deepEqual(fs.readFileSync(destination), altered);
 });
 
 test('aynı hedef zaten varsa SHA256 eşleştirilip yeniden kullanılır, üzerine yazılmaz', async t => {
@@ -172,4 +176,108 @@ test('aynı boyutta farklı hedef varsa korunur, indirme dosyası da silinmez', 
   await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', request: source(data) }), /içeriği farklı/);
   assert.deepEqual(fs.readFileSync(destination), existing);
   assert.deepEqual(fs.readFileSync(destination + '.parallel.part'), data);
+});
+
+// ---- Same file, another server of the same site (the validator differs, the content does not) ----
+const big = Buffer.from(Array.from({ length: 400000 }, (_, i) => (i * 7 + (i >> 8)) % 253));
+const flipFrom = 6000; // slices at or after this offset (and longer than the 1-byte probe) come from "another server"
+// The first requests see etag "a"; slices from `flipFrom` on are served by another node: etag "b" and `content`.
+function nodes({ content = data, requests = [], ifRange200 = false } = {}) {
+  const first = source(data, { etag: '"a"', requests });
+  return async (url, signal, headers) => {
+    const [, from, to] = /^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+    if (Number(to) === Number(from) || Number(from) < flipFrom) return first(url, signal, headers);
+    const reply = await source(content, { etag: '"b"', requests })(url, signal, headers);
+    if (ifRange200 && headers['If-Range'] && headers['If-Range'] !== '"b"') {
+      const full = Readable.from([content]); full.statusCode = 200; full.headers = { 'content-length': String(content.length), etag: '"b"' };
+      reply.response.destroy(); return { response: full };
+    }
+    return reply;
+  };
+}
+
+test('aynı içerik, başka ETag: devam eder; yalnız küçük örnekler yeniden indirilir', async t => {
+  const destination = fixture(t);
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(big, { etag: '"67cd5ad6-40a4c4f"' }), verify: async () => { throw new Error('stop'); } }), /stop/);
+  const requests = [];
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(big, { etag: '"67cd5b0d-40a4c4f"', requests }) });
+  assert.equal(result.resumedBytes, big.length); assert.equal(result.payloadBytes, 0); assert.equal(result.resumeReason, null);
+  assert.ok(result.verificationBytes > 0 && result.verificationBytes <= 24 * 2 * 1024, `örnek bayt: ${result.verificationBytes}`);
+  assert.ok(requests.filter(r => r.end > r.start).length >= 24, 'en az 24 örnek');
+  assert.ok(requests.every(r => r.end - r.start + 1 <= 1024), 'blok indirilmedi');
+  assert.ok(requests.filter(r => r.end > r.start).every(r => !r.headers['If-Range']), 'örnekler If-Range göndermez');
+  assert.ok(!fs.readdirSync(path.dirname(destination)).some(n => n.includes('.previous-')));
+  assert.deepEqual(fs.readFileSync(destination), big);
+});
+test('aynı boyut, farklı içerik, başka ETag: devam edilmez, eski dosya kenara alınır, baştan iner', async t => {
+  const destination = fixture(t), other = Buffer.from(big.map(b => b ^ 1));
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(big, { etag: '"a"' }), verify: async () => { throw new Error('stop'); } }), /stop/);
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(other, { etag: '"b"' }) });
+  assert.equal(result.resumedBytes, 0);
+  const previous = fs.readdirSync(path.dirname(destination)).filter(n => n.includes('.parallel.part.previous-'));
+  assert.equal(previous.length, 1);
+  assert.deepEqual(fs.readFileSync(path.join(path.dirname(destination), previous[0])), big);
+  assert.deepEqual(fs.readFileSync(destination), other);
+});
+test('örneklenen bir bloğun tek baytı bile farklıysa (başka ETag) devam edilmez', async t => {
+  const destination = fixture(t), other = Buffer.from(big); other[0] ^= 1;
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(big, { etag: '"a"' }), verify: async () => { throw new Error('stop'); } }), /stop/);
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 10000, request: source(other, { etag: '"b"' }) });
+  assert.equal(result.resumedBytes, 0); assert.deepEqual(fs.readFileSync(destination), other);
+});
+test('ETag yalnız bir tarafta yoksa bugünkü gibi baştan inilir', async t => {
+  const destination = fixture(t);
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 2000, request: source(data, { modify: r => { delete r.headers.etag; } }), verify: async () => { throw new Error('stop'); } }), /stop/);
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', blockSize: 2000, request: source(data, { modify: r => { delete r.headers.etag; } }) });
+  assert.equal(result.resumedBytes, 0); assert.equal(result.resumeSupported, false);
+  assert.deepEqual(fs.readFileSync(destination), data);
+});
+for (const connections of [1, 3]) {
+  test(`indirme ortasında ETag değişir, içerik aynı: tamamlanır (${connections} bağlantı)`, async t => {
+    const destination = fixture(t), requests = [];
+    const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections, blockSize: 2000, request: nodes({ requests }) });
+    assert.ok(requests.some(r => r.start >= flipFrom && r.end > r.start));
+    assert.equal(result.payloadBytes, data.length);
+    assert.deepEqual(fs.readFileSync(destination), data);
+  });
+}
+test('indirme ortasında ETag ve içerik değişir: SourceChangedError, dosya yayımlanmaz', async t => {
+  const destination = fixture(t);
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections: 1, blockSize: 2000, request: nodes({ content: altered }) }), SourceChangedError);
+  assert.equal(fs.existsSync(destination), false);
+});
+test('If-Range eski ETag ile 200 döndürürse parça If-Range olmadan yeniden istenir ve tamamlanır', async t => {
+  const destination = fixture(t), requests = [];
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections: 1, blockSize: 2000, request: nodes({ requests, ifRange200: true }) });
+  assert.ok(requests.some(r => r.start >= flipFrom && !r.headers['If-Range']), 'If-Range olmadan yeniden istendi');
+  assert.deepEqual(fs.readFileSync(destination), data); assert.equal(result.payloadBytes, data.length);
+});
+test('If-Range 200 yanıtı farklı boyutta ise SourceChangedError', async t => {
+  const destination = fixture(t);
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections: 1, blockSize: 2000, request: nodes({ content: data.subarray(0, 24000), ifRange200: true }) }), SourceChangedError);
+});
+test('ETag olmayan sunucuda 200 yanıtı bugünkü gibi RangeUnsupportedError', async t => {
+  const destination = fixture(t);
+  const request = async (url, signal, headers) => {
+    const reply = await source(data, { modify: r => { delete r.headers.etag; } })(url, signal, headers);
+    if (headers.Range !== 'bytes=0-0') { const full = Readable.from([data]); full.statusCode = 200; full.headers = { 'content-length': String(data.length) }; return { response: full }; }
+    return reply;
+  };
+  await assert.rejects(downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections: 1, blockSize: 2000, request }), RangeUnsupportedError);
+});test('başından beri her parça başka ETag ile gelir, bütçe doluyken bile kilitlenmeden tamamlanır (çapa isteği öncelik hattında)', async t => {
+  const destination = fixture(t), budget = new ConnectionBudget({ total: 2, perHost: 2, reserve: 2 });
+  const inner = source(data, { etag: '"b"' }), first = source(data, { etag: '"a"' });
+  const served = async (url, signal, headers) => {
+    const [, from, to] = /^bytes=(\d+)-(\d+)$/.exec(headers.Range);
+    if (from === to) return first(url, signal, headers);
+    await pause(Number(from) === 2000 ? 150 : 15, null, { signal });
+    return inner(url, signal, headers);
+  };
+  const lanes = [];
+  const request = (url, signal, headers, options) => { lanes.push(Boolean(options?.priority)); return budget.request(served, url, signal, headers, options); };
+  const started = performance.now();
+  const result = await downloadParallel({ url: 'https://example.com/a', destination, sourceKey: 'key', connections: 2, blockSize: 2000, request, signal: AbortSignal.timeout(8000) });
+  assert.ok(performance.now() - started < 6000);
+  assert.equal(result.payloadBytes, data.length); assert.ok(result.verificationBytes > 0, 'çapa kullanıldı'); assert.ok(lanes.includes(true), 'çapa isteği öncelik hattından gitti');
+  assert.deepEqual(fs.readFileSync(destination), data);
 });

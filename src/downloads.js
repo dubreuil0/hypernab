@@ -21,6 +21,7 @@ import { requestRemote, NetworkStallError } from './network.js';
 import { downloadParallel, probeRange, publishFile, RangeUnsupportedError, SourceChangedError, SourceExpiredError, RateLimitedError } from './transfer.js';
 import { selectSourcePlan, sourceHeaders, safeExtension, isManifest } from './source-plan.js';
 import { ConnectionBudget } from './connection-budget.js';
+import { Deadline, anySignal } from './deadline.js';
 // Shared connection total = clamp(4 per running download, 12, 24); per-host cap and look-up reserve stay as they are.
 const ownBudgets = new WeakSet(), defaultBudget = () => { const budget = new ConnectionBudget(); ownBudgets.add(budget); return budget; };
 const BUDGET_BASE_TOTAL = 12, BUDGET_PER_DOWNLOAD = 4, BUDGET_MAX_TOTAL = 24;
@@ -138,8 +139,10 @@ function usableDirectory(dir) {
 const uploadKey = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value) ? value.toLowerCase() : null;
 
 export class DownloadQueue {
-  constructor({ directory, stateFile, toolsDirectory, locale = undefined, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = defaultBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist }) {
+  constructor({ directory, stateFile, toolsDirectory, locale = undefined, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = defaultBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist, probeTimeouts = {} }) {
     this.playlistLister = playlistLister;
+    // Time limits of a source look-up, counted from the moment a connection slot is held (waiting in our own queue never counts).
+    this.probeTimeouts = { attemptMs: 10000, totalMs: 25000, ...probeTimeouts };
     this.pageSniffer = pageSniffer;
     // Browser session cookies: memory only, per job. Never written to queue.json, logs or API responses.
     this.sessions = new Map();
@@ -171,7 +174,7 @@ export class DownloadQueue {
     this.lookupOpener = (url, signal, redirects, headers) => this.remoteOpener(url, signal, redirects, headers, { priority: true });
     this.lookupRequest = (url, signal, headers) => this.rangeRequest(url, signal, headers, { priority: true });
     // Resolved at call time through this.rangeRequest, so a replaced this.rangeRequest still sees every transfer request.
-    this.rangeRequestFor = job => (url, signal, headers) => this.rangeRequest(url, signal, headers, { owner: job.id });
+    this.rangeRequestFor = job => (url, signal, headers, options = {}) => this.rangeRequest(url, signal, headers, { owner: job.id, ...options });
     this.infoExtractor = infoExtractor;
     this.mediaInspector = mediaInspector;
     this.mediaVerifier = mediaVerifier;
@@ -1220,15 +1223,18 @@ export class DownloadQueue {
       return !/m3u8|dash|f4m|ism/i.test(f.protocol || '') && !f.fragments && f.vcodec !== 'none' && f.has_drm !== true && !isManifest('', f.url);
     }).slice(0, 4);
     const target = this.savedSourceIdentity(job) || (job.total > 0 || job.lastTotal > 0 ? { total: job.total || job.lastTotal } : null);
-    let chosen = null;
+    let chosen = null, sameSize = null, exact = null;
     for (const candidate of candidates) {
       let probe;
       try { probe = await this.probeSource(candidate.url, this.requestHeaders(job, candidate.url), signal); }
       catch (error) { if (signal.aborted) throw error; continue; }
       if (/text\/html/i.test(probe.contentType)) continue;
       chosen ||= candidate;
-      if (!target || (probe.total === target.total && (!target.validator || JSON.stringify(probe.validator) === JSON.stringify(target.validator)))) { chosen = candidate; break; }
+      if (!target || (probe.total === target.total && (!target.validator || JSON.stringify(probe.validator) === JSON.stringify(target.validator)))) { exact = candidate; break; }
+      // Same size but another validator: often the same file on another server. The resume step compares the content before keeping anything.
+      if (probe.total === target.total) sameSize ||= candidate;
     }
+    chosen = exact || sameSize || chosen;
     if (!chosen) return false;
     job.originUrl ||= job.url;
     job.url = parseRemoteUrl(chosen.url).href;
@@ -1241,14 +1247,15 @@ export class DownloadQueue {
     return recoverRead(async parent => {
       // The first look at a source must be quick: a source that does not answer within 10 s is treated as stalled right away
       // (the caller then switches to another way) instead of making the user wait for the 30 s socket timeout.
-      const quick = AbortSignal.any([parent, AbortSignal.timeout(10000)]);
+      const limit = new Deadline(this.probeTimeouts.attemptMs, () => new DOMException('timeout', 'TimeoutError'));
+      const quick = anySignal([parent, limit.signal]);
       try { return await probeRange({ url, headers, signal: quick, request }); }
       catch (error) {
         parent.throwIfAborted();
         if (quick.aborted) throw new NetworkStallError(m('e.the-source-did-not-answer-within'));
         throw error;
-      }
-    }, { signal, maxElapsedMs: 25000, onRetry: detail => {
+      } finally { limit.stop(); }
+    }, { signal, maxElapsedMs: this.probeTimeouts.totalMs, onRetry: detail => {
       if (job) recordRecovery(job, 'probe-retry', { ...detail, elapsedMs: performance.now() - started });
       if ([429, 503].includes(detail.status)) this.budget.cooldown(new URL(url).hostname, detail.delayMs);
     } });

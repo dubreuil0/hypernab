@@ -1,4 +1,5 @@
 import { m } from './messages.js';
+import { pauseDeadlines } from './deadline.js';
 // Counts active media requests (not idle keep-alive sockets). One instance is
 // shared by all jobs and both tracks of a split-stream job.
 export class ConnectionBudget {
@@ -25,7 +26,11 @@ export class ConnectionBudget {
     signal?.throwIfAborted();
     hosts = [...new Set((Array.isArray(hosts) ? hosts : [hosts]).map(host => String(host).toLowerCase()))];
     if (!hosts.length || !Number.isInteger(cost) || cost < 1 || cost > this.perHost) throw new Error(m('e.invalid-connection-reservation'));
-    return new Promise((resolve, reject) => {
+    // Time spent waiting behind our own downloads is not the server's silence: the time limits of this request stand still meanwhile.
+    // The interactive reserve keeps its own short limits (it never waits behind downloads).
+    const resumeLimits = priority ? null : pauseDeadlines(signal);
+    return new Promise((resolveSlot, rejectSlot) => {
+      const resolve = value => { resumeLimits?.(); resolveSlot(value); }, reject = error => { resumeLimits?.(); rejectSlot(error); };
       const entry = { hosts, cost, signal, resolve, reject, priority, owner };
       entry.owner = owner ?? entry; // an entry without an owner counts as its own owner
       const queue = priority ? this.priorityWaiting : this.waiting;

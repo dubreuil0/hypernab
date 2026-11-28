@@ -32,10 +32,15 @@ function checkStatus(response) {
   if ([202, 408, 425, 500, 502, 504].includes(response.statusCode)) throw new RemoteResponseError(response.statusCode, response.headers);
 }
 
-function checkValidator(response, validator) {
-  if (!validator) return;
+// The response's own validator when it differs from the expected one, otherwise null.
+function foreignValidator(response, validator) {
+  if (!validator) return null;
   const value = response.headers[validator.type === 'etag' ? 'etag' : 'last-modified'];
-  if (value && value !== validator.value) throw new SourceChangedError(m('e.the-source-file-changed-during-the'));
+  return value && value !== validator.value ? value : null;
+}
+
+function checkValidator(response, validator) {
+  if (foreignValidator(response, validator)) throw new SourceChangedError(m('e.the-source-file-changed-during-the'));
 }
 
 async function hashRange(file, start, end, signal) {
@@ -121,11 +126,13 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
   let parts = planRanges(total, blockSize).map(p => ({ id: p.index, start: p.start, end: p.end, cursor: p.start, reservedEnd: p.start, state: 'pending', hash: null, leftHash: null }));
   const started = performance.now();
   let networkBytes = 0, payloadBytes = 0, verificationBytes = 0, resume = false, resumeReason = null;
-  async function remoteSlice(start, end) {
+  // `tolerant`: the checkpoint came from a server with another validator, so the sample is compared byte by byte
+  // by the caller instead of being refused for its validator (and no If-Range is sent, which would make the server answer 200).
+  async function remoteSlice(start, end, tolerant = false) {
     let response;
     try {
-      const h = { ...headers, Range: `bytes=${start}-${end}`, 'If-Range': validator.value };
-      ({ response } = await request(url, signal, h)); validateRange(response, start, end, total); checkValidator(response, validator);
+      const h = { ...headers, Range: `bytes=${start}-${end}` }; if (!tolerant) h['If-Range'] = validator.value;
+      ({ response } = await request(url, signal, h)); validateRange(response, start, end, total); if (!tolerant) checkValidator(response, validator);
       const chunks = []; let bytes = 0;
       for await (const chunk of response) { bytes += chunk.length; if (bytes > end - start + 1) throw new IntegrityError(m('e.too-much-data-was-received-in')); chunks.push(chunk); }
       if (bytes !== end - start + 1) throw new IntegrityError(m('e.too-little-data-was-received-in'));
@@ -133,9 +140,9 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     } finally { response?.destroy(); }
   }
   // A 401/403 on a tiny sample right after a fresh URL is usually a per-URL rate limit: back off, then let the caller refresh.
-  async function remoteSampleWithRetry(start, end) {
+  async function remoteSampleWithRetry(start, end, tolerant = false) {
     for (let attempt = 0; ; attempt++) {
-      try { return await remoteSlice(start, end); }
+      try { return await remoteSlice(start, end, tolerant); }
       catch (error) {
         if (!(error instanceof SourceExpiredError) || attempt >= 2) throw error;
         await delay(resumeRetryDelay * (attempt + 1), null, { signal });
@@ -146,7 +153,12 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     onProgress({ received: 0, total, speed: 0, connections: 0, targetConnections: window.target, phase: 'checking-resume', resumeSupported: Boolean(validator), networkBytes: 0, resumedBytes: 0 });
     try {
       const saved = JSON.parse(fs.readFileSync(checkpoint, 'utf8'));
-      if (!validator || JSON.stringify(saved.identity) !== JSON.stringify(identity) || !fs.statSync(partial).isFile() || fs.statSync(partial).size !== total) throw new IntegrityError(m('e.the-source-id-validator-or-the'));
+      // Same file, other validator (e.g. the same content on another server of one site): everything else must be equal and the
+      // content is then compared with a larger, mandatory sample before anything is kept.
+      const sameIdentity = JSON.stringify(saved.identity) === JSON.stringify(identity);
+      const validatorChanged = !sameIdentity && Boolean(validator) && saved.identity?.validator?.type === validator.type && Boolean(saved.identity.validator.value)
+        && JSON.stringify({ ...saved.identity, validator: null }) === JSON.stringify({ ...identity, validator: null });
+      if (!validator || (!sameIdentity && !validatorChanged) || !fs.statSync(partial).isFile() || fs.statSync(partial).size !== total) throw new IntegrityError(m('e.the-source-id-validator-or-the'));
       if (!Array.isArray(saved.parts) || !saved.parts.length || saved.parts.length > 100000 || !Array.isArray(saved.completed)) throw new IntegrityError(m('e.the-checkpoint-structure-is-invalid'));
       const ids = new Set(); let nextByte = 0;
       for (const p of [...saved.parts].sort((a, b) => a.start - b.start)) {
@@ -163,7 +175,8 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       report();
       // Local digests cover every committed block (disk only). Remote comparison is a bounded,
       // evenly spread sample: hundreds of tiny parallel requests make some CDNs answer 401 per URL.
-      const sampled = new Set(spreadIndexes(toCheck.length, maxResumeSamples));
+      const sampled = new Set(spreadIndexes(toCheck.length, validatorChanged ? Math.max(maxResumeSamples, 24) : maxResumeSamples));
+      const sampleLength = validatorChanged ? 1024 : overlap;
       const checkLocal = async p => {
         if (!/^[a-f0-9]{64}$/.test(p.hash || '') || (p.start && !/^[a-f0-9]{64}$/.test(p.leftHash || '')) || await hashRange(partial, p.start, p.end, signal) !== p.hash) throw new IntegrityError(m('e.the-block-digest-of-the-local'));
         checked++; report();
@@ -177,8 +190,8 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
       if (checkFailure) throw checkFailure;
       for (const index of sampled) {
         const p = toCheck[index];
-        for (const [start, end] of [[p.start, Math.min(p.end, p.start + overlap - 1)], [Math.max(p.start, p.end - overlap + 1), p.end]]) {
-          const bytes = await remoteSampleWithRetry(start, end);
+        for (const [start, end] of [[p.start, Math.min(p.end, p.start + sampleLength - 1)], [Math.max(p.start, p.end - sampleLength + 1), p.end]]) {
+          const bytes = await remoteSampleWithRetry(start, end, validatorChanged);
           if (await hashRange(partial, start, end, signal) !== createHash('sha256').update(bytes).digest('hex')) throw new IntegrityError(m('e.the-new-source-data-did-not'));
         }
       }
@@ -239,6 +252,50 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
     }
     if (part) part.state = 'active'; return part;
   }
+  async function readDisk(start, length) {
+    // The download handle may be write-only, so a short-lived read handle is used.
+    const reader = await fs.promises.open(partial, 'r');
+    try {
+      const buffer = Buffer.alloc(length); let offset = 0;
+      while (offset < length) { const { bytesRead } = await reader.read(buffer, offset, length - offset, start + offset); if (!bytesRead) break; offset += bytesRead; }
+      return offset === length ? buffer : null;
+    } finally { await reader.close(); }
+  }
+  function doneCovers(from, to) {
+    for (let position = from; position <= to;) {
+      const p = parts.find(q => q.state === 'done' && q.start <= position && position <= q.end);
+      if (!p) return false; position = p.end + 1;
+    }
+    return true;
+  }
+  // A slice came from a server with another validator but the same total. Accept it only if its bytes agree with what is on disk:
+  // its own overlap prefix when the part before it is already written, otherwise a small extra range at the end of a finished block.
+  async function verifyForeign(part, prefix, abort) {
+    const changed = () => new SourceChangedError(m('e.the-source-file-changed-during-the'));
+    if (prefix.length && doneCovers(part.start - prefix.length, part.start - 1)) {
+      const onDisk = await readDisk(part.start - prefix.length, prefix.length);
+      if (!onDisk || !onDisk.equals(prefix)) throw changed();
+      return;
+    }
+    const anchor = parts.filter(p => p.state === 'done').sort((a, b) => a.start - b.start)[0];
+    // Nothing finished yet to compare with: this slice becomes the baseline. Later slices are compared with it, and the
+    // overlap prefixes of neighbouring parts are compared again at assembly (any difference fails there).
+    // (Only for ETags, which differ between servers of one site; a changed Last-Modified with nothing to compare stays a change.)
+    if (!anchor) { if (validator.type === 'etag') return; throw changed(); }
+    const length = Math.min(overlap, anchor.end - anchor.start + 1), start = anchor.end - length + 1;
+    let response;
+    try {
+      // Priority look-up lane: this worker still holds its own download slot, so waiting for a second normal slot could deadlock.
+      ({ response } = await request(url, abort, { ...headers, Range: `bytes=${start}-${anchor.end}` }, { priority: true }));
+      try { validateRange(response, start, anchor.end, total); } catch (error) { if (error instanceof RangeUnsupportedError) throw changed(); throw error; }
+      const chunks = []; let bytes = 0;
+      for await (const chunk of response) { bytes += chunk.length; if (bytes > length) throw changed(); chunks.push(chunk); }
+      if (bytes !== length) throw changed();
+      networkBytes += bytes; verificationBytes += bytes;
+      const onDisk = await readDisk(start, length);
+      if (!onDisk || !onDisk.equals(Buffer.concat(chunks))) throw changed();
+    } finally { response?.destroy(); }
+  }
   async function worker(part) {
     for (let attempt = 0; ; attempt++) {
       combined.throwIfAborted(); let response, counted = false, effectiveUrl = url;
@@ -250,7 +307,19 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
         const reply = await request(url, combined, h); response = reply.response; effectiveUrl = String(reply.url || url);
         throughput(); networkActive++; counted = true; peak = Math.max(peak, networkActive);
         progress(true);
-        checkValidator(response, validator); validateRange(response, requestStart, requestEnd, total);
+        let foreign = foreignValidator(response, validator), foreignChecked = false;
+        if (foreign && response.statusCode === 200 && Number(response.headers['content-length']) === total) {
+          // If-Range with the old validator makes a server holding another copy answer with the whole file: ask again without it.
+          response.destroy();
+          const retryHeaders = { ...h }; delete retryHeaders['If-Range'];
+          const again = await request(url, combined, retryHeaders); response = again.response; effectiveUrl = String(again.url || url);
+          foreign = foreignValidator(response, validator);
+        }
+        if (foreign) {
+          // Same total, other validator: possibly the same content on another server. Content is compared before bytes are kept.
+          try { validateRange(response, requestStart, requestEnd, total); }
+          catch (error) { if (error instanceof RangeUnsupportedError) throw new SourceChangedError(m('e.the-source-file-changed-during-the')); throw error; }
+        } else validateRange(response, requestStart, requestEnd, total);
         let wire = 0; const prefixes = [];
         for await (const chunk of response) {
           combined.throwIfAborted();
@@ -259,6 +328,7 @@ export async function downloadParallel({ url, headers = {}, destination, sourceK
           networkBytes += chunk.length;
           const position = requestStart + wire, prefixLength = Math.max(0, Math.min(chunk.length, part.start - position));
           if (prefixLength) prefixes.push(chunk.subarray(0, prefixLength));
+          if (foreign && !foreignChecked && position + chunk.length >= part.start) { foreignChecked = true; await verifyForeign(part, Buffer.concat(prefixes), combined); }
           const payload = chunk.subarray(prefixLength), absolute = position + prefixLength;
           const length = Math.max(0, Math.min(payload.length, part.end - absolute + 1));
           if (length) {
