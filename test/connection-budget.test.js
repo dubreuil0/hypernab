@@ -132,3 +132,56 @@ test('an interactive look-up answers quickly while running downloads hold the wh
   for (const r of holders) r();
   for (const release of await Promise.all(queued)) release();
 });
+
+test('setLimit raises capacity and drains waiters at once; per-host cap still holds', async () => {
+  const budget = new ConnectionBudget();
+  const held = [];
+  for (let i = 0; i < 8; i++) held.push(await budget.acquire('a.example', null));
+  for (let i = 0; i < 4; i++) held.push(await budget.acquire('b.example', null));
+  const waiters = [budget.acquire('b.example', null), budget.acquire('b.example', null), budget.acquire('a.example', null)];
+  await tick();
+  assert.equal(budget.snapshot().waiting, 3);
+  budget.setLimit(24);
+  await tick();
+  assert.equal(budget.limit, 24); assert.equal(budget.perHost, 8);
+  assert.equal(budget.snapshot().waiting, 1); // the third wants host a, already at 8
+  assert.equal(budget.active, 14);
+  held[0]();
+  await tick();
+  assert.equal(budget.snapshot().waiting, 0);
+});
+
+test('lowering the limit never revokes held slots and blocks new grants until under it', async () => {
+  const budget = new ConnectionBudget({ total: 12, perHost: 8 });
+  const held = [];
+  for (let i = 0; i < 10; i++) held.push(await budget.acquire(`h${i % 3}.example`, null));
+  budget.setLimit(4);
+  assert.equal(budget.active, 10);
+  const next = budget.acquire('z.example', null);
+  assert.equal(await state(next), 'pending');
+  for (let i = 0; i < 6; i++) held[i]();
+  assert.equal(await state(next), 'pending'); // active 4, limit 4
+  held[6]();
+  assert.equal(await state(next), 'granted');
+  budget.setLimit(0); assert.equal(budget.limit, 1);
+  budget.setLimit(99); assert.equal(budget.limit, 32);
+});
+
+test('the queue scales the shared total with running downloads: 12 for 1-3, 16 for 4, 24 for 6, back to 12', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hypernab-budget-scale-'));
+  for (const tool of ['yt-dlp.exe', 'ffprobe.exe', 'ffmpeg.exe']) fs.writeFileSync(path.join(root, tool), 'test-double');
+  let open; const gate = new Promise(resolve => { open = resolve; });
+  const queue = new DownloadQueue({ directory: path.join(root, 'downloads'), stateFile: path.join(root, 'queue.json'), toolsDirectory: root,
+    rangeRequest: async () => { await gate; throw new Error('stop'); }, autoRetries: 0 });
+  t.after(() => { open(); queue.stop(); fs.rmSync(root, { recursive: true, force: true }); });
+  const seen = [];
+  for (let i = 1; i <= 6; i++) {
+    queue.add({ url: `https://cdn${i}.example.net/file.mp4`, engine: 'direct', title: `v${i}` });
+    for (let k = 0; k < 100 && queue.active.size < i; k++) await wait(10);
+    seen.push([queue.active.size, queue.budget.limit]);
+  }
+  assert.deepEqual(seen, [[1, 12], [2, 12], [3, 12], [4, 16], [5, 20], [6, 24]]);
+  open();
+  for (let k = 0; k < 300 && queue.active.size; k++) await wait(10);
+  assert.equal(queue.active.size, 0); assert.equal(queue.budget.limit, 12);
+});

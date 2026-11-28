@@ -6,10 +6,18 @@ export class ConnectionBudget {
   // so a look-up never waits behind a saturated download queue and never takes capacity away from it.
   constructor({ total = 12, perHost = 8, reserve = 2 } = {}) {
     if (![total, perHost].every(n => Number.isInteger(n) && n > 0 && n <= 32) || !Number.isInteger(reserve) || reserve < 1 || reserve > 8) throw new Error(m('e.invalid-connection-budget'));
-    this.limit = total; this.perHost = Math.min(perHost, total); this.reserve = reserve;
+    this.limit = total; this.perHostOption = perHost; this.perHost = Math.min(perHost, total); this.reserve = reserve;
     this.active = 0; this.hosts = new Map(); this.waiting = []; this.cooldowns = new Map(); this.timer = null;
     this.owners = new Map();
     this.priorityActive = 0; this.priorityHosts = new Map(); this.priorityWaiting = [];
+  }
+
+  // Changes the normal total (1..32). Lowering never aborts held connections: new grants simply wait until active < limit.
+  setLimit(total) {
+    if (!Number.isFinite(total)) return;
+    this.limit = Math.min(32, Math.max(1, Math.trunc(total)));
+    this.perHost = Math.min(this.perHostOption, this.limit);
+    this.drain();
   }
 
   // options.priority: use the interactive reserve. options.owner: who holds the slots (a download id), for fair sharing.

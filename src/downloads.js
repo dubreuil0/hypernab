@@ -21,6 +21,9 @@ import { requestRemote, NetworkStallError } from './network.js';
 import { downloadParallel, probeRange, publishFile, RangeUnsupportedError, SourceChangedError, SourceExpiredError, RateLimitedError } from './transfer.js';
 import { selectSourcePlan, sourceHeaders, safeExtension, isManifest } from './source-plan.js';
 import { ConnectionBudget } from './connection-budget.js';
+// Shared connection total = clamp(4 per running download, 12, 24); per-host cap and look-up reserve stay as they are.
+const ownBudgets = new WeakSet(), defaultBudget = () => { const budget = new ConnectionBudget(); ownBudgets.add(budget); return budget; };
+const BUDGET_BASE_TOTAL = 12, BUDGET_PER_DOWNLOAD = 4, BUDGET_MAX_TOTAL = 24;
 import { verifyCompletedFile, mediaExpectation, isVideoFile } from './verification.js';
 import { fileNameFor, categoryFor, riskOf, verifyFileFormat, markFromInternet } from './file-download.js';
 import { readHls, readHlsResponse, hlsInfo, audioChoices } from './hls.js';
@@ -135,7 +138,7 @@ function usableDirectory(dir) {
 const uploadKey = value => typeof value === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value) ? value.toLowerCase() : null;
 
 export class DownloadQueue {
-  constructor({ directory, stateFile, toolsDirectory, locale = undefined, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = new ConnectionBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist }) {
+  constructor({ directory, stateFile, toolsDirectory, locale = undefined, concurrency = Infinity, autoRetries = 2, remoteOpener = openRemote, rangeRequest = requestRemote, infoExtractor = extractMediaInfo, mediaInspector = inspectWithExtractor, mediaVerifier = verifyVideo, mediaMerger = mergeMediaFiles, budget = defaultBudget(), deepVerifier, processSpawner = spawnManaged, pageSniffer = sniffPage, remoteResolver = resolveRemote, playlistLister = listPlaylist }) {
     this.playlistLister = playlistLister;
     this.pageSniffer = pageSniffer;
     // Browser session cookies: memory only, per job. Never written to queue.json, logs or API responses.
@@ -156,7 +159,7 @@ export class DownloadQueue {
     this.history = new HistoryStore(`${stateFile}.history.sqlite`);
     this.toolsDirectory = toolsDirectory;
     this.concurrency = concurrency;
-    this.budget = budget;
+    this.budget = budget; this.ownBudget = ownBudgets.has(budget); // only the queue's own default budget scales with running downloads
     // `options` = { priority, owner }: look-ups use the budget's interactive reserve, transfers name their job so slots are shared fairly.
     const opener = remoteOpener === openRemote ? async (url, signal, redirects = 0, headers = {}, options = {}) => {
       const result = await requestRemote(url, signal, headers, redirects, budget, options); assertCompleteResponse(result.response); return result;
@@ -1097,11 +1100,15 @@ export class DownloadQueue {
     return { ok: true };
   }
 
+  // Sites that cap each file leave line capacity unused, so the shared total grows with the running downloads (12 for 1-3, 16, 20, 24).
+  scaleBudget() { if (this.ownBudget) this.budget.setLimit(Math.min(BUDGET_MAX_TOTAL, Math.max(BUDGET_BASE_TOTAL, BUDGET_PER_DOWNLOAD * this.active.size))); }
+
   launch(job) {
     job.speedLimitKiB = this.settings.speedLimitKiB;
     this.limiters.set(job.id, rateLimiter(job.speedLimitKiB * 1024));
     const controller = new AbortController();
     this.active.set(job.id, controller);
+    this.scaleBudget();
     job.status = 'running';
     this.meter(job).reset();
     this.meter(job).stage('resolving');
@@ -1132,6 +1139,7 @@ export class DownloadQueue {
       job.speed = 0;
       this.meter(job).stage(jobPhase(job));
       this.active.delete(job.id);
+      this.scaleBudget();
       this.limiters.delete(job.id);
       if (job.status === 'cancelled') this.discardPartial(job);
       if (job.status === 'paused' && job.resumeRequested && !this.stopping) {
