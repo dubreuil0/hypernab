@@ -14,6 +14,7 @@ html[data-scheme="light"][data-accent="violet"] { --accent:#6a45d1; }
 .progress rect { fill:var(--accent); }
 /* Long lists stay light: rows that are off screen are not laid out or painted. */
 html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic-size:auto 41px; }
+html[data-appearance="dense"] .job { content-visibility:auto;contain-intrinsic-size:auto 28px; }
 .btn:focus-visible,button:focus-visible { outline-offset:2px; }
 /* A design-system list in a settings row is wide enough for language names and its search box. */
 .setting-control .hd-select { width:19em;max-width:100%; }
@@ -30,7 +31,7 @@ html[data-appearance="compact"] .job { content-visibility:auto;contain-intrinsic
 .playlist-row:hover { background:var(--hover); }
 .playlist-name { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 #view-history { min-width:0; }
-html[data-appearance="compact"] #view-history { flex:1;min-height:0;overflow:auto; }
+html:is([data-appearance="compact"],[data-appearance="dense"]) #view-history { flex:1;min-height:0;overflow:auto; }
 .history-toolbar { display:flex;gap:8px;flex-wrap:wrap;margin:14px 0; }
 .history-toolbar input { flex:1;min-width:120px; }
 .history-row { display:flex;align-items:center;gap:12px;padding:10px 12px;margin-bottom:4px;background:var(--panel);border-radius:8px;content-visibility:auto;contain-intrinsic-size:auto 80px; }
@@ -66,9 +67,9 @@ html[data-appearance="compact"] #view-history { flex:1;min-height:0;overflow:aut
 .settings-more[open]>summary .ic { transform:none; }
 .settings-more>summary:hover { color:var(--accent); }
 .more-body>.setting:last-child { border-bottom:0; }
-html[data-appearance="compact"] .setting { padding:7px 0;gap:12px; }
-html[data-appearance="compact"] .group { padding:4px 14px 6px;margin-bottom:10px; }
-html[data-appearance="compact"] .settings-more>summary { padding:8px 0; }
+html:is([data-appearance="compact"],[data-appearance="dense"]) .setting { padding:7px 0;gap:12px; }
+html:is([data-appearance="compact"],[data-appearance="dense"]) .group { padding:4px 14px 6px;margin-bottom:10px; }
+html:is([data-appearance="compact"],[data-appearance="dense"]) .settings-more>summary { padding:8px 0; }
 @media (min-width:1180px) {
   .group, .more-body { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:36px; }
   .group>h2, .group>.group-head, .group>details, .group>p, .setting.wide { grid-column:1/-1; }
@@ -86,7 +87,12 @@ html[data-appearance="compact"] .settings-more>summary { padding:8px 0; }
    notifications at the bottom of the window. Logical properties only: the bar mirrors by itself in right-to-left languages. */
 .queue-head { margin-bottom:8px;align-items:center;gap:6px 18px; }
 .queue-head .queue-stats { margin-inline-start:auto; }
-.queue-limit-field { font-size:12px;color:var(--muted);margin-inline-start:10px; }
+.queue-limit-field { display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-inline-start:10px; }
+html[data-appearance="compact"] .queue-limit-field { min-height:25px; } /* the row keeps the height the old drop-down gave it */
+.queue-limit-num { display:inline-flex;align-items:center;gap:3px; }
+.queue-limit-num.off { opacity:.55; } /* box off: every download runs at once; the number is dimmed but still editable and remembered */
+.queue-limit-num .hd-input { width:3em;min-height:2em;padding:0 .3em;text-align:center;font-variant-numeric:tabular-nums; }
+.queue-limit-num .hd-icon-btn { width:2em;height:2em; }
 .queue-stats { display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 18px;margin:0;color:var(--muted);font-size:12px; }
 .queue-stats .stat strong { color:var(--text);font-size:13px;font-weight:600;letter-spacing:0; }
 .queue-stats .stat strong small { font-size:11px; }

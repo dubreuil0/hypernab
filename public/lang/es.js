@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("es", {
   "app.resumeAll.title": "Reanuda todas las descargas en pausa, también las añadidas para más tarde",
   "app.resumeAll": "Reanudar todo",
   "app.clear.title": "Quita de la lista las entradas terminadas y canceladas; los archivos no se eliminan",
+  "app.layout.dense": "Denso (predeterminado)",
+  "app.concurrent.count": "Número de descargas a la vez",
+  "app.concurrent.less": "Una menos a la vez",
+  "app.concurrent.more": "Una más a la vez",
   "app.concurrent": "A la vez",
   "app.all": "Todas",
   "app.selection": "Selección",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("es", {
   "app.extension": "Extensión del navegador",
   "app.enginesAbout": "Motores y acerca de",
   "app.layout": "Diseño",
-  "app.layout.hint": "Compacto: filas simples y poco espacio. Normal: tarjetas anchas. Las descargas en curso no se ven afectadas.",
-  "app.layout.compact": "Compacto (predeterminado)",
+  "app.layout.hint": "Denso: una línea fina por descarga. Compacto: filas simples. Normal: tarjetas anchas. Las descargas en curso no se ven afectadas.",
+  "app.layout.compact": "Compacto",
   "app.layout.normal": "Normal",
   "app.theme": "Tema",
   "app.theme.hint": "Oscuro, claro o según Windows. Se aplica al instante.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("es", {
   "e.a-submission-id-is-required": "Se requiere un identificador de envío.",
   "e.this-download-cannot-be-restarted-right": "Esta descarga no se puede reiniciar ahora.",
   "e.the-speed-limit-must-be-0": "El límite de velocidad debe estar entre 0 y 1048576 KiB/s.",
-  "e.the-number-of-simultaneous-downloads-must": "El número de descargas simultáneas debe estar entre 1 y 6, o Todas.",
+  "e.the-number-of-simultaneous-downloads-must": "El número de descargas simultáneas debe estar entre 1 y 20, o Todas.",
   "e.the-new-speed-limit-applies-when": "El nuevo límite de velocidad se aplica cuando esta descarga se reinicie (este motor solo lee el límite al empezar).",
   "e.this-download-is-not-in-the": "Esta descarga no está en la cola.",
   "e.invalid-order-list": "Lista de orden no válida.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("es", {
   "app.act.remove": "Quitar",
   "app.retryNow": "Reintentar",
   "app.scheduleSection": "Programación",
-  "app.concurrent.hint": "El máximo de descargas a la vez. Todas las descargas comparten este número."
+  "app.concurrent.hint": "El máximo de descargas a la vez. Sin la marca, todas se ejecutan a la vez."
 });

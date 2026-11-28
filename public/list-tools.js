@@ -8,6 +8,9 @@ export const COLUMNS = [
   { id: 'state', label: T('app.col.status'), min: 80, auto: 130, hideable: true }
 ];
 export const FIXED = { handle: 24, select: 24, actions: 152 }, GAP = 6, PAD = 16;
+// Dense layout: the grip column is narrow (the grip shows on hover) and the size column also holds a thin bar and the percentage.
+const dense = () => globalThis.document?.documentElement?.dataset?.appearance === 'dense';
+const handleWidth = () => dense() ? 14 : FIXED.handle;
 export const DEFAULT_LAYOUT = Object.freeze({ widths: {}, hidden: [], focus: false });
 export const sortLabels = { queue: T('app.sort.queue'), name: T('app.col.name'), size: T('app.col.size'), status: T('app.col.status'), date: T('app.col.added') };
 
@@ -54,9 +57,9 @@ export const clampWidth = (id, width) => Math.max(COLUMNS.find(c => c.id === id)
 export const visibleColumns = layout => COLUMNS.filter(c => !layout.hidden.includes(c.id));
 export const isAuto = layout => !Object.keys(layout.widths).length;
 // Automatic widths grow smoothly with the list width (900px -> narrowest, 1900px+ -> widest); Name takes the rest.
-const RANGE = { size: [150, 220], speed: [80, 120], eta: [90, 130], state: [120, 170] };
+const RANGE = { size: [150, 220], denseSize: [200, 270], speed: [80, 120], eta: [90, 130], state: [120, 170] };
 export function autoWidth(id, listWidth) {
-  const range = RANGE[id]; if (!range) return undefined;
+  const range = id === 'size' && dense() ? RANGE.denseSize : RANGE[id]; if (!range) return undefined;
   if (!Number.isFinite(listWidth) || listWidth <= 0) return COLUMNS.find(c => c.id === id).auto;
   const t = Math.max(0, Math.min(1, (listWidth - 900) / 1000));
   return Math.round(range[0] + (range[1] - range[0]) * t);
@@ -65,13 +68,13 @@ export function autoWidth(id, listWidth) {
 export function effectiveLayout(layout, listWidth) {
   if (!isAuto(layout) || !Number.isFinite(listWidth) || listWidth <= 0) return layout;
   const hidden = [...layout.hidden];
-  const need = () => FIXED.handle + FIXED.select + FIXED.actions + 280 + PAD + visibleColumns({ ...layout, hidden }).filter(c => c.id !== 'name').reduce((n, c) => n + autoWidth(c.id, listWidth) + GAP, 0);
-  for (const id of ['eta', 'speed']) if (need() > listWidth && !hidden.includes(id)) hidden.push(id);
+  const need = () => handleWidth() + FIXED.select + FIXED.actions + 280 + PAD + visibleColumns({ ...layout, hidden }).filter(c => c.id !== 'name').reduce((n, c) => n + autoWidth(c.id, listWidth) + GAP, 0);
+  for (const id of dense() ? ['eta', 'speed', 'size'] : ['eta', 'speed']) if (need() > listWidth && !hidden.includes(id)) hidden.push(id);
   return { ...layout, hidden };
 }
 // Name keeps the leftover space (minmax(.., 1fr)); the others take their saved width, or a sensible default.
 export function gridTemplate(layout, listWidth) {
-  const parts = [`${FIXED.handle}px`, `${FIXED.select}px`];
+  const parts = [`${handleWidth()}px`, `${FIXED.select}px`];
   const manual = layout.widths.name !== undefined; // a chosen Name width is exact; the spare room then goes after the last column
   for (const column of visibleColumns(layout)) {
     const width = layout.widths[column.id];
@@ -83,7 +86,7 @@ export function gridTemplate(layout, listWidth) {
 }
 export function minimumWidth(layout, listWidth) {
   const columns = visibleColumns(layout);
-  const sum = FIXED.handle + FIXED.select + FIXED.actions + columns.reduce((n, c) => n + (layout.widths[c.id] ?? (c.id === 'name' ? c.min : autoWidth(c.id, listWidth) ?? c.auto)), 0);
+  const sum = handleWidth() + FIXED.select + FIXED.actions + columns.reduce((n, c) => n + (layout.widths[c.id] ?? (c.id === 'name' ? c.min : autoWidth(c.id, listWidth) ?? c.auto)), 0);
   return sum + GAP * (columns.length + 2) + PAD;
 }
 // Width that makes the column's longest sample fit, bounded so one huge name cannot take the whole list.

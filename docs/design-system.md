@@ -25,6 +25,14 @@ One set of controls for the app window, the on-page panel and the small extensio
 | `.hd-dot` (`HypernabDS.dot`) | Status dot. Tones `live`, `warn`, `off` |
 | `.hd-input` | Text field |
 
+## App window layouts
+
+`html[data-appearance]`: `dense` (default since 0.21.0), `compact`, `normal`; styles in `public/compact.css`.
+
+- **Dense:** one-line rows (~27 px), progress bar and % in the Size / progress column, the old second line (error, failed check, partial kept) behind the Status badge (tooltip; click or Enter opens the row's details), drag grip only on hover/focus, icon-only list toolbar with counts (`data-count`). Narrow windows hide Remaining, then Speed, then Size.
+- **Right-to-left:** numeric texts (size, speed, remaining, %) are isolated in `rtl.css` so they read left to right.
+- **"At the same time":** `.hd-check` + number field (1–20) with −/+ icon buttons; box off = all start, the number is remembered (`queueLimitCount`).
+
 ## Using it
 
 App: add `<link rel="stylesheet" href="/ds.css">` and `<script src="/ds.js"></script>`; `theme.css` already provides the variables.

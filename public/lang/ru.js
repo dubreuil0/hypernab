@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("ru", {
   "app.resumeAll.title": "Возобновляет все приостановленные загрузки, в том числе добавленные на потом",
   "app.resumeAll": "Возобновить все",
   "app.clear.title": "Удаляет из списка завершённые и отменённые записи; файлы не удаляются",
+  "app.layout.dense": "Плотный (по умолчанию)",
+  "app.concurrent.count": "Число одновременных загрузок",
+  "app.concurrent.less": "На одну меньше одновременно",
+  "app.concurrent.more": "На одну больше одновременно",
   "app.concurrent": "Одновременно",
   "app.all": "Все",
   "app.selection": "Выбор",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("ru", {
   "app.extension": "Расширение браузера",
   "app.enginesAbout": "Движки и сведения",
   "app.layout": "Вид списка",
-  "app.layout.hint": "Компактный: простые строки, мало места. Обычный: широкие карточки. Выполняющиеся загрузки не затрагиваются.",
-  "app.layout.compact": "Компактный (по умолчанию)",
+  "app.layout.hint": "Плотный: одна тонкая строка на загрузку. Компактный: простые строки. Обычный: широкие карточки. Текущие загрузки не затрагиваются.",
+  "app.layout.compact": "Компактный",
   "app.layout.normal": "Обычный",
   "app.theme": "Тема",
   "app.theme.hint": "Тёмная, светлая или как в Windows. Применяется сразу.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("ru", {
   "e.a-submission-id-is-required": "Требуется идентификатор отправки.",
   "e.this-download-cannot-be-restarted-right": "Эту загрузку сейчас нельзя перезапустить.",
   "e.the-speed-limit-must-be-0": "Ограничение скорости должно быть от 0 до 1048576 КиБ/с.",
-  "e.the-number-of-simultaneous-downloads-must": "Число одновременных загрузок должно быть от 1 до 6 или «Все».",
+  "e.the-number-of-simultaneous-downloads-must": "Число одновременных загрузок должно быть от 1 до 20 или «Все».",
   "e.the-new-speed-limit-applies-when": "Новое ограничение скорости применится при перезапуске этой загрузки (этот движок читает ограничение только при запуске).",
   "e.this-download-is-not-in-the": "Этой загрузки нет в очереди.",
   "e.invalid-order-list": "Недопустимый список порядка.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("ru", {
   "app.act.remove": "Убрать",
   "app.retryNow": "Повторить",
   "app.scheduleSection": "Расписание",
-  "app.concurrent.hint": "Наибольшее число одновременных загрузок. Это число общее для всех загрузок."
+  "app.concurrent.hint": "Наибольшее число одновременных загрузок. Без галочки запускаются все сразу."
 });

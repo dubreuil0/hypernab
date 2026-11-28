@@ -2,7 +2,7 @@
 (() => {
   const pick = (value, allowed, fallback) => allowed.includes(value) ? value : fallback;
   const normalize = value => ({
-    appearance: pick(value?.appearance, ['compact', 'normal'], 'compact'),
+    appearance: pick(value?.appearance, ['dense', 'compact', 'normal'], 'dense'),
     textSize: pick(value?.textSize, ['small', 'normal', 'large'], 'normal'),
     theme: pick(value?.theme, ['dark', 'light', 'system'], 'dark'),
     accent: pick(value?.accent, ['green', 'blue', 'orange', 'violet'], 'green')
@@ -18,12 +18,14 @@
   };
   const apply = value => {
     current = normalize(value); paint();
-    try { localStorage.setItem('hypernab-appearance', JSON.stringify(current)); } catch { /* optional cache */ }
+    try { localStorage.setItem('hypernab-appearance', JSON.stringify({ ...current, v: 2 })); } catch { /* optional cache */ }
     return current;
   };
   dark?.addEventListener?.('change', () => { if (current.theme === 'system') paint(); });
   let cached;
   try { cached = JSON.parse(localStorage.getItem('hypernab-appearance')); } catch { /* defaults */ }
+  // A cache written before Dense existed holds the old default "compact": it moves to Dense (the engine does the same once for the saved setting).
+  if (cached && cached.v !== 2 && cached.appearance === 'compact') cached = { ...cached, appearance: 'dense' };
   apply(cached);
   globalThis.HypernabAppearance = Object.freeze({ apply, normalize });
 })();

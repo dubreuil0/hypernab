@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("fr", {
   "app.resumeAll.title": "Reprend tous les téléchargements en pause, y compris ceux ajoutés pour plus tard",
   "app.resumeAll": "Tout reprendre",
   "app.clear.title": "Retire de la liste les entrées terminées et annulées ; les fichiers ne sont pas supprimés",
+  "app.layout.dense": "Dense (par défaut)",
+  "app.concurrent.count": "Nombre de téléchargements simultanés",
+  "app.concurrent.less": "Un de moins en simultané",
+  "app.concurrent.more": "Un de plus en simultané",
   "app.concurrent": "Simultanément",
   "app.all": "Tous",
   "app.selection": "Sélection",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("fr", {
   "app.extension": "Extension de navigateur",
   "app.enginesAbout": "Moteurs et à propos",
   "app.layout": "Disposition",
-  "app.layout.hint": "Compacte : lignes simples et peu d'espace. Normale : grandes cartes. Les téléchargements en cours ne sont pas affectés.",
-  "app.layout.compact": "Compacte (par défaut)",
+  "app.layout.hint": "Dense : une ligne fine par téléchargement. Compacte : lignes simples. Normale : grandes cartes. Les téléchargements en cours ne sont pas affectés.",
+  "app.layout.compact": "Compacte",
   "app.layout.normal": "Normale",
   "app.theme": "Thème",
   "app.theme.hint": "Sombre, clair ou celui de Windows. Appliqué immédiatement.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("fr", {
   "e.a-submission-id-is-required": "Un identifiant d'envoi est requis.",
   "e.this-download-cannot-be-restarted-right": "Ce téléchargement ne peut pas être relancé pour le moment.",
   "e.the-speed-limit-must-be-0": "La limite de vitesse doit être comprise entre 0 et 1048576 Kio/s.",
-  "e.the-number-of-simultaneous-downloads-must": "Le nombre de téléchargements simultanés doit être compris entre 1 et 6, ou Tous.",
+  "e.the-number-of-simultaneous-downloads-must": "Le nombre de téléchargements simultanés doit être compris entre 1 et 20, ou Tous.",
   "e.the-new-speed-limit-applies-when": "La nouvelle limite de vitesse s'applique au redémarrage de ce téléchargement (ce moteur ne lit la limite qu'au démarrage).",
   "e.this-download-is-not-in-the": "Ce téléchargement n'est pas dans la file.",
   "e.invalid-order-list": "Liste d'ordre non valide.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("fr", {
   "app.act.remove": "Retirer",
   "app.retryNow": "Réessayer",
   "app.scheduleSection": "Planification",
-  "app.concurrent.hint": "Le nombre maximal de téléchargements simultanés. Tous les téléchargements partagent ce nombre."
+  "app.concurrent.hint": "Le maximum de téléchargements simultanés. Sans la coche, tous s'exécutent en même temps."
 });

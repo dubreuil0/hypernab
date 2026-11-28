@@ -93,8 +93,8 @@ try {
   await evaluate('window.scrollTo(0,0)');
   assert.equal(await evaluate('document.querySelector("#view-downloads").hidden'), true);
    assert.equal(await evaluate('getComputedStyle(document.querySelector("#act-pause")).borderRadius'), '5px');
-   assert.equal((await call('/api/settings')).appearance, 'compact');
-   assert.equal(await evaluate('document.documentElement.dataset.appearance'), 'compact');
+   assert.equal((await call('/api/settings')).appearance, 'dense');
+   assert.equal(await evaluate('document.documentElement.dataset.appearance'), 'dense');
   assert.equal(await evaluate('document.querySelector("#act-pause use").getAttribute("href")'), '#i-pause');
   await evaluate('document.querySelector("#set-maxConnections").value="3"; document.querySelector("#set-maxConnections").dispatchEvent(new Event("change"))');
   await browserUntil(async () => (await call('/api/settings')).maxConnections === 3);
@@ -105,10 +105,10 @@ try {
   await evaluate('document.querySelector("#close-settings").click()');
   console.log('OK settings view, real SVG pause icon and persisted quality/connection preferences');
   console.log('OK desktop UI, sandbox and preload');
-  assert.equal(await evaluate('document.querySelector("#queue-limit") !== null && document.querySelector("#queue-toggle") === null && document.querySelector(".queue-bar") === null && document.querySelector("#named-queue") === null'), true, 'no queue row, no named queues; "At the same time" stays');
-  await evaluate('document.querySelector("#queue-limit").value="2"; document.querySelector("#queue-limit").dispatchEvent(new Event("change"))');
+  assert.equal(await evaluate('document.querySelector("#queue-limit-on") !== null && document.querySelector("#queue-limit-count") !== null && document.querySelector("#queue-toggle") === null && document.querySelector(".queue-bar") === null && document.querySelector("#named-queue") === null'), true, 'no queue row, no named queues; "At the same time" stays');
+  await evaluate('document.querySelector("#queue-limit-count").value="2"; document.querySelector("#queue-limit-count").dispatchEvent(new Event("change"))');
   await browserUntil(async () => (await call('/api/settings')).queue.limit === 2);
-  await evaluate('document.querySelector("#queue-limit").value="all"; document.querySelector("#queue-limit").dispatchEvent(new Event("change"))');
+  await evaluate('document.querySelector("#queue-limit-on").click()');
   await browserUntil(async () => (await call('/api/settings')).queue.limit === 'all');
   await evaluate('document.querySelector("#speed-limit-mb").value="0.5"; document.querySelector("#save-speed").click()');
   await browserUntil(async () => (await call('/api/settings')).speedLimitKiB === 512);
@@ -160,7 +160,7 @@ try {
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('button.btn')].filter(b=>!b.querySelector('svg')).map(b=>b.id)`), []);
   assert.deepEqual(await evaluate(`[...document.querySelectorAll('use')].map(u=>u.getAttribute('href')).filter(h=>h?.startsWith('#')&&!document.getElementById(h.slice(1)))`), []);
   assert.equal(await evaluate(`document.querySelectorAll('#i-pause rect').length`), 2);
-  console.log(`OK default compact, both views, real settings controls, persistent details/focus, all action SVGs (row ${compactHeight}px vs ${normalHeight}px)`);
+  console.log(`OK default dense, both views, real settings controls, persistent details/focus, all action SVGs (row ${compactHeight}px vs ${normalHeight}px)`);
   // Stub ONLY Explorer side effects in this isolated Electron instance; exercise the real renderer -> IPC -> engine lookup.
   await mainEval(`globalThis.__locationCalls=[];globalThis.__locationShell={open:${electron}.shell.openPath,select:${electron}.shell.showItemInFolder};${electron}.shell.openPath=async p=>{globalThis.__locationCalls.push(['open',p]);return ''};${electron}.shell.showItemInFolder=p=>{globalThis.__locationCalls.push(['select',p])}`);
   await browserUntil(() => evaluate(`!!document.querySelector('[data-job-location="${job.id}"]')`));
@@ -230,7 +230,7 @@ try {
   await browserUntil(() => evaluate(`document.querySelectorAll('.reorder-handle').length === 4`));
   const runningBeforeView = (await call('/api/jobs')).filter(j => j.status === 'running').map(j => j.id);
   await evaluate(`document.querySelector('[data-job-select="${ids[0]}"]').click()`);
-  for (const appearance of ['normal', 'compact']) {
+  for (const appearance of ['normal', 'compact', 'dense']) {
     await call('/api/settings', { appearance });
     await browserUntil(() => evaluate(`document.documentElement.dataset.appearance === '${appearance}'`));
     assert.deepEqual((await call('/api/jobs')).filter(j => j.status === 'running').map(j => j.id), runningBeforeView);
@@ -279,7 +279,7 @@ try {
   const long = await call('/api/jobs', { url: 'https://example.org/long.mp4', engine: 'direct', start: 'queue', title: 'Uzun Türkçe dosya adı — Görüntü, ses ve öğretici belgesel '.repeat(5) });
   await browserUntil(() => evaluate(`!!document.querySelector('[data-job-id="${long.id}"]')`));
   await mainEval(`${electron}.BrowserWindow.getAllWindows()[0].setSize(720,820)`);
-  for (const appearance of ['compact','normal']) for (const size of ['small','normal','large']) for (const zoom of [1,1.25,1.5,2]) {
+  for (const appearance of ['dense','compact','normal']) for (const size of ['small','normal','large']) for (const zoom of [1,1.25,1.5,2]) {
     await call('/api/settings', { appearance, textSize: size });
     await browserUntil(() => evaluate(`document.documentElement.dataset.textSize === '${size}' && document.documentElement.dataset.appearance === '${appearance}'`));
     await mainEval(`${electron}.BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(${zoom})`);

@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("pt", {
   "app.resumeAll.title": "Retoma todos os downloads pausados, inclusive os adicionados para depois",
   "app.resumeAll": "Retomar tudo",
   "app.clear.title": "Remove da lista os itens concluídos e cancelados; os arquivos não são excluídos",
+  "app.layout.dense": "Denso (padrão)",
+  "app.concurrent.count": "Número de downloads simultâneos",
+  "app.concurrent.less": "Um a menos ao mesmo tempo",
+  "app.concurrent.more": "Um a mais ao mesmo tempo",
   "app.concurrent": "Ao mesmo tempo",
   "app.all": "Todos",
   "app.selection": "Seleção",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("pt", {
   "app.extension": "Extensão do navegador",
   "app.enginesAbout": "Mecanismos e sobre",
   "app.layout": "Layout",
-  "app.layout.hint": "Compacto: linhas simples e pouco espaço. Normal: cartões largos. Os downloads em andamento não são afetados.",
-  "app.layout.compact": "Compacto (padrão)",
+  "app.layout.hint": "Denso: uma linha fina por download. Compacto: linhas simples. Normal: cartões largos. Os downloads em andamento não são afetados.",
+  "app.layout.compact": "Compacto",
   "app.layout.normal": "Normal",
   "app.theme": "Tema",
   "app.theme.hint": "Escuro, claro ou igual ao Windows. Aplicado imediatamente.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("pt", {
   "e.a-submission-id-is-required": "É necessário um ID de envio.",
   "e.this-download-cannot-be-restarted-right": "Este download não pode ser reiniciado agora.",
   "e.the-speed-limit-must-be-0": "O limite de velocidade deve ser de 0 a 1048576 KiB/s.",
-  "e.the-number-of-simultaneous-downloads-must": "O número de downloads simultâneos deve estar entre 1 e 6, ou Todos.",
+  "e.the-number-of-simultaneous-downloads-must": "O número de downloads simultâneos deve estar entre 1 e 20, ou Todos.",
   "e.the-new-speed-limit-applies-when": "O novo limite de velocidade vale quando este download for reiniciado (este mecanismo só lê o limite no início).",
   "e.this-download-is-not-in-the": "Este download não está na fila.",
   "e.invalid-order-list": "Lista de ordem inválida.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("pt", {
   "app.act.remove": "Remover",
   "app.retryNow": "Tentar novamente",
   "app.scheduleSection": "Agendamento",
-  "app.concurrent.hint": "O máximo de downloads ao mesmo tempo. Todos os downloads compartilham este número."
+  "app.concurrent.hint": "O máximo de downloads ao mesmo tempo. Sem a marca, todos rodam ao mesmo tempo."
 });

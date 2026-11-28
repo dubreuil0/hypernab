@@ -25,9 +25,10 @@ const add = (queue, name, start) => queue.add({ url: `https://files.example.org/
 const status = (queue, id) => queue.jobs.find(job => job.id === id).status;
 const finish = async (queue, gates, id) => { gates.get(id)(); await wait(20); };
 
- test('varsayılan Hepsi: basıldıkça hepsi aynı anda başlar', () => {
+ test('varsayılan 6 (kutu tikli); kutu boşaltılınca (Hepsi) basıldıkça hepsi aynı anda başlar', () => {
    const { queue } = fixture(test);
-   assert.equal(queue.settings.queueLimit, 'all');
+   assert.equal(queue.settings.queueLimit, 6); assert.equal(queue.settings.queueLimitCount, 6);
+   queue.setSettings({ queueLimit: 'all' });
   const ids = Array.from({ length: 12 }, (_, i) => add(queue, `d${i}`));
   assert.ok(ids.every(id => status(queue, id) === 'running'));
   assert.equal(queue.active.size, 12);
@@ -97,8 +98,8 @@ test('Sürdür tek bir indirmeyi başlatır; Duraklat bekleyene dokunmaz; Şimdi
 
 test('ayarlar doğrulanır ve kalıcıdır; bekleyenler yeniden başlatmada bekler, sıra korunur', () => {
   const { queue, root } = fixture(test);
-  assert.throws(() => queue.setSettings({ queueLimit: 7 }), /1 ile 6|1 and 6/);
-  assert.throws(() => queue.setSettings({ queueLimit: 0 }), /1 ile 6|1 and 6/);
+  assert.throws(() => queue.setSettings({ queueLimit: 21 }), /1 ile 20|1 and 20/);
+  assert.throws(() => queue.setSettings({ queueLimit: 0 }), /1 ile 20|1 and 20/);
   assert.throws(() => queue.setSettings({ queueLimit: 'many' }), /Hepsi|All/);
   assert.throws(() => add(queue, 'bad', 'later'), /geçersiz|Invalid/i);
   const a = add(queue, 'a', 'queue'), b = add(queue, 'b', 'queue');
@@ -109,7 +110,7 @@ test('ayarlar doğrulanır ve kalıcıdır; bekleyenler yeniden başlatmada bekl
   assert.deepEqual(again.jobs.map(job => job.id), [a, b], 'sıra yeniden başlatmada aynı');
   assert.deepEqual(again.jobs.map(job => job.status), ['held', 'held'], 'sonra için eklenenler yeniden açılışta kendiliğinden başlamaz');
   assert.equal(again.active.size, 0);
-  assert.deepEqual(Object.keys(again.queueInfo()).sort(), ['limit', 'speedLimitKiB'], 'kuyruk durumu diye bir şey kalmadı');
+  assert.deepEqual(Object.keys(again.queueInfo()).sort(), ['limit', 'limitCount', 'speedLimitKiB'], 'kuyruk durumu diye bir şey kalmadı');
   again.stop();
 });
 

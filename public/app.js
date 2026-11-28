@@ -56,7 +56,7 @@ const shownJobs = () => sortJobs(searchJobs(visibleJobs(jobs, filter), search), 
 const reorderAllowed = () => sortKey === 'queue' && !search.trim();
 const selectedShown = () => { const ids = new Set(shownJobs().map(job => job.id)); return new Set([...selected].filter(id => ids.has(id))); };
 // Rows are rebuilt only when something they show has changed: an idle list costs almost nothing, even with hundreds of downloads.
-let lastPaint = '';
+let lastPaint = '', layoutFor = '';
 // phaseSeconds is an internal stopwatch that ticks for finished jobs too and is never shown.
 const paintKey = () => JSON.stringify([jobs, filter, search, sortKey, sortDir, queueBusy, [...selected], [...expandedJobs], layout, effective.hidden, document.documentElement.dataset.appearance], (name, value) => name === 'phaseSeconds' ? undefined : value);
 // ...and then only the rows whose own download changed are built again: one running download in a list of hundreds rebuilds one row,
@@ -68,6 +68,8 @@ function render(force = false) {
   const key = paintKey();
   if (!force && key === lastPaint && document.getElementById('jobs').childElementCount) return;
   lastPaint = key;
+  const look = document.documentElement.dataset.appearance; // the column widths depend on the layout (Dense has a narrower grip column)
+  if (look !== layoutFor) { layoutFor = look; applyLayout(); }
   const focusedJob = document.activeElement?.dataset?.jobSelect;
   const focusedMove = document.activeElement?.dataset?.jobMove;
   const focusedLocation = document.activeElement?.dataset?.jobLocation;
@@ -120,6 +122,10 @@ function buildRow(job) {
     card.classList.toggle('job-selected', selected.has(job.id));
     card.classList.toggle('details-open', expandedJobs.has(job.id));
     const details = el('div', 'job-details'); details.id = `details-${job.id}`;
+    // Dense layout: a row is one line. What the other layouts show as a second line (error, failed check, kept partial file, subtitle result "none")
+    // moves into the details of the row and shows in the Status column as a small info mark; the full text is its tooltip.
+    const dense = document.documentElement.dataset.appearance === 'dense', flags = [];
+    const put = node => { if (dense) { details.append(node); flags.push(node.textContent); } else card.append(node); };
     const selectLabel = el('label', 'job-select'), checkbox = el('input');
     checkbox.type = 'checkbox'; checkbox.checked = selected.has(job.id); checkbox.disabled = queueBusy;
     checkbox.dataset.jobSelect = job.id; checkbox.setAttribute('aria-label', T('app.select.job', { name: job.title || job.host }));
@@ -170,7 +176,8 @@ function buildRow(job) {
     if (job.status === 'failed') addAction('retry', T('app.retryNow')); // a failed download is always one click from another try
     if (canCancel(job)) addAction('cancel', T('app.cancel'));
     const detailButton = el('button', 'btn icon-only ghost job-details-toggle'); detailButton.append(icon('chevron')); detailButton.title = T('app.details.toggle'); detailButton.setAttribute('aria-label', T('app.details.aria')); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); detailButton.setAttribute('aria-controls', details.id); detailButton.dataset.jobAction = `${job.id}-details`;
-    detailButton.addEventListener('click', () => { if (expandedJobs.has(job.id)) expandedJobs.delete(job.id); else expandedJobs.add(job.id); card.classList.toggle('details-open', expandedJobs.has(job.id)); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); });
+    const toggleDetails = () => { if (expandedJobs.has(job.id)) expandedJobs.delete(job.id); else expandedJobs.add(job.id); card.classList.toggle('details-open', expandedJobs.has(job.id)); detailButton.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); stageNode.setAttribute('aria-expanded', String(expandedJobs.has(job.id))); };
+    detailButton.addEventListener('click', toggleDetails);
     actions.append(detailButton);
     const moreButton = el('button', 'btn icon-only ghost'); moreButton.type = 'button'; moreButton.append(icon('more')); moreButton.title = T('app.more'); moreButton.setAttribute('aria-label', T('app.more')); moreButton.setAttribute('aria-haspopup', 'menu'); moreButton.dataset.jobAction = `${job.id}-more`;
     moreButton.addEventListener('click', () => { const r = moreButton.getBoundingClientRect(); openRowMenu(job.id, r.right, r.bottom, moreButton); });
@@ -213,7 +220,7 @@ function buildRow(job) {
       rect.setAttribute('height', '5'); svg.append(rect); progress.append(svg); card.append(progress);
     }
     if (view.remaining) card.append(el('div', 'job-file job-remaining', view.remaining));
-    if (job.error) card.append(el('div', 'job-error', job.error));
+    if (job.error) put(el('div', 'job-error', job.error));
     // Notes that are not errors (a different engine was used, a check was limited...) are a quiet info icon with a tooltip, not a line of
     // warning text under the row; the same text is in the row's details. Real errors stay as visible text.
     const notes = [job.notice, job.transfer?.resumeReason].filter(Boolean);
@@ -223,10 +230,11 @@ function buildRow(job) {
       const description = v.status === 'passed' ? `${v.level === 'format' ? T(v.sizeCompared ? 'app.verify.formatSize' : 'app.verify.format', { format: v.format }) : v.level === 'bytes' ? v.sizeCompared ? T('app.verify.size') : T('app.verify.output') : v.sizeCompared ? T('app.verify.sizeMedia') : T('app.verify.media')}${v.deep ? ` · ${T('app.verify.deep')}` : ''}${v.sha256 ? ` · ${T('app.verify.sha')}` : ''}`
         : v.status === 'limited' ? T('app.verify.limited') : v.status === 'failed' ? T('app.verify.failed') : v.status === 'paused' ? T('app.verify.paused') : T('app.verify.running');
       if (v.status === 'limited') addNote(description);
-      else (v.status === 'failed' ? card : details).append(el('div', `job-verification ${v.status}`, description));
+      else if (v.status === 'failed') put(el('div', `job-verification ${v.status}`, description));
+      else details.append(el('div', `job-verification ${v.status}`, description));
     }
     if (job.status === 'cancelled') details.append(el('div', 'job-file', job.settling ? T('app.cancelled.settling') : T('app.cancelled.hint')));
-    else if (['failed', 'interrupted'].includes(job.status) && !job.canClear) card.append(el('div', 'job-file', T('app.partial.kept')));
+    else if (['failed', 'interrupted'].includes(job.status) && !job.canClear) put(el('div', 'job-file', T('app.partial.kept')));
     if (job.status === 'paused' && (job.transfer?.method === 'single-http' || job.transfer?.resumeSupported === false)) addNote(T('app.paused.restart'));
     if (notes.length) {
       const text = notes.join(' ');
@@ -269,9 +277,26 @@ function buildRow(job) {
         if (s.encodingNote) line.append(el('span', '', T('job.sub.encoding')));
       }
       // The result of a download is worth seeing in the row itself, not only in the details.
-      (s.mode === 'none' ? card : details).append(line);
+      if (s.mode === 'none') put(line); else details.append(line);
     }
     if (job.file) details.append(el('div', 'job-file', job.directory ? `${job.directory}\\${job.file}` : job.file));
+    if (dense) {
+      // Size cell: the sizes, then a thin bar and the percentage while a download has progress.
+      const sizeCell = top.querySelector('.compact-size');
+      if (sizeCell && view.percent !== null && job.status !== 'completed') {
+        const pct = Math.max(0, Math.min(100, view.percent)), bar = el('span', 'dn-bar');
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('width', '100%'); svg.setAttribute('height', '3'); svg.setAttribute('aria-hidden', 'true');
+        const rect = document.createElementNS(svg.namespaceURI, 'rect'); rect.setAttribute('width', `${pct}%`); rect.setAttribute('height', '3'); svg.append(rect); bar.append(svg);
+        sizeCell.replaceChildren(el('span', 'dn-text', view.size), bar, el('span', 'dn-pct', `${Math.floor(pct)}%`));
+      }
+      if (flags.length) {
+        const full = `${stage}: ${flags.join(' · ')}`;
+        stageNode.classList.add('flagged'); stageNode.title = full; stageNode.tabIndex = 0; stageNode.setAttribute('role', 'button'); stageNode.setAttribute('aria-label', full); stageNode.setAttribute('aria-expanded', String(expandedJobs.has(job.id)));
+        stageNode.append(icon('info'));
+        stageNode.addEventListener('click', toggleDetails);
+        stageNode.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleDetails(); } });
+      }
+    }
     card.append(details);
     return card;
   }
@@ -372,6 +397,9 @@ function renderSelection() {
   const retryText = some ? counted('app.retryNow', state.retry) : counted('app.retryFailed', retryable);
   set('act-retry', retryText, retryable > 0, `${retryText}: ${T('app.retryFailed.title')}`);
   $('act-retry').hidden = !retryable;
+  // Dense shows the buttons as icons only: the count the text carries ("Retry failed (182)") is kept next to the icon (CSS reads data-count).
+  const counts = { 'act-pause': some && state.pause, 'act-resume': some && state.resume, 'act-retry': retryable, 'act-cancel': some && state.cancel, 'act-clear': some && state.clear };
+  for (const [id, n] of Object.entries(counts)) { if (n > 0) $(id).dataset.count = String(n); else delete $(id).dataset.count; }
   fitActionBar();
   set('act-cancel', some && state.cancel ? `${counted('app.cancel', state.cancel)}…` : T('app.cancel'), some && state.cancel > 0, some ? T('app.cancel') : T('app.act.cancelNeedsSelection'));
   set('act-clear', some ? (state.clear ? counted('app.act.remove', state.clear) : T('app.act.remove')) : T('app.act.removeFinished'), some ? state.clear > 0 : jobs.some(job => job.canClear), T('app.clear.title'));
@@ -854,16 +882,38 @@ async function submitPending(mode, confirmedDuplicate = false) {
 }
 $('confirm-download').addEventListener('click', () => submitPending('now'));
 $('queue-download').addEventListener('click', () => submitPending('queue'));
-// Queue bar: how many run together (1–6, can be switched off), start/stop, reordering.
-// How many downloads run at the same time (1-6 or "all"): one number for every download.
+// How many downloads run at the same time: a box (on = at most that many, off = all of them) and a number 1-20 that is remembered while the box is off.
+// The number is sent when it is confirmed (Enter, leaving the field, the - and + buttons), never per keystroke; a value that is not 1-20 goes back.
+const LIMIT_MIN = 1, LIMIT_MAX = 20;
+let limitCount = 6;
 function renderLimit(queue) {
-  if (queue && document.activeElement !== $('queue-limit')) $('queue-limit').value = String(queue.limit);
+  if (!queue) return;
+  const on = queue.limit !== 'all';
+  limitCount = Number.isInteger(queue.limitCount) ? queue.limitCount : on ? queue.limit : limitCount;
+  if (document.activeElement !== $('queue-limit-on')) $('queue-limit-on').checked = on;
+  if (document.activeElement !== $('queue-limit-count')) $('queue-limit-count').value = String(limitCount);
+  $('queue-limit-num').classList.toggle('off', !on);
+  $('queue-limit-down').disabled = limitCount <= LIMIT_MIN; $('queue-limit-up').disabled = limitCount >= LIMIT_MAX;
 }
 async function queueCall(route, body) {
   try { await api(route, { method: 'POST', body: JSON.stringify(body || {}) }); await Promise.all([refresh(), status()]); }
-  catch (error) { queueMessage(error.message, true); }
+  catch (error) { queueMessage(error.message, true); status().catch(() => {}); }
 }
-$('queue-limit').addEventListener('change', () => queueCall('/api/settings', { queueLimit: $('queue-limit').value === 'all' ? 'all' : Number($('queue-limit').value) }));
+function commitLimitCount(text) {
+  const clean = String(text).trim(), n = /^\d{1,2}$/.test(clean) ? Number(clean) : NaN;
+  if (!(n >= LIMIT_MIN && n <= LIMIT_MAX) || n === limitCount) { $('queue-limit-count').value = String(limitCount); return; }
+  limitCount = n; $('queue-limit-count').value = String(n); renderLimit({ limit: $('queue-limit-on').checked ? n : 'all', limitCount: n });
+  queueCall('/api/settings', { queueLimitCount: n });
+}
+$('queue-limit-on').addEventListener('change', () => queueCall('/api/settings', { queueLimit: $('queue-limit-on').checked ? limitCount : 'all' }));
+$('queue-limit-count').addEventListener('change', () => commitLimitCount($('queue-limit-count').value));
+$('queue-limit-count').addEventListener('keydown', event => {
+  if (event.key === 'Enter') { event.preventDefault(); commitLimitCount($('queue-limit-count').value); }
+  else if (event.key === 'Escape') { $('queue-limit-count').value = String(limitCount); }
+  else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') { event.preventDefault(); commitLimitCount(String(Math.min(LIMIT_MAX, Math.max(LIMIT_MIN, (Number($('queue-limit-count').value) || limitCount) + (event.key === 'ArrowUp' ? 1 : -1))))); }
+});
+$('queue-limit-down').addEventListener('click', () => commitLimitCount(String(limitCount - 1)));
+$('queue-limit-up').addEventListener('click', () => commitLimitCount(String(limitCount + 1)));
 const sizeText = option => option.filesize ? (option.sizeKind === 'exact' ? fmt(option.filesize) : T('app.sizeApprox', { size: fmt(option.filesize) })) : T('app.size.unknown');
 const audioText = { included: T('app.audio.included'), merged: T('app.audio.merged'), none: T('app.audio.none') };
 function renderQuality(info) {

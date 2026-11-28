@@ -32,6 +32,8 @@
 [dir="rtl"] .settings-more>summary .ic { transform:rotate(90deg); }
 [dir="rtl"] .settings-more[open]>summary .ic { transform:none; }
 [dir="rtl"] svg:has(> use[href="#i-back"]) { transform:scaleX(-1); }
+/* Sizes, speeds and times ("8 MB / 64.6 MB", "~2 min") read in their own order, never reordered by the right-to-left line around them. */
+[dir="rtl"] :is(.compact-cell,.dn-text,.dn-pct,.job-meta,.job-remaining) { unicode-bidi:plaintext; }
 /* Paths, links and file names keep their own left-to-right order inside right-to-left text. */
 [dir="rtl"] .mono, [dir="rtl"] .mono-text, [dir="rtl"] input.mono { direction:ltr;text-align:left;unicode-bidi:plaintext; }
 @media(max-width:640px){ [dir="rtl"] .tabs { margin-right:0; }  [dir="rtl"] .job-actions, [dir="rtl"] .job-state { margin-left:0;margin-right:auto; } }

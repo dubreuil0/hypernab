@@ -97,7 +97,7 @@ async function run(name, launch) {
     check(name, 'selecting only a running row hides "Retry failed" (nothing in the selection to retry)', (await state('act-retry')).hidden, JSON.stringify(await state('act-retry')));
     await reset();
     // ---------- no queue: "At the same time" sits in the header, a download added for later is a paused one (Resume starts it), Settings has a Schedule
-    check(name, 'no queue row, no start/stop button, no named queues; "At the same time" is in the header', await ev(`(() => !document.querySelector('.queue-bar') && !document.getElementById('queue-toggle') && !document.getElementById('named-queue') && Boolean(document.querySelector('.queue-head #queue-limit')))()`));
+    check(name, 'no queue row, no start/stop button, no named queues; "At the same time" is in the header', await ev(`(() => !document.querySelector('.queue-bar') && !document.getElementById('queue-toggle') && !document.getElementById('named-queue') && Boolean(document.querySelector('.queue-top #queue-limit-on') && document.querySelector('.queue-top #queue-limit-count') && !document.getElementById('queue-limit')))()`));
     const resumable = await ev(`[...document.querySelectorAll('#jobs [data-job-action$="-resume"]')].map(b => b.closest('.job').querySelector('.job-title').textContent)`);
     check(name, 'a paused row and the added-for-later row both offer Resume (no separate "Start now")', JSON.stringify(resumable) === '["File 3","File 6"]' && (await ev(`document.querySelectorAll('#jobs [data-job-action$="-start-now"]').length`)) === 0, JSON.stringify(resumable));
     await act(`document.querySelectorAll('#jobs .job input[type=checkbox]')[5].click();`); await sleep(300);

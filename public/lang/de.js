@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("de", {
   "app.resumeAll.title": "Setzt alle angehaltenen Downloads fort, auch die für später hinzugefügten",
   "app.resumeAll": "Alle fortsetzen",
   "app.clear.title": "Entfernt fertige und abgebrochene Einträge aus der Liste; Dateien werden nicht gelöscht",
+  "app.layout.dense": "Dicht (Standard)",
+  "app.concurrent.count": "Anzahl gleichzeitiger Downloads",
+  "app.concurrent.less": "Einen weniger gleichzeitig",
+  "app.concurrent.more": "Einen mehr gleichzeitig",
   "app.concurrent": "Gleichzeitig",
   "app.all": "Alle",
   "app.selection": "Auswahl",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("de", {
   "app.extension": "Browsererweiterung",
   "app.enginesAbout": "Engines und Info",
   "app.layout": "Layout",
-  "app.layout.hint": "Kompakt: einfache Zeilen, wenig Platz. Normal: breite Karten. Laufende Downloads sind nicht betroffen.",
-  "app.layout.compact": "Kompakt (Standard)",
+  "app.layout.hint": "Dicht: eine schlanke Zeile pro Download. Kompakt: einfache Zeilen. Normal: breite Karten. Laufende Downloads sind nicht betroffen.",
+  "app.layout.compact": "Kompakt",
   "app.layout.normal": "Normal",
   "app.theme": "Design",
   "app.theme.hint": "Dunkel, hell oder wie Windows. Wird sofort angewendet.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("de", {
   "e.a-submission-id-is-required": "Eine Übermittlungs-ID ist erforderlich.",
   "e.this-download-cannot-be-restarted-right": "Dieser Download kann derzeit nicht neu gestartet werden.",
   "e.the-speed-limit-must-be-0": "Das Tempolimit muss 0–1048576 KiB/s betragen.",
-  "e.the-number-of-simultaneous-downloads-must": "Die Anzahl gleichzeitiger Downloads muss zwischen 1 und 6 liegen, oder Alle.",
+  "e.the-number-of-simultaneous-downloads-must": "Die Anzahl gleichzeitiger Downloads muss zwischen 1 und 20 liegen, oder Alle.",
   "e.the-new-speed-limit-applies-when": "Das neue Tempolimit gilt, wenn dieser Download neu startet (diese Engine liest das Limit nur beim Start).",
   "e.this-download-is-not-in-the": "Dieser Download ist nicht in der Warteschlange.",
   "e.invalid-order-list": "Ungültige Reihenfolgeliste.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("de", {
   "app.act.remove": "Entfernen",
   "app.retryNow": "Erneut versuchen",
   "app.scheduleSection": "Zeitplan",
-  "app.concurrent.hint": "Die höchste Zahl gleichzeitiger Downloads. Alle Downloads teilen sich diese Zahl."
+  "app.concurrent.hint": "Die höchste Zahl gleichzeitiger Downloads. Ohne Haken laufen alle gleichzeitig."
 });

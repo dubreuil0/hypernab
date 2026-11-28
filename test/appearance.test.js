@@ -9,12 +9,17 @@ function boot(value, broken = false) {
   vm.runInContext(script, context);
   return { context, data: context.document.documentElement.dataset, stored: () => stored };
 }
-test('appearance bootstrap defaults compact before paint; saved normal is respected', () => {
-  assert.equal(boot(null).data.appearance, 'compact');
-  const saved = boot(JSON.stringify({ appearance: 'normal', textSize: 'large' }));
+test('appearance bootstrap defaults dense before paint; saved normal is respected', () => {
+  assert.equal(boot(null).data.appearance, 'dense');
+  const saved = boot(JSON.stringify({ appearance: 'normal', textSize: 'large', v: 2 }));
   assert.equal(saved.data.appearance, 'normal'); assert.equal(saved.data.textSize, 'large');
   saved.context.HypernabAppearance.apply({ appearance: 'compact', textSize: 'small', token: 'NEVER-CACHE' });
   assert.equal(saved.data.appearance, 'compact'); assert.ok(!saved.stored().includes('NEVER-CACHE'));
+});
+test('a cache from before Dense: old compact moves to dense, normal stays, a current compact stays', () => {
+  assert.equal(boot(JSON.stringify({ appearance: 'compact', textSize: 'normal' })).data.appearance, 'dense');
+  assert.equal(boot(JSON.stringify({ appearance: 'normal' })).data.appearance, 'normal');
+  assert.equal(boot(JSON.stringify({ appearance: 'compact', v: 2 })).data.appearance, 'compact');
 });
 test('theme and accent are validated, cached, and "system" follows the operating system', () => {
   const dark = boot(JSON.stringify({ theme: 'light', accent: 'violet' }));
@@ -24,6 +29,6 @@ test('theme and accent are validated, cached, and "system" follows the operating
   assert.match(boot(JSON.stringify({ theme: 'system' })).data.scheme, /^(dark|light)$/);
 });
 test('bad cache, invalid values or denied storage never break the app', () => {
-  for (const cache of ['not json', '{"appearance":"evil","textSize":100}', 'null']) assert.equal(boot(cache).data.appearance, 'compact');
+  for (const cache of ['not json', '{"appearance":"evil","textSize":100}', 'null']) assert.equal(boot(cache).data.appearance, 'dense');
   assert.equal(boot(null, true).data.textSize, 'normal');
 });

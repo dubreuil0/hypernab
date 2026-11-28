@@ -61,6 +61,10 @@ globalThis.HypernabText.addLanguage("ar", {
   "app.resumeAll.title": "يستأنف كل التنزيلات الموقوفة مؤقتًا، بما فيها المضافة لوقت لاحق",
   "app.resumeAll": "استئناف الكل",
   "app.clear.title": "يزيل الإدخالات المكتملة والملغاة من القائمة؛ ولا تُحذف الملفات",
+  "app.layout.dense": "كثيف (الافتراضي)",
+  "app.concurrent.count": "عدد التنزيلات في وقت واحد",
+  "app.concurrent.less": "تنزيل أقل في وقت واحد",
+  "app.concurrent.more": "تنزيل أكثر في وقت واحد",
   "app.concurrent": "في وقت واحد",
   "app.all": "الكل",
   "app.selection": "التحديد",
@@ -117,8 +121,8 @@ globalThis.HypernabText.addLanguage("ar", {
   "app.extension": "إضافة المتصفح",
   "app.enginesAbout": "المحرّكات وحول",
   "app.layout": "التخطيط",
-  "app.layout.hint": "مدمج: صفوف بسيطة بمساحة قليلة. عادي: بطاقات عريضة. لا تتأثر التنزيلات الجارية.",
-  "app.layout.compact": "مدمج (الافتراضي)",
+  "app.layout.hint": "كثيف: سطر رفيع واحد لكل تنزيل. مدمج: صفوف بسيطة. عادي: بطاقات عريضة. لا تتأثر التنزيلات الجارية.",
+  "app.layout.compact": "مدمج",
   "app.layout.normal": "عادي",
   "app.theme": "السمة",
   "app.theme.hint": "داكنة أو فاتحة أو تتبع Windows. تُطبَّق فورًا.",
@@ -583,7 +587,7 @@ globalThis.HypernabText.addLanguage("ar", {
   "e.a-submission-id-is-required": "معرّف الإرسال مطلوب.",
   "e.this-download-cannot-be-restarted-right": "لا يمكن إعادة تشغيل هذا التنزيل الآن.",
   "e.the-speed-limit-must-be-0": "يجب أن يكون حد السرعة بين 0 و1048576 KiB/s.",
-  "e.the-number-of-simultaneous-downloads-must": "يجب أن يكون عدد التنزيلات المتزامنة بين 1 و6، أو «الكل».",
+  "e.the-number-of-simultaneous-downloads-must": "يجب أن يكون عدد التنزيلات المتزامنة بين 1 و20، أو «الكل».",
   "e.the-new-speed-limit-applies-when": "يُطبَّق حد السرعة الجديد عند إعادة تشغيل هذا التنزيل (هذا المحرّك يقرأ الحد عند البدء فقط).",
   "e.this-download-is-not-in-the": "هذا التنزيل ليس في قائمة الانتظار.",
   "e.invalid-order-list": "قائمة ترتيب غير صالحة.",
@@ -858,5 +862,5 @@ globalThis.HypernabText.addLanguage("ar", {
   "app.act.remove": "إزالة",
   "app.retryNow": "إعادة المحاولة",
   "app.scheduleSection": "الجدولة",
-  "app.concurrent.hint": "أقصى عدد من التنزيلات في الوقت نفسه. تتشارك جميع التنزيلات هذا العدد."
+  "app.concurrent.hint": "أقصى عدد من التنزيلات في الوقت نفسه. عند إلغاء التحديد تعمل جميعها معًا."
 });

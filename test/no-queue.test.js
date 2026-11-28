@@ -51,11 +51,11 @@ test('the engine answers the calls of older windows and tools: queue/start = res
   const call = async (route, body) => { const r = await fetch(origin + route, { method: body === undefined ? 'GET' : 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); return { status: r.status, data: await r.json() }; };
   const started = await call('/api/queue/start', {}), stopped = await call('/api/queue/stop', {});
   assert.equal(started.status, 200); assert.equal(stopped.status, 200);
-  assert.deepEqual(Object.keys(started.data).sort(), ['limit', 'speedLimitKiB']); assert.deepEqual(stopped.data, started.data);
+  assert.deepEqual(Object.keys(started.data).sort(), ['limit', 'limitCount', 'speedLimitKiB']); assert.deepEqual(stopped.data, started.data);
   const accepted = await call('/api/settings', { addQueue: 'Videos', selectedQueue: 'Videos', queueLimit: 2 });
   assert.equal(accepted.status, 200); assert.equal(accepted.data.queue.limit, 2); assert.equal('queueNames' in accepted.data, false);
   const read = await call('/api/settings');
-  assert.deepEqual(Object.keys(read.data.queue).sort(), ['limit', 'speedLimitKiB'], 'the window gets the number at the same time and the speed limit, nothing about queues');
+  assert.deepEqual(Object.keys(read.data.queue).sort(), ['limit', 'limitCount', 'speedLimitKiB'], 'the window gets the number at the same time and the speed limit, nothing about queues');
   const schedule = await call('/api/automation', { schedule: { at: Date.now() + 3600000, queue: 'Videos' } });
   assert.equal(schedule.status, 200); assert.deepEqual(Object.keys(schedule.data.schedule), ['at'], 'an older window may still name a queue: ignored');
   assert.equal((await call('/api/automation', { schedule: null })).data.schedule, null);

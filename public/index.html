@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-appearance="compact" data-text-size="normal">
+<html lang="en" data-appearance="dense" data-text-size="normal">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Hypernab</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/reorder.css"><link rel="stylesheet" href="/compact.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/rtl.css"><link rel="stylesheet" href="/ds.css"><script src="/appearance.js"></script><script src="/ds.js"></script><script src="/strings.js"></script></head>
 <body>
   <!-- One icon set for the whole app: 24px grid, 1.8px rounded strokes (filled where a solid shape reads better). -->
@@ -32,6 +32,7 @@
     <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 8h.01"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7.5 10l4.5 4.5 4.5-4.5"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
     <symbol id="i-reset" viewBox="0 0 24 24"><path d="M4 11a8 8 0 1 1 2.3 6.7M4 5v6h6"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><g class="solid"><circle cx="12" cy="5.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="18.5" r="1.6"/></g></symbol>
@@ -101,6 +102,7 @@
       </section>
 
       <section class="queue" aria-label="Downloads" data-i18n-aria="app.downloads">
+        <div class="queue-top">
         <div class="queue-head">
 <h2><span data-i18n="app.downloads">Downloads</span> <span class="count" id="queue-count">0</span></h2>
 <p class="queue-stats" aria-label="Download summary" data-i18n-aria="app.summary">
@@ -108,7 +110,10 @@
 <span class="stat"><span class="stat-label" data-i18n="app.totalSpeed">Total speed</span> <strong id="stat-speed">0 <small>B/s</small></strong></span>
 <span class="stat"><span class="stat-label" data-i18n="app.filter.completed">Completed</span> <strong id="stat-complete">0</strong></span>
 </p>
-<label class="field inline queue-limit-field" title="The most downloads that run at the same time. All downloads share this number." data-i18n-title="app.concurrent.hint"><span data-i18n="app.concurrent">At the same time</span><span class="select"><select id="queue-limit" aria-label="At the same time" data-i18n-aria="app.concurrent"><option value="all" data-i18n="app.all">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option></select><svg class="ic"><use href="#i-chevron"/></svg></span></label>
+<div class="queue-limit-field" role="group" aria-labelledby="queue-limit-label" title="The most downloads that run at the same time. Untick it to run them all at once." data-i18n-title="app.concurrent.hint">
+<label class="hd-toggle"><input type="checkbox" class="hd-check" id="queue-limit-on"><span id="queue-limit-label" data-i18n="app.concurrent">At the same time</span></label>
+<span class="queue-limit-num" id="queue-limit-num"><button type="button" class="hd-icon-btn" id="queue-limit-down" title="One fewer at the same time" aria-label="One fewer at the same time" data-i18n-title="app.concurrent.less" data-i18n-aria="app.concurrent.less"><svg class="ic sm"><use href="#i-minus"/></svg></button><input class="hd-input" id="queue-limit-count" type="text" inputmode="numeric" maxlength="2" autocomplete="off" value="6" aria-label="Number of downloads at the same time" data-i18n-aria="app.concurrent.count"><button type="button" class="hd-icon-btn" id="queue-limit-up" title="One more at the same time" aria-label="One more at the same time" data-i18n-title="app.concurrent.more" data-i18n-aria="app.concurrent.more"><svg class="ic sm"><use href="#i-plus"/></svg></button></span>
+</div>
 </div>
         <div id="automation-bar" class="notice" hidden><svg class="ic"><use href="#i-clock"/></svg><span id="automation-status"></span><button class="btn sm ghost" id="cancel-power" hidden data-i18n="app.cancelFinish">Cancel the finish action</button></div>
         <div class="list-actions" role="toolbar" aria-label="List actions" data-i18n-aria="app.act.toolbar">
@@ -151,6 +156,7 @@
             </div></details>
 </div>
 </div>
+</div>
 <p id="list-notice" class="muted-text" role="status" aria-live="polite" hidden></p>
         <div id="job-list" class="job-list"><div class="job-columns" id="job-columns" role="row" aria-label="Column headers" data-i18n-aria="app.col.headers"></div>
         <div id="jobs"></div></div>
@@ -186,7 +192,7 @@
 </div></details></section>
 <section class="group" id="s-appearance"><div class="group-head"><h2 data-i18n="app.general">General</h2><button class="btn sm ghost" type="button" data-reset="general"><svg class="ic sm"><use href="#i-reset"/></svg><span data-i18n="app.resetSection">Reset to defaults</span></button></div>
             <div class="setting"><div><strong data-i18n="app.language">Language</strong><p class="hint" data-i18n="app.language.hint">The language of the app. “Same as Windows” follows Windows when the app has that language, otherwise English. The default subtitle language set to “Interface language” follows this too.</p></div><div class="setting-control"><span class="select"><select id="set-interfaceLanguage"><option value="auto" data-i18n="app.language.auto">Same as Windows</option><option value="en">English</option><option value="tr">Türkçe</option><option value="es">Español</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="ru">Русский</option><option value="pt">Português</option><option value="ar">العربية</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
-            <div class="setting"><div><strong data-i18n="app.layout">Layout</strong><p class="hint" data-i18n="app.layout.hint">Compact: plain rows and little space. Normal: wide cards. Running downloads are not affected.</p></div><div class="setting-control"><span class="select"><select id="set-appearance"><option value="compact" data-i18n="app.layout.compact">Compact (default)</option><option value="normal" data-i18n="app.layout.normal">Normal</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
+            <div class="setting"><div><strong data-i18n="app.layout">Layout</strong><p class="hint" data-i18n="app.layout.hint">Dense: one thin line per download. Compact: plain rows. Normal: wide cards. Running downloads are not affected.</p></div><div class="setting-control"><span class="select"><select id="set-appearance"><option value="dense" data-i18n="app.layout.dense">Dense (default)</option><option value="compact" data-i18n="app.layout.compact">Compact</option><option value="normal" data-i18n="app.layout.normal">Normal</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
             <div class="setting"><div><strong data-i18n="app.theme">Theme</strong><p class="hint" data-i18n="app.theme.hint">Dark, light, or follows Windows. Applied immediately.</p></div><div class="setting-control"><span class="select"><select id="set-theme"><option value="dark" data-i18n="app.theme.dark">Dark (default)</option><option value="light" data-i18n="app.theme.light">Light</option><option value="system" data-i18n="app.theme.system">Same as the system</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
             <div class="setting"><div><strong data-i18n="app.accent">Accent color</strong><p class="hint" data-i18n="app.accent.hint">The color used on buttons, progress and selections.</p></div><div class="setting-control"><span class="select"><select id="set-accent"><option value="green" data-i18n="app.accent.green">Green (default)</option><option value="blue" data-i18n="app.accent.blue">Blue</option><option value="orange" data-i18n="app.accent.orange">Orange</option><option value="violet" data-i18n="app.accent.purple">Purple</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>
             <div class="setting"><div><strong data-i18n="app.textSize">Text size</strong><p class="hint" data-i18n="app.textSize.hint">Independent of the layout. Your choice is saved and applied at once.</p></div><div class="setting-control"><span class="select"><select id="set-textSize"><option value="small" data-i18n="app.size.small">Small</option><option value="normal" data-i18n="app.layout.normal">Normal</option><option value="large" data-i18n="app.size.large">Large</option></select><svg class="ic sm"><use href="#i-chevron"/></svg></span></div></div>

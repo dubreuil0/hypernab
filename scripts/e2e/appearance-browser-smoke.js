@@ -21,7 +21,7 @@ try {
   browser = await chromiumBrowser(tools.chrome, path.join(dir, 'profile'), []);
   const one = await browser.create(origin), two = await browser.create(origin);
   for (const tab of [one, two]) await browserUntil(() => browser.eval(tab, 'document.querySelector("#connection")?.textContent.includes("aktif")'));
-  assert.equal(await browser.eval(one, 'document.documentElement.dataset.appearance'), 'compact');
+  assert.equal(await browser.eval(one, 'document.documentElement.dataset.appearance'), 'dense');
   assert.equal(await browser.eval(one, 'typeof hypernabDesktop'), 'undefined');
   assert.equal(await browser.eval(one, 'document.querySelectorAll("[data-job-location]").length'), 0);
   await browser.eval(one, `(()=>{document.querySelector('#open-settings').click();const s=document.querySelector('#set-appearance');s.value='normal';s.dispatchEvent(new Event('change'));return true;})()`);
@@ -33,7 +33,7 @@ try {
   assert.equal(await browser.eval(two, 'document.documentElement.dataset.appearance'), 'normal');
   assert.equal(await browser.eval(two, 'document.documentElement.dataset.textSize'), 'large');
   await browser.screenshot(two, path.join(dir, 'normal-web.png'));
-  console.log('OK real web UI: compact default, two-tab appearance/text sync, reload persistence and no desktop-only folder action');
+  console.log('OK real web UI: dense default, two-tab appearance/text sync, reload persistence and no desktop-only folder action');
 } finally {
   if (browser) await browser.close();
   if (child.exitCode === null) child.kill(); // only the isolated server this script created

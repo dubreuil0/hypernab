@@ -49,7 +49,7 @@ async function run(name, launch) {
     const overflow = () => ev(`Math.max(0, document.documentElement.scrollWidth - document.documentElement.clientWidth)`);
 
     // ---- the matrix: theme x layout x text size, both views
-    for (const theme of ['dark', 'light']) for (const appearance of ['compact', 'normal']) for (const textSize of ['small', 'large']) {
+    for (const theme of ['dark', 'light']) for (const appearance of ['dense', 'compact', 'normal']) for (const textSize of ['small', 'large']) {
       await save({ theme, appearance, textSize });
       for (const view of ['downloads', 'settings']) {
         await open(view);

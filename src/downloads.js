@@ -62,8 +62,11 @@ export async function openRemote(raw, signal, redirects = 0, headers = {}) {
 }
 
 // Settings shown in the app's Settings screen. Each check returns true or the message shown to the user.
+const DEFAULT_QUEUE_COUNT = 6, MAX_QUEUE_COUNT = 20; // "At the same time": the box is on with 6 by default; up to 20
+const validQueueCount = value => Number.isInteger(value) && value >= 1 && value <= MAX_QUEUE_COUNT;
+const SETTINGS_VERSION = 4; // 4: Dense layout is the default; At the same time = box + number
 const SETTING_DEFAULTS = {
-  appearance: 'compact',
+  appearance: 'dense',
   textSize: 'normal',
   theme: 'dark',            // 'dark', 'light' or 'system' (follows Windows)
   accent: 'green',          // accent colour: green, blue, orange or violet
@@ -110,7 +113,7 @@ const SETTING_CHECKS = {
   watchClipboard: bool('e.name.watch-clipboard'),
   subtitleMode: value => ['both', 'embed', 'sidecar', 'off'].includes(value) || m('e.invalid-subtitle-choice'),
   listLayout: value => validLayout(value) || m('e.invalid-list-layout'),
-  appearance: value => ['compact', 'normal'].includes(value) || m('e.invalid-appearance'),
+  appearance: value => ['dense', 'compact', 'normal'].includes(value) || m('e.invalid-appearance'),
   textSize: value => ['small', 'normal', 'large'].includes(value) || m('e.invalid-text-size'),
   theme: value => ['dark', 'light', 'system'].includes(value) || m('e.invalid-theme'),
   accent: value => ['green', 'blue', 'orange', 'violet'].includes(value) || m('e.invalid-accent-color'),
@@ -220,12 +223,17 @@ export class DownloadQueue {
     this.settingsFile = `${stateFile}.settings.json`;
     this.locale = locale ?? process.env.HYPERNAB_LOCALE ?? ''; // the language of Windows, which 'auto' interface language follows; tests pass their own
     this.defaultAutoRetries = autoRetries;
-    this.settings = { queueLimit: 'all', speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
+    this.settings = { queueLimit: DEFAULT_QUEUE_COUNT, queueLimitCount: DEFAULT_QUEUE_COUNT, speedLimitKiB: 0, ...SETTING_DEFAULTS, autoRetries }; // speed limit is per download; 0 means unlimited
     try {
       const saved = JSON.parse(fs.readFileSync(this.settingsFile, 'utf8'));
       for (const [key, check] of Object.entries(SETTING_CHECKS)) if (key in saved && check(saved[key]) === true) this.settings[key] = saved[key];
-      if (saved.queueLimit === 'all' || saved.queueLimitEnabled === false) this.settings.queueLimit = 'all'; // older files: "limit off" means all
-      else if (Number.isInteger(saved.queueLimit) && saved.queueLimit >= 1 && saved.queueLimit <= 6) this.settings.queueLimit = saved.queueLimit;
+      // At the same time: a saved 'all' (or the older "limit off") stays 'all' = box off; a saved number keeps the box on. The number is remembered while the box is off.
+      // A file without these keys (a setting never touched) gets the default: box on, 6.
+      this.settings.queueLimitCount = validQueueCount(saved.queueLimitCount) ? saved.queueLimitCount : validQueueCount(saved.queueLimit) ? saved.queueLimit : DEFAULT_QUEUE_COUNT;
+      if (saved.queueLimit === 'all' || saved.queueLimitEnabled === false) this.settings.queueLimit = 'all';
+      else if (validQueueCount(saved.queueLimit)) this.settings.queueLimit = saved.queueLimit;
+      // Dense is the new default layout. Only a saved Normal stays; the old default and the old explicit Compact cannot be told apart, so Compact moves to Dense once.
+      if ((saved.settingsVersion || 1) < SETTINGS_VERSION && saved.appearance !== 'normal') this.settings.appearance = 'dense';
       // Older files also hold named queues (queueNames / selectedQueue): there are none any more, those fields are simply not read.
       if (Number.isInteger(saved.speedLimitKiB) && saved.speedLimitKiB >= 0 && saved.speedLimitKiB <= 1048576) this.settings.speedLimitKiB = saved.speedLimitKiB;
       // The default is back to embedding only: no extra file next to the video, the track shows in the player's subtitle menu. A file still holding the
@@ -1040,7 +1048,7 @@ export class DownloadQueue {
   }
 
   // What the app window needs to know about how many run at once and how fast.
-  queueInfo() { return { limit: this.settings.queueLimit, speedLimitKiB: this.settings.speedLimitKiB }; }
+  queueInfo() { return { limit: this.settings.queueLimit, limitCount: this.settings.queueLimitCount, speedLimitKiB: this.settings.speedLimitKiB }; }
 
   setSettings(input = {}) {
     const next = { ...this.settings };
@@ -1048,9 +1056,15 @@ export class DownloadQueue {
       if (!Number.isInteger(input.speedLimitKiB) || input.speedLimitKiB < 0 || input.speedLimitKiB > 1048576) throw new Error(m('e.the-speed-limit-must-be-0'));
       next.speedLimitKiB = input.speedLimitKiB;
     }
+    if (input.queueLimitCount !== undefined) {
+      if (!validQueueCount(input.queueLimitCount)) throw new Error(m('e.the-number-of-simultaneous-downloads-must'));
+      next.queueLimitCount = input.queueLimitCount;
+      if (input.queueLimit === undefined && next.queueLimit !== 'all') next.queueLimit = input.queueLimitCount; // box on: the new number applies at once
+    }
     if (input.queueLimit !== undefined) {
-      if (input.queueLimit !== 'all' && (!Number.isInteger(input.queueLimit) || input.queueLimit < 1 || input.queueLimit > 6)) throw new Error(m('e.the-number-of-simultaneous-downloads-must'));
+      if (input.queueLimit !== 'all' && !validQueueCount(input.queueLimit)) throw new Error(m('e.the-number-of-simultaneous-downloads-must'));
       next.queueLimit = input.queueLimit;
+      if (input.queueLimit !== 'all' && input.queueLimitCount === undefined) next.queueLimitCount = input.queueLimit; // a number set directly is remembered
     }
     for (const [key, check] of Object.entries(SETTING_CHECKS)) {
       if (input[key] === undefined) continue;
@@ -1062,7 +1076,7 @@ export class DownloadQueue {
     this.settings = next;
     setMessageLanguage(this.interfaceLanguage()); // messages made from now on are in the new language
     fs.mkdirSync(path.dirname(this.settingsFile), { recursive: true });
-    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: 3 }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
+    fs.writeFileSync(`${this.settingsFile}.tmp`, JSON.stringify({ ...next, settingsVersion: SETTINGS_VERSION }, null, 2)); fs.renameSync(`${this.settingsFile}.tmp`, this.settingsFile);
     if (input.speedLimitKiB !== undefined) this.applySpeedLimit();
     if (!Object.keys(input).length || !Object.keys(input).every(key => VISUAL_SETTINGS.includes(key))) this.pump();
     return { ...next };

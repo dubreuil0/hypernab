@@ -23,9 +23,9 @@ test('settings validate atomically and persist across restarts', t => {
   assert.throws(() => queue.setSettings({ maxQuality: 1080, maxConnections: 50 }));
   assert.equal(queue.settings.maxQuality, 720);
 });
-test('compact is the default for new/old settings; visual changes do not touch the scheduler', t => {
+test('dense is the default for new/old settings; visual changes do not touch the scheduler', t => {
   const { queue, config } = fixture(t);
-  assert.equal(queue.settings.appearance, 'compact'); assert.equal(queue.settings.textSize, 'normal');
+  assert.equal(queue.settings.appearance, 'dense'); assert.equal(queue.settings.textSize, 'normal');
   let pumps = 0; queue.pump = () => { pumps++; };
   queue.setSettings({ appearance: 'normal', textSize: 'small' }); assert.equal(pumps, 0);
   for (const input of [{ appearance: 'tiny' }, { textSize: 12 }, { appearance: 'compact', textSize: 'invalid' }, { theme: 'neon' }, { accent: '#fff' }, { subtitleMode: 'burn' }]) assert.throws(() => queue.setSettings(input));
@@ -33,7 +33,7 @@ test('compact is the default for new/old settings; visual changes do not touch t
   const restored = new DownloadQueue(config); assert.equal(restored.settings.appearance, 'normal'); restored.stop();
   const saved = JSON.parse(fs.readFileSync(queue.settingsFile)); delete saved.appearance; delete saved.textSize;
   fs.writeFileSync(queue.settingsFile, JSON.stringify(saved));
-  const migrated = new DownloadQueue(config); assert.equal(migrated.settings.appearance, 'compact'); migrated.stop();
+  const migrated = new DownloadQueue(config); assert.equal(migrated.settings.appearance, 'dense'); migrated.stop();
 });
 test('folder changes affect new jobs only; history and partial data stay in their own folders', t => {
   const { queue, config, root } = fixture(t);
